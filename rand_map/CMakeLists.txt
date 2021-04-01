@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(rand_map)
 ##C++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+add_compile_options(-std=c++14)
 ##添加依赖
 find_package(catkin REQUIRED COMPONENTS
     roscpp 
@@ -14,6 +14,7 @@ find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 ##为本身构建依赖
 catkin_package(
+    CATKIN_DEPENDS
     INCLUDE_DIRS
 )
 ##添加头文件目录

@@ -11,7 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
         roscpp
         std_msgs
         sensor_msgs
-        OpenCV
         cv_bridge
         image_transport
         gnss_driver
@@ -126,6 +125,7 @@ include_directories(include
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
+
         ${Ceres_INCLUDE_DIRS}
 )
 
@@ -145,7 +145,9 @@ include_directories(include
 add_executable(gnss_get_posi src/gnss_get_posi.cpp)
 add_executable(opt_test src/opt_test.cpp)
 add_executable(steer_test src/steer_test.cpp)
-
+add_executable(opt_test_slidewindow src/opt_test_slidewindow.cc)
+add_executable(loam_pick_feature src/loam_pick_feature.cc)
+add_executable(temp src/temp.cc)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -157,6 +159,10 @@ add_executable(steer_test src/steer_test.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
+target_link_libraries(loam_pick_feature
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
 target_link_libraries(gnss_get_posi
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
@@ -171,6 +177,17 @@ target_link_libraries(opt_test
 target_link_libraries(steer_test
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+target_link_libraries(opt_test_slidewindow
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        )
+target_link_libraries(temp
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
         )
 #############

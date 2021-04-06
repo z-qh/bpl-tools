@@ -20,7 +20,7 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr lidarCloudLineProcessed(new pcl::PointCloud
 vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> lidarLine(16);//根据线号存储点云方便计算结算特征,vector嵌套要用指针，还要初始化
 pcl::PointCloud<pcl::PointXYZI> lidarCloudCorner;//存储特征值比较大的点云
 pcl::PointCloud<pcl::PointXYZI> lidarCloudSurf;//存储特征值比较小的点云
-
+//vector<vector<int>> pickOutPointIndex;//将一些不符合条件的点去掉
 vector<vector<pair<int, double>>> cloudFeatureVal(16);//存储每一个线上的所有点的特征值
 //清空所有点云
 void clearAllPointCloud() {
@@ -33,6 +33,7 @@ void clearAllPointCloud() {
     lidarCloudCorner.points.clear();
     lidarCloudSurf.points.clear();
     cloudFeatureVal.clear();
+    //pickOutPointIndex.clear();
 }
 //用于值对的排序，针对double排序，用在后面寻找最大小特征点的时候
 bool strict_weak_ordering(const pair<int, double> a, const pair<int, double> b)
@@ -80,7 +81,7 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
      */
     for(pcl::PointXYZI tempPoint : lidarCloudRaw->points)
     {
-        double angle = atan(tempPoint.y / sqrt(tempPoint.x * tempPoint.x + tempPoint.z * tempPoint.z)) * 180 / M_PI;
+        double angle = atan(tempPoint.z / sqrt(tempPoint.x * tempPoint.x + tempPoint.y * tempPoint.y)) * 180 / PI;
         int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5));
         int scanID;
         if(roundedAngle > 0)
@@ -90,8 +91,8 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
         if(scanID > 15 || scanID < 0)
             continue;
         lidarLine[scanID]->push_back(tempPoint);//分线存进点云中去
+        lidarCloudLineProcessed->points.push_back(tempPoint);
     }
-
     /*
      *针对分好线的点云，对每一线之间的点开始计算特征
      */
@@ -140,29 +141,59 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
     //拿到了一个点云数组分好线存着的，lidarLine
     //拿到了一个二维数组存储点云特征值，cloudFeatureVal
     /*
-     *针对每一线寻找其中的特征值最大的和最小的若干个点，存到corner和surf的点云中去
-     *用了值对的排序
+     * 如果连个点之间角度很小但是距离太大，那么将这两个点以及周围的12个点全部标记上去除
+     * 从第六个点开始到倒数第六个点,第一次比较是第六个点和第七个点，最后一次是倒数第六和倒数第七
      */
     for(size_t i = 0; i < lidarLine.size(); i++)
     {
+        if(lidarLine[i]->points.size() < 100 || cloudFeatureVal[i].size() < 100)
+            continue;
+        for(size_t j = 5; j < lidarLine[i]->points.size() - 6; j++)
+        {
+            double diffX = lidarLine[i]->points[j].x - lidarLine[i]->points[j+1].x;
+            double diffY = lidarLine[i]->points[j].y - lidarLine[i]->points[j+1].y;
+            double diffZ = lidarLine[i]->points[j].z - lidarLine[i]->points[j+1].z;
+            if(sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ) > 0.1)
+            {
+                cloudFeatureVal[i][j-5].first = -1;
+                cloudFeatureVal[i][j-4].first = -1;
+            }
+        }
+    }
+    /*
+     *针对每一线寻找其中的特征值最大的和最小的若干个点，存到corner和surf的点云中去
+     *用了值对的排序
+     */
+    int lindeCount = 0;
+    for(size_t i = 0; i < lidarLine.size(); i++)
+    {
         int pointNum = lidarLine[i]->points.size();
+        lindeCount += pointNum;
         int valNum = cloudFeatureVal[i].size();
-        if(pointNum <= 100 || valNum <= 100)
+        if(pointNum < 100 || valNum < 100)
             continue;
         //对pair类型的数组排序，针对double，升序
         sort(cloudFeatureVal[i].begin(), cloudFeatureVal[i].end(), strict_weak_ordering);
+
+        if(valNum != cloudFeatureVal[i].size())
+        {
+            cout << "fashenshenmeshile " << endl;
+        }
         //取排序好的中最小的10个点存到surf中去，还要防止这些点离得比较近
-        for(size_t j = 0; j < 10; j++)
+        for(int j = 0; j < 100; j++)
         {
             //将对应的点存到surf中去
-            lidarCloudSurf.push_back(lidarLine[i]->points[cloudFeatureVal[i][j].first]);
+            int tempPosi = cloudFeatureVal[i][j].first;
+            if(tempPosi != -1)
+                lidarCloudSurf.push_back(lidarLine[i]->points[tempPosi]);
         }
         //取排序好的中最大的10个点存到surf中去，还要防止这些点离得比较近
-        size_t tempFeaturSize = cloudFeatureVal[i].size();
-        for(size_t j = 0; j < 10; j++)
+        for(int j = 0; j < 100; j++)
         {
             //将对应的点存到corner中去
-            lidarCloudCorner.push_back(lidarLine[i]->points[cloudFeatureVal[i][tempFeaturSize-1-j].first]);
+            int tempPosi = cloudFeatureVal[i][valNum-1-j].first;
+            if(tempPosi != -1)
+                lidarCloudCorner.push_back(lidarLine[i]->points[tempPosi]);
         }
     }
     /*
@@ -181,6 +212,13 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
     pubLidarCloudCorner.publish(lidarCloudCornerPub);
     pubLidarCloudSurf.publish(lidarCloudSurfPub);
 
+    //int totalCount = lidarCloudLineProcessed->points.size();
+    //cout << "分好线的点云有" << lindeCount << endl;
+    //cout << "总共点云有" << totalCount << endl;
+    //int surfCount = lidarCloudSurf.points.size();
+    //int cornerCount = lidarCloudCorner.points.size();
+    //cout << "平面点有" << surfCount << endl;
+    //cout << "角点有" << cornerCount << endl;
 }
 
 

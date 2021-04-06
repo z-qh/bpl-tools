@@ -148,6 +148,7 @@ add_executable(steer_test src/steer_test.cpp)
 add_executable(opt_test_slidewindow src/opt_test_slidewindow.cc)
 add_executable(loam_pick_feature src/loam_pick_feature.cc)
 add_executable(temp src/temp.cc)
+add_executable(radar_points src/conver_radarimg_points.cc)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -185,6 +186,12 @@ target_link_libraries(opt_test_slidewindow
         ${CERES_LIBRARIES}
         )
 target_link_libraries(temp
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+target_link_libraries(radar_points
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}

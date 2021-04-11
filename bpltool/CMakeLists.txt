@@ -146,9 +146,11 @@ add_executable(gnss_get_posi src/gnss_get_posi.cpp)
 add_executable(opt_test src/opt_test.cpp)
 add_executable(steer_test src/steer_test.cpp)
 add_executable(opt_test_slidewindow src/opt_test_slidewindow.cc)
-add_executable(loam_pick_feature src/loam_pick_feature.cc)
+add_executable(feature_test src/feature_test.cc)
 add_executable(temp src/temp.cc)
 add_executable(radar_points src/conver_radarimg_points.cc)
+add_executable(odom src/odom.cc)
+add_executable(clusteringCloud src/clusteringCloud.cc)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -160,7 +162,7 @@ add_executable(radar_points src/conver_radarimg_points.cc)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(loam_pick_feature
+target_link_libraries(feature_test
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         )
@@ -192,6 +194,18 @@ target_link_libraries(temp
         ${OpenCV_LIBS}
         )
 target_link_libraries(radar_points
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+target_link_libraries(odom
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+target_link_libraries(clusteringCloud
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}

@@ -1,4 +1,4 @@
-#include "include/loam_header.h"
+#include "include/lo_header.h"
 
 //初始化过滤前几张点云
 bool enoughFrameFlag = false;   //过滤掉前几帧数据
@@ -20,7 +20,6 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr lidarCloudLineProcessed(new pcl::PointCloud
 vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> lidarLine(16);//根据线号存储点云方便计算结算特征,vector嵌套要用指针，还要初始化
 pcl::PointCloud<pcl::PointXYZI> lidarCloudCorner;//存储特征值比较大的点云
 pcl::PointCloud<pcl::PointXYZI> lidarCloudSurf;//存储特征值比较小的点云
-//vector<vector<int>> pickOutPointIndex;//将一些不符合条件的点去掉
 vector<vector<pair<int, double>>> cloudFeatureVal(16);//存储每一个线上的所有点的特征值
 //清空所有点云
 void clearAllPointCloud() {
@@ -148,15 +147,16 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
     {
         if(lidarLine[i]->points.size() < 100 || cloudFeatureVal[i].size() < 100)
             continue;
-        for(size_t j = 5; j < lidarLine[i]->points.size() - 6; j++)
+        for(size_t j = 5; j < lidarLine[i]->points.size() - 10; j++)
         {
             double diffX = lidarLine[i]->points[j].x - lidarLine[i]->points[j+1].x;
             double diffY = lidarLine[i]->points[j].y - lidarLine[i]->points[j+1].y;
             double diffZ = lidarLine[i]->points[j].z - lidarLine[i]->points[j+1].z;
             if(sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ) > 0.1)
             {
-                cloudFeatureVal[i][j-5].first = -1;
-                cloudFeatureVal[i][j-4].first = -1;
+                cloudFeatureVal[i][j-2].first = -1;
+                cloudFeatureVal[i][j-1].first = -1;
+                cloudFeatureVal[i][j].first = -1;
             }
         }
     }
@@ -186,6 +186,17 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
             int tempPosi = cloudFeatureVal[i][j].first;
             if(tempPosi != -1)
                 lidarCloudSurf.push_back(lidarLine[i]->points[tempPosi]);
+            if(cloudFeatureVal[i][j].first > 5 && cloudFeatureVal[i][j].first < valNum-5)
+            {
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first - 4].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first - 3].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first - 2].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first - 1].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first + 1].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first + 2].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first + 3].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][j].first + 4].first = -1;
+            }
         }
         //取排序好的中最大的10个点存到surf中去，还要防止这些点离得比较近
         for(int j = 0; j < 100; j++)
@@ -194,6 +205,17 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
             int tempPosi = cloudFeatureVal[i][valNum-1-j].first;
             if(tempPosi != -1)
                 lidarCloudCorner.push_back(lidarLine[i]->points[tempPosi]);
+            if(cloudFeatureVal[i][valNum-1-j].first > 5 && cloudFeatureVal[i][valNum-1-j].first < valNum-5)
+            {
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first - 4].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first - 3].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first - 2].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first - 1].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first + 1].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first + 2].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first + 3].first = -1;
+                cloudFeatureVal[i][cloudFeatureVal[i][valNum-1-j].first + 4].first = -1;
+            }
         }
     }
     /*

@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV)
 find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(LIBSUB)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -125,7 +126,6 @@ include_directories(include
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
-
         ${Ceres_INCLUDE_DIRS}
 )
 
@@ -151,6 +151,8 @@ add_executable(temp src/temp.cc)
 add_executable(radar_points src/conver_radarimg_points.cc)
 add_executable(odom src/odom.cc)
 add_executable(clusteringCloud src/clusteringCloud.cc)
+add_executable(elerealy src/elerealy.cc)
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -162,6 +164,13 @@ add_executable(clusteringCloud src/clusteringCloud.cc)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
+
+target_link_libraries(elerealy
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        usb-1.0
+        )
+
 target_link_libraries(feature_test
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
@@ -192,6 +201,7 @@ target_link_libraries(temp
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
+        usb-1.0
         )
 target_link_libraries(radar_points
         ${catkin_LIBRARIES}

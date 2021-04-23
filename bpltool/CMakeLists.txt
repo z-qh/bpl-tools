@@ -152,6 +152,8 @@ add_executable(radar_points src/conver_radarimg_points.cc)
 add_executable(odom src/odom.cc)
 add_executable(clusteringCloud src/clusteringCloud.cc)
 add_executable(elerealy src/elerealy.cc)
+add_executable(feature_test_seg src/feature_test_seg.cc)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -216,6 +218,13 @@ target_link_libraries(odom
         ${OpenCV_LIBS}
         )
 target_link_libraries(clusteringCloud
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+
+target_link_libraries(feature_test_seg
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}

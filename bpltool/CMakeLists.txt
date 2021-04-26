@@ -153,6 +153,7 @@ add_executable(odom src/odom.cc)
 add_executable(clusteringCloud src/clusteringCloud.cc)
 add_executable(elerealy src/elerealy.cc)
 add_executable(feature_test_seg src/feature_test_seg.cc)
+add_executable(traj_opt src/traj_opt.cc)
 
 
 ## Rename C++ executable without prefix
@@ -230,6 +231,14 @@ target_link_libraries(feature_test_seg
         ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
         )
+
+target_link_libraries(traj_opt
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+
 #############
 ## Install ##
 #############

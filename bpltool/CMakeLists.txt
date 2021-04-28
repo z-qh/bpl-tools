@@ -154,6 +154,8 @@ add_executable(clusteringCloud src/clusteringCloud.cc)
 add_executable(elerealy src/elerealy.cc)
 add_executable(feature_test_seg src/feature_test_seg.cc)
 add_executable(traj_opt src/traj_opt.cc)
+add_executable(pc_to_scan src/pc3d_to_scan2d.cc)
+
 
 
 ## Rename C++ executable without prefix
@@ -239,6 +241,13 @@ target_link_libraries(traj_opt
         ${OpenCV_LIBS}
         )
 
+
+target_link_libraries(pc_to_scan
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
 #############
 ## Install ##
 #############

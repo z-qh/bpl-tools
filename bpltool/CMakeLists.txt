@@ -155,6 +155,7 @@ add_executable(elerealy src/elerealy.cc)
 add_executable(feature_test_seg src/feature_test_seg.cc)
 add_executable(traj_opt src/traj_opt.cc)
 add_executable(pc_to_scan src/pc3d_to_scan2d.cc)
+add_executable(netCamera src/netCamera.cc)
 
 
 
@@ -174,6 +175,12 @@ target_link_libraries(elerealy
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         usb-1.0
+        )
+
+
+target_link_libraries(netCamera
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
         )
 
 target_link_libraries(feature_test

@@ -70,8 +70,7 @@ int main(int argc, char** argv)
     {
         if(!imgQueue.empty())
         {
-            img = imgQueue.front();
-            imgQueue.pop();
+            img = imgQueue.back();
             imshow("src", img);
             waitKey(10);
         }

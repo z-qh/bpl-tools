@@ -10,6 +10,26 @@
 #include <queue>
 #include <mutex>
 
+/*
+ * 安保机器人前后相机的ROS驱动，使用Opencv拉流的方法
+ * 依赖于Opencv，cv_bridge，sensor_msgs
+ * Cmake中添加以下依赖
+ * find_package(OpenCV)
+ * include_directories(include
+        ${catkin_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS})
+ * find_package(catkin REQUIRED COMPONENTS
+        roscpp
+        std_msgs
+        sensor_msgs
+        cv_bridge
+        )
+ * Cmake中添加编译链接
+ * add_executable(netCamera src/netCamera.cc)
+ * target_link_libraries(netCamera
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS})
+ */
 
 using namespace std;
 using namespace cv;

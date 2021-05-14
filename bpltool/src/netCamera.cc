@@ -45,10 +45,12 @@ void getImageStreamFront()
 {
     VideoCapture cap;
     Mat tempImg;
-    string camAdd = "rtsp://admin:Aa123456@192.168.1.63/h264/ch1/main/av_stream";
+    string camAdd = "rtsp://admin:Aa123456@192.168.1.63/h264/ch1/sub/av_stream";
     try
     {
-        cap.open(0);
+        cap.open(camAdd);
+        cap.set(CAP_PROP_BUFFERSIZE, 1);
+        cap.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M','J','P','G'));
     }
     catch (int e)
     {
@@ -74,10 +76,12 @@ void getImageStreamBack()
 {
     VideoCapture cap;
     Mat tempImg;
-    string camAdd = "rtsp://admin:Aa123456@192.168.1.64/h264/ch1/main/av_stream";
+    string camAdd = "rtsp://admin:Aa123456@192.168.1.64/h264/ch1/sub/av_stream";
     try
     {
         cap.open(camAdd);
+        cap.set(CAP_PROP_BUFFERSIZE, 1);
+        cap.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M','J','P','G'));
     }
     catch (int e)
     {
@@ -112,10 +116,10 @@ int main(int argc, char** argv)
 
     Mat img;
 
-    thread netCamGetThreadFront(getImageStreamFront);
+    //thread netCamGetThreadFront(getImageStreamFront);
     thread netCamGetThreadBack(getImageStreamBack);
 
-    netCamGetThreadFront.detach();
+    //netCamGetThreadFront.detach();
     netCamGetThreadBack.detach();
 
     while (ros::ok())

@@ -15,6 +15,8 @@ find_package(catkin REQUIRED COMPONENTS
         image_transport
         gnss_driver
         serial
+        tf2
+        tf2_geometry_msgs
 )
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -156,8 +158,8 @@ add_executable(feature_test_seg src/feature_test_seg.cc)
 add_executable(traj_opt src/traj_opt.cc)
 add_executable(pc_to_scan src/pc3d_to_scan2d.cc)
 add_executable(netCamera src/netCamera.cc)
-
-
+add_executable(tfExample src/tfExample.cc)
+add_executable(xyziToPcd src/xyziToPcd.cc)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -170,6 +172,10 @@ add_executable(netCamera src/netCamera.cc)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
+target_link_libraries(xyziToPcd
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
 
 target_link_libraries(elerealy
         ${catkin_LIBRARIES}
@@ -177,6 +183,10 @@ target_link_libraries(elerealy
         usb-1.0
         )
 
+target_link_libraries(tfExample
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
 
 target_link_libraries(netCamera
         ${catkin_LIBRARIES}

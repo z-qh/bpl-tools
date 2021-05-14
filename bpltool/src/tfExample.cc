@@ -25,6 +25,8 @@
 #include "tf2/transform_datatypes.h"                    //含有tf2::Stamped<T>数据类型
 
 
+#include "tf2_eigen/tf2_eigen.h"
+
 #include "Eigen/Eigen"
 #include "random"
 #include "vector"
@@ -47,15 +49,17 @@ int count = 0;
 
 void genRandomCircle()
 {
-    std::default_random_engine rng;
-    std::uniform_real_distribution<double> normalRandRad(0,3);
+    std::random_device rd;
+    std::default_random_engine rng(rd());
+    std::uniform_real_distribution<double> normalRandRad(1,2);
     //生成一个标准的圆形，总共有360个点，半径随机0-3之间
     std::vector<Eigen::Vector3d> circle;
+    double rad = normalRandRad(rng);
     for(int i = 0; i < 360; i++)
     {
         Eigen::Vector3d tempPoint;
-        tempPoint(0) = sin(i*M_PI/180.0) * normalRandRad(rng);
-        tempPoint(1) = cos(i*M_PI/180.0) * normalRandRad(rng);
+        tempPoint(0) = sin(i*M_PI/180.0) * rad;
+        tempPoint(1) = cos(i*M_PI/180.0) * rad;
         tempPoint(2) = 0;
         circle.push_back(tempPoint);
     }
@@ -63,21 +67,40 @@ void genRandomCircle()
     std::uniform_real_distribution<double> normalRandRoll(0,60);
     std::uniform_real_distribution<double> normalRandPitch(0,60);
     std::uniform_real_distribution<double> normalRandYaw(0,60);
+    //生成一个起点坐标
+    std::uniform_real_distribution<double> normalX(0,1);
+    std::uniform_real_distribution<double> normalY(0,1);
+    std::uniform_real_distribution<double> normalZ(0,1);
+    //计算角度值
     double roll = normalRandRoll(rng)*M_PI/180;
     double pitch = normalRandPitch(rng)*M_PI/180;
     double yaw = normalRandYaw(rng)*M_PI/180;
+
+    double X = normalX(rng);
+    double Y = normalX(rng);
+    double Z = normalX(rng);
+
     tf2::Quaternion quat;
     quat.setRPY(roll, pitch, yaw);
     Eigen::Matrix3d rot;
+    tf2::Matrix3x3 rotTf(quat);
+
+    rot << rotTf[0][0], rotTf[0][1], rotTf[0][2],
+            rotTf[1][0], rotTf[1][1], rotTf[1][2],
+            rotTf[2][0], rotTf[2][1], rotTf[2][2];
     
     //进行旋转
     for(int i = 0; i < circle.size(); i++)
     {
         Eigen::Vector3d tempPoint = circle[i];
         Eigen::Vector3d rotPoint = rot * tempPoint;
-        pcl::PointXYZ pclPoint(rotPoint.x(), rotPoint.y(), rotPoint.z());
+        pcl::PointXYZ pclPoint(rotPoint.x()+X, rotPoint.y()+Y, rotPoint.z()+Z);
         cloud.push_back(pclPoint);
     }
+}
+
+void trans()
+{
     pcl::toROSMsg(cloud, pubCloud);
     pubCloud.header.frame_id = "child2";
     pubCloud.header.stamp = ros::Time::now();
@@ -88,12 +111,13 @@ void changePosi()
     count++;
     if(count >= 180)
         count = 0;
-    int time = count % 9;
-    tfInMapAndChild2.transform.translation.x = 4;
+    int time = count / 10 % 9;
+    tfInMapAndChild2.transform.translation.x = time;
     tfInMapAndChild2.transform.translation.y = 0;
     tfInMapAndChild2.transform.translation.z = 0;
     tf2::Quaternion quat;
-    quat.setRPY(((double)count) / 3.1415926535, 0, 0);
+    quat.setRPY(time * 60 / 3.1415926535, 0, 0);
+    //quat.setRPY(0, 0, 0);
     tfInMapAndChild2.transform.rotation.x = quat.x();
     tfInMapAndChild2.transform.rotation.y = quat.y();
     tfInMapAndChild2.transform.rotation.z = quat.z();
@@ -112,7 +136,7 @@ int main(int argc, char** argv)
     tf2_ros::StaticTransformBroadcaster tfPub;
     tf2_ros::TransformBroadcaster tfPub2;
 
-    ros::Rate loop(1);
+    ros::Rate loop(10   );
 
     //广播变换前设置头信息，变换信息包括旋转四元数和平移三维向量
     tfInMapAndChild.header.frame_id = "map";
@@ -132,7 +156,9 @@ int main(int argc, char** argv)
     tfInMapAndChild2.header.stamp = ros::Time::now();
     tfInMapAndChild2.child_frame_id = "child2";
 
+
     genRandomCircle();
+
 
     //发布变换
     tfPub.sendTransform(tfInMapAndChild);
@@ -140,7 +166,9 @@ int main(int argc, char** argv)
     while (ros::ok())
     {
         changePosi();
+        tfInMapAndChild2.header.stamp = ros::Time::now();
         tfPub2.sendTransform(tfInMapAndChild2);
+        trans();
         pub.publish(pubCloud);
         ros::spinOnce();
         loop.sleep();

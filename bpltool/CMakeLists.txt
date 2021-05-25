@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
         serial
         tf2
         tf2_geometry_msgs
+        rosbag
 )
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -160,6 +161,10 @@ add_executable(pc_to_scan src/pc3d_to_scan2d.cc)
 add_executable(netCamera src/netCamera.cc)
 add_executable(tfExample src/tfExample.cc)
 add_executable(xyziToPcd src/xyziToPcd.cc)
+add_executable(getOneLidarFrameFile src/getOneLidarFrameFile.cc)
+add_executable(matchFrameToFrame src/matchFrameToFrame.cc)
+add_executable(cluster_test src/cluster_test.cc)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -172,6 +177,23 @@ add_executable(xyziToPcd src/xyziToPcd.cc)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
+
+
+target_link_libraries(cluster_test
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+
+target_link_libraries(matchFrameToFrame
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+
+target_link_libraries(getOneLidarFrameFile
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+
 target_link_libraries(xyziToPcd
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}

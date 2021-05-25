@@ -1,5 +1,3 @@
-#include "include/lo_header.h"
-
 /*
  * Tips，亿天一个小技巧
  *
@@ -15,6 +13,8 @@
  *pcl::PointCloud<pcl::PointXYZI>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZI>());
  *
  */
+
+#include "ros/ros.h"
 
 
 using namespace std;

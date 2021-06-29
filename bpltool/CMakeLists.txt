@@ -164,6 +164,7 @@ add_executable(xyziToPcd src/xyziToPcd.cc)
 add_executable(getOneLidarFrameFile src/getOneLidarFrameFile.cc)
 add_executable(matchFrameToFrame src/matchFrameToFrame.cc)
 add_executable(cluster_test src/cluster_test.cc)
+add_executable(seg_ground src/seg_ground.cc)
 
 
 ## Rename C++ executable without prefix
@@ -178,6 +179,12 @@ add_executable(cluster_test src/cluster_test.cc)
 
 ## Specify libraries to link a library or executable target against
 
+
+target_link_libraries(seg_ground
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
 
 target_link_libraries(cluster_test
         ${catkin_LIBRARIES}

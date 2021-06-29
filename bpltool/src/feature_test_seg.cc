@@ -1,3 +1,7 @@
+/*
+ * LOAM的特征点提取
+ */
+
 #include <cmath>
 #include <vector>
 

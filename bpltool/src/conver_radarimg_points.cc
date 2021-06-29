@@ -1,3 +1,8 @@
+/*
+ * 将Radar二维数据转成点云并发布
+ * 利用opencv读想数值并转为3D点
+ */
+
 #include "ros/ros.h"
 #include <iostream>
 #include "opencv2/opencv.hpp"

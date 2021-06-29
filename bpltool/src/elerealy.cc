@@ -1,3 +1,7 @@
+/*
+ * HID协议的继电器-USB模块
+ * 为杨佳辉师兄而写
+ */
 #include "ros/ros.h"
 #include "hidEledelay.hpp"
 

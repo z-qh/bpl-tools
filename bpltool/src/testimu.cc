@@ -1,3 +1,6 @@
+/*
+ * IMU的积分和预积分实验——未完成
+ */
 #include <iostream>
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"

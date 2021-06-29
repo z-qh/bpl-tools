@@ -1,3 +1,6 @@
+/*
+ * ceres使用示例，直线运动机器人，通过ceres优化窗口内的关键帧——未完成
+ */
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <nav_msgs/Odometry.h>

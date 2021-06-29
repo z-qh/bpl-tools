@@ -1,3 +1,6 @@
+/*
+ * 从Bag包里提出一张点云转成PCD
+ */
 #include "ros/ros.h"
 #include "rosbag/bag.h"
 #include "rosbag/view.h"

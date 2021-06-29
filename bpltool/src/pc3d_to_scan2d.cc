@@ -1,3 +1,6 @@
+/*
+ * 取三维激光点云最中间的线扫，当做二维激光数据使用
+ */
 #include "ros/ros.h"
 #include "iostream"
 #include "vector"

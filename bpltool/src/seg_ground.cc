@@ -1,3 +1,6 @@
+/*
+ * lego loam中的方法，分离地面点云和去除离群点
+ */
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 

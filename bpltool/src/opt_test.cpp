@@ -1,3 +1,6 @@
+/*
+ * 用ceres进行优化的简单示例，直线运动中存在噪声的机器人为例
+ */
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <nav_msgs/Odometry.h>

@@ -1,3 +1,7 @@
+/*
+ * 新车的前后摄像头的驱动
+ * 用Opencv拉流
+ */
 #include "ros/ros.h"
 #include "opencv2/opencv.hpp"
 #include "sensor_msgs/Image.h"

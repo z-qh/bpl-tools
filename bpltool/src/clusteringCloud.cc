@@ -113,7 +113,7 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
     //去除点数量比较少的聚类
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); )
     {
-        if(it->second <= 100)
+        if(it->second <= 500)
             classes.erase(it++);
         else
             it++;
@@ -157,8 +157,9 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "ClusterNode");
     ros::NodeHandle nh;
 
-    subCloud = nh.subscribe("/velodyne_points", 1, subCloudHandle);
+    //subCloud = nh.subscribe("/velodyne_points", 1, subCloudHandle);
     //subCloud = nh.subscribe("/rslidar_points", 1, subCloudHandle);
+    subCloud = nh.subscribe("/cloud_pure", 1, subCloudHandle);
     pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/cluster_points", 1);
 
     ros::spin();

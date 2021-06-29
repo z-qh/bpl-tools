@@ -1,3 +1,7 @@
+/*
+ * 使用样条函数对离散的点进行平滑——未完成
+ */
+
 #include <iostream>
 #include <fstream>
 #include <vector>

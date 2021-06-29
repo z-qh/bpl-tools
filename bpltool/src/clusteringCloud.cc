@@ -1,3 +1,7 @@
+/*
+ * CVC聚类并画框显示，订阅固定话题并发布结果点云
+ */
+
 #include "ros/ros.h"
 #include "sensor_msgs/PointCloud2.h"
 

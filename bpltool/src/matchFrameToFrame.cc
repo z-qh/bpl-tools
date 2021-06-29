@@ -1,3 +1,6 @@
+/*
+ * 两帧之间的位姿估计，ICP方法——未完成
+ */
 #include "ros/ros.h"
 
 #include "pcl/point_cloud.h"

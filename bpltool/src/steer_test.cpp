@@ -1,3 +1,7 @@
+/*
+ * 杨家辉师兄的舵机驱动
+ * 较早期版本
+ */
 #include <iostream>
 #include "ros/ros.h"
 #include "serial/serial.h"

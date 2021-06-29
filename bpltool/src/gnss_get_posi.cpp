@@ -1,3 +1,6 @@
+/*
+ * 从GNSS的话题中都区消息显示，用来简单验证GNSS设备的大致准确性
+ */
 #include "ros/ros.h"
 #include <fstream>
 //这个文件需要以来一个ROS下的消息文件，这个消息文件和生成的头文件都放在include下

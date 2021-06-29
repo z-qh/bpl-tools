@@ -234,13 +234,13 @@ void subLaserCloudHandle(const sensor_msgs::PointCloud2ConstPtr& lidarCloud)
     pubLidarCloudCorner.publish(lidarCloudCornerPub);
     pubLidarCloudSurf.publish(lidarCloudSurfPub);
 
-    //int totalCount = lidarCloudLineProcessed->points.size();
-    //cout << "分好线的点云有" << lindeCount << endl;
-    //cout << "总共点云有" << totalCount << endl;
-    //int surfCount = lidarCloudSurf.points.size();
-    //int cornerCount = lidarCloudCorner.points.size();
-    //cout << "平面点有" << surfCount << endl;
-    //cout << "角点有" << cornerCount << endl;
+    int totalCount = lidarCloudLineProcessed->points.size();
+    cout << "分好线的点云有" << lindeCount << endl;
+    cout << "总共点云有" << totalCount << endl;
+    int surfCount = lidarCloudSurf.points.size();
+    int cornerCount = lidarCloudCorner.points.size();
+    cout << "平面点有" << surfCount << endl;
+    cout << "角点有" << cornerCount << endl;
 }
 
 

@@ -11,6 +11,7 @@
 
 #include "pcl/common/common.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include "pcl/io/io.h"
 
 #include <iostream>
 #include <algorithm>
@@ -21,6 +22,10 @@ using namespace std;
 
 ros::Subscriber subCloud;//订阅点云
 ros::Publisher pubCloud;//发布点云
+
+ros::Publisher pubOneFrameCloud;//发布一帧单个拒聚类
+
+pcl::PointCloud<pcl::PointXYZI> pcaCloud;
 
 /*
  * 两点之间绘制直线，100个点每米
@@ -114,6 +119,8 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
         else
             it->second++;
     }
+
+
     //去除点数量比较少的聚类
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); )
     {
@@ -125,6 +132,8 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
     cout << classes.size() << endl;
     //保存点云，计算每个聚类的框框，然后画出来
     pcl::PointCloud<pcl::PointXYZI> saveCloud;
+
+    static int flag = 0;
     //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
     {
@@ -137,6 +146,12 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
             {
                 tempCloud.push_back(originCloud[i]);
             }
+
+            if(flag == 0 && tempCloud.size() >= 1000)
+            {
+                pcaCloud = tempCloud;
+                flag = 1;
+            }
         }
         //计算这部分点云的PCA并画框框
         Eigen::Vector4f min, max;
@@ -147,13 +162,25 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
         saveCloud += tempCloud;
     }
 
-
     //发布点云
     sensor_msgs::PointCloud2 ROSCloud;
     pcl::toROSMsg(saveCloud, ROSCloud);
     ROSCloud.header.frame_id = "map";
     ROSCloud.header.stamp = ros::Time::now();
     pubCloud.publish(ROSCloud);
+
+    //单独发布一个随意的聚类，并且保存下来
+    pcl::toROSMsg(pcaCloud, ROSCloud);
+    ROSCloud.header.frame_id = "map";
+    ROSCloud.header.stamp = ros::Time::now();
+    pubOneFrameCloud.publish(ROSCloud);
+
+    if(flag == 1)
+    {
+        flag = 2;
+        pcl::io::savePCDFileASCII("/home/qh/pca_Cloud.pcd", pcaCloud);
+        cout << "save success!" << endl;
+    }
 }
 
 int main(int argc, char** argv)
@@ -165,6 +192,8 @@ int main(int argc, char** argv)
     //subCloud = nh.subscribe("/rslidar_points", 1, subCloudHandle);
     subCloud = nh.subscribe("/cloud_pure", 1, subCloudHandle);
     pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/cluster_points", 1);
+
+    pubOneFrameCloud = nh.advertise<sensor_msgs::PointCloud2>("/pca_cloud", 1);
 
     ros::spin();
 

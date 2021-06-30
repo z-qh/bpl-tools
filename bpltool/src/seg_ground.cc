@@ -50,10 +50,13 @@ pcl::PointCloud<PointType>::Ptr fullInfoCloud;
 pcl::PointCloud<PointType>::Ptr outlierCloud;
 pcl::PointCloud<PointType>::Ptr segmentedCloud;
 pcl::PointCloud<PointType>::Ptr segmentedCloudPure;
+pcl::PointCloud<PointType>::Ptr segmentedCLoudGround;
 
-//距离矩阵，地面点标记，标签
+//距离矩阵，999999初始值未标记，距离值
 cv::Mat rangeMat = cv::Mat(N_SCAN, Horizon_SCAN, CV_32F, cv::Scalar::all(FLT_MAX));
+//地面点标记，1地面点，0初始值未标记，-1无效点
 cv::Mat groundMat = cv::Mat(N_SCAN, Horizon_SCAN, CV_8S, cv::Scalar::all(0));
+//标签矩阵，-1地面点，0未标记，聚类值，999999无效点
 cv::Mat labelMat = cv::Mat(N_SCAN, Horizon_SCAN, CV_32S, cv::Scalar::all(0));
 
 //初始角，终止角，角度差
@@ -87,6 +90,7 @@ void allocateMemory()
     segmentedCloud.reset(new pcl::PointCloud<PointType>());
     segmentedCloudPure.reset(new pcl::PointCloud<PointType>());
     outlierCloud.reset(new pcl::PointCloud<PointType>());
+    segmentedCLoudGround.reset(new pcl::PointCloud<PointType>());
 
     fullCloud->points.resize(N_SCAN*Horizon_SCAN);
     fullInfoCloud->points.resize(N_SCAN*Horizon_SCAN);
@@ -113,6 +117,7 @@ void resetParameters()
     segmentedCloud->clear();
     segmentedCloudPure->clear();
     outlierCloud->clear();
+    segmentedCLoudGround->clear();
 
     //矩阵重置
     rangeMat = cv::Mat(N_SCAN, Horizon_SCAN, CV_32F, cv::Scalar::all(FLT_MAX));
@@ -207,7 +212,7 @@ void groundRemoval()
             if (fullCloud->points[lowerInd].intensity == -1 ||
                 fullCloud->points[upperInd].intensity == -1)
             {
-                // no info to check, invalid points
+                // 无效点
                 groundMat.at<int8_t>(i,j) = -1;
                 continue;
             }
@@ -367,6 +372,7 @@ void cloudSegmentation()
 //发布点云
 void publishCloud()
 {
+    //将不含地面点的点云发布出去
     for (size_t i = 0; i < N_SCAN; ++i)
     {
         for (size_t j = 0; j < Horizon_SCAN; ++j)
@@ -376,12 +382,17 @@ void publishCloud()
                 segmentedCloudPure->push_back(fullCloud->points[j + i*Horizon_SCAN]);
                 segmentedCloudPure->points.back().intensity = labelMat.at<int>(i,j);
             }
+            if (labelMat.at<int>(i,j) == -1)
+            {
+                segmentedCLoudGround->push_back(fullCloud->points[j + i*Horizon_SCAN]);
+                segmentedCLoudGround->points.back().intensity = labelMat.at<int>(i,j);
+            }
         }
     }
     // 2. 发布点云
     sensor_msgs::PointCloud2 laserCloudTemp;
-    //带地面的分割后点云
-    pcl::toROSMsg(*segmentedCloud, laserCloudTemp);
+    //地面的分割后点云
+    pcl::toROSMsg(*segmentedCLoudGround, laserCloudTemp);
     laserCloudTemp.header.stamp = ros::Time::now();
     laserCloudTemp.header.frame_id = "map";
     pubSegmentedCloud.publish(laserCloudTemp);

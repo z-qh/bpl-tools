@@ -40,7 +40,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ PROJECT_SOURCES)
 
 add_executable(gnss_driver ${PROJECT_SOURCES})
 target_link_libraries(gnss_driver ${catkin_LIBRARIES})
-add_dependencies(gnss_driver ${${PROJECT_NAME}_EXPORTED_TARGETS} 
-${xsens_imu_driver_EXPORTED_TARGETS} 
-${catkin_EXPORTED_TARGETS} ${PCL_LIBRARIES})
+#add_dependencies(gnss_driver ${${PROJECT_NAME}_EXPORTED_TARGETS}
+#${xsens_imu_driver_EXPORTED_TARGETS}
+#${catkin_EXPORTED_TARGETS} ${PCL_LIBRARIES})
 

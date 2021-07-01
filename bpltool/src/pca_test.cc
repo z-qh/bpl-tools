@@ -17,6 +17,7 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
+#include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
@@ -52,6 +53,74 @@ pcl::PointCloud<pcl::PointXYZ> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B)
     return result;
 }
 
+
+double getCloudMaxDis(const pcl::PointXYZ center, pcl::PointCloud<pcl::PointXYZ>& cloud)
+{
+    double diss = 0;
+    for(int i = 0; i < cloud.size(); i++)
+    {
+        double dissX = cloud.points[i].x - center.x;
+        double dissY = cloud.points[i].y - center.y;
+        double dissZ = cloud.points[i].z - center.z;
+        double tempDiss = sqrt(dissX * dissX + dissY * dissY + dissZ * dissZ);
+        if(tempDiss > diss)
+        {
+            diss = tempDiss;
+        }
+    }
+    return diss;
+}
+
+pcl::PointXYZ getCloudCenter(const pcl::PointCloud<pcl::PointXYZ>& cloud)
+{
+    double sumX, sumY, sumZ;
+    for(int i = 0; i < cloud.size(); i++)
+    {
+        sumX += cloud.points[i].x;
+        sumY += cloud.points[i].y;
+        sumZ += cloud.points[i].z;
+    }
+    pcl::PointXYZ result;
+    result.x = sumX / cloud.size();
+    result.y = sumY / cloud.size();
+    result.z = sumZ / cloud.size();
+    cout << result.x << result.y << result.z << endl;
+    return result;
+}
+
+pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max)
+{
+    pcl::PointCloud<pcl::PointXYZ> frame;
+    frame.clear();
+    pcl::PointXYZ p[8];
+    //取出八个点坐标
+    p[0].x = max[0];  p[0].y = max[1];  p[0].z = max[2];
+    p[1].x = max[0];  p[1].y = max[1];  p[1].z = min[2];
+    p[2].x = max[0];  p[2].y = min[1];  p[2].z = max[2];
+    p[3].x = max[0];  p[3].y = min[1];  p[3].z = min[2];
+    p[4].x = min[0];  p[4].y = max[1];  p[4].z = max[2];
+    p[5].x = min[0];  p[5].y = max[1];  p[5].z = min[2];
+    p[6].x = min[0];  p[6].y = min[1];  p[6].z = max[2];
+    p[7].x = min[0];  p[7].y = min[1];  p[7].z = min[2];
+    //绘制一共是二个线条
+    frame += createLineCLoud(p[0], p[1]);
+    frame += createLineCLoud(p[2], p[3]);
+    frame += createLineCLoud(p[4], p[5]);
+    frame += createLineCLoud(p[6], p[7]);
+
+    frame += createLineCLoud(p[0], p[2]);
+    frame += createLineCLoud(p[1], p[3]);
+    frame += createLineCLoud(p[4], p[6]);
+    frame += createLineCLoud(p[5], p[7]);
+
+    frame += createLineCLoud(p[0], p[4]);
+    frame += createLineCLoud(p[2], p[6]);
+    frame += createLineCLoud(p[1], p[5]);
+    frame += createLineCLoud(p[3], p[7]);
+
+    return frame;
+}
+
 void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg)
 {
     //转为pcl数据
@@ -83,26 +152,34 @@ void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg)
             min = eigenValuesPca(i);
         }
     }
-
-    PointType O, A[3];
+    PointType O = getCloudCenter(inCloud);
+    double dissFactor = getCloudMaxDis(O, inCloud);
+    PointType orien[3];
     pcl::PointCloud<PointType> arrow;
-    O.x = 0, O.y = 0, O.z = 0;
     for(int i = 0; i < 3; i ++)
     {
         //if(i == flag)
         //    continue;
-        A[i].x = eigenVectorsPca.col(i)(0)*eigenValuesPca(i);
-        A[i].y = eigenVectorsPca.col(i)(1)*eigenValuesPca(i);
-        A[i].z = eigenVectorsPca.col(i)(2)*eigenValuesPca(i);
-        arrow += createLineCLoud(O, A[i]);
+        orien[i].x = O.x + eigenVectorsPca.col(i)(0)*eigenValuesPca(i)*dissFactor;
+        orien[i].y = O.y + eigenVectorsPca.col(i)(1)*eigenValuesPca(i)*dissFactor;
+        orien[i].z = O.z + eigenVectorsPca.col(i)(2)*eigenValuesPca(i)*dissFactor;
+        arrow += createLineCLoud(O, orien[i]);
+        orien[i].x = O.x - eigenVectorsPca.col(i)(0)*eigenValuesPca(i)*dissFactor;
+        orien[i].y = O.y - eigenVectorsPca.col(i)(1)*eigenValuesPca(i)*dissFactor;
+        orien[i].z = O.z - eigenVectorsPca.col(i)(2)*eigenValuesPca(i)*dissFactor;
+        arrow += createLineCLoud(O, orien[i]);
     }
+    Eigen::Vector4f min_pt, max_pt;
+    pcl::getMinMax3D(arrow, min_pt, max_pt);
+
+    arrow += createFrameCloud(min_pt, max_pt);
 
     sensor_msgs::PointCloud2 temp;
     pcl::toROSMsg(arrow, temp);
     temp.header.stamp = ros::Time::now();
     temp.header.frame_id = "map";
     pubResutlCloud.publish(temp);
-
+    cout << "center:" << O.x << O.y << O.z << endl;
     cout << eigenVectorsPca << endl;
     cout << eigenValuesPca << endl;
 }

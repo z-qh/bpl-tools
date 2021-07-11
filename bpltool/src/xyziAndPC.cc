@@ -6,13 +6,13 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <algorithm>
 
 #include "pcl_ros/io/pcd_io.h"
 #include "pcl/point_types.h"
 #include "pcl/point_cloud.h"
 
 using namespace std;
-
 
 struct XYZIFileType {
     float x;
@@ -21,7 +21,41 @@ struct XYZIFileType {
     float i;
 };
 
-int getXYZIFileData(vector< XYZIFileType>& cloud, string fileName = "C:/Users/10399/Desktop/points.xyzi")
+void convertPcdToXYZIFile(string inFile, string outFile);
+void convertXYZIFileToPcd(string inFileName, string outFileName);
+
+string mode;
+string xyziPath;
+string pcdPath;
+
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "xyziAndPC");
+    ros::NodeHandle nh("~");
+
+    nh.getParam("mode", mode);
+    transform(mode.begin(), mode.end(), mode.begin(), ::tolower);
+    nh.getParam("pcdPath", pcdPath);
+    nh.getParam("xyziPath", xyziPath);
+
+    if(mode.find("topcd") != -1)
+    {
+        convertXYZIFileToPcd(xyziPath, pcdPath);
+    }
+    else if(mode.find("toxyzi") != -1)
+    {
+        convertPcdToXYZIFile(pcdPath, xyziPath);
+    }
+    else
+        cout << "invalid param" << endl;
+
+    return 0;
+}
+
+/*
+ * 获取XYZI包中的点云数量
+ */
+int getXYZIFileData(vector< XYZIFileType>& cloud, string fileName)
 {
     cloud.clear();
     ifstream ifile;
@@ -54,10 +88,13 @@ int getXYZIFileData(vector< XYZIFileType>& cloud, string fileName = "C:/Users/10
     return cloud.size();
 }
 
-void convertXYZIFileToPcd(string outFileName = "C:/Users/10399/Desktop/points.pcd", string intFileName = "C:/Users/10399/Desktop/points.xyzi")
+/*
+ * 将XYZI转为PCD
+ */
+void convertXYZIFileToPcd(string inFileName, string outFileName)
 {
     vector<XYZIFileType> data;
-    int nums =  getXYZIFileData(data, intFileName);
+    int nums =  getXYZIFileData(data, inFileName);
 
     pcl::PointCloud<pcl::PointXYZI> cloud;
     cloud.width = nums;
@@ -75,9 +112,12 @@ void convertXYZIFileToPcd(string outFileName = "C:/Users/10399/Desktop/points.pc
     pcl::io::savePCDFileASCII(outFileName, cloud);
 }
 
-
-int main()
+/*
+ * 将PCD转为XYZI包
+ */
+void convertPcdToXYZIFile(string inFile, string outFile)
 {
-    convertXYZIFileToPcd();
-    return 0;
+    cout << "Yes" << endl;
 }
+
+

@@ -139,8 +139,8 @@ void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg)
     Eigen::Matrix3f eigenVectorsPca = eigen_solver.eigenvectors();//特征向量
     Eigen::Vector3f eigenValuesPca = eigen_solver.eigenvalues();//特征值
 
-    eigenVectorsPca.normalize();
-    eigenValuesPca.normalize();
+    //eigenVectorsPca.normalize();
+    //eigenValuesPca.normalize();
 
     int flag = 0;
     int min = eigenValuesPca(0);

@@ -1,0 +1,6 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="featureExtract" name="featureExtract" output="screen">
+        <param name="inputTopic" value="/rslidar_points"/>
+    </node>
+</launch>

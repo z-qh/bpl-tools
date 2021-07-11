@@ -52,13 +52,11 @@ int cloudNeighborPicked[40000];
 //点分类标号:2-代表曲率很大，1-代表曲率比较大,-1-代表曲率很小，0-曲率比较小(其中1包含了2,0包含了1,0和1构成了点云全部的点)
 int cloudLabel[40000];
 
-
 ros::Publisher pubLaserCloud;
 ros::Publisher pubCornerPointsSharp;
 ros::Publisher pubCornerPointsLessSharp;
 ros::Publisher pubSurfPointsFlat;
 ros::Publisher pubSurfPointsLessFlat;
-
 
 //接收点云数据，velodyne雷达坐标系安装为x轴向前，y轴向左，z轴向上的右手坐标系
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
@@ -460,16 +458,17 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     surfPointsLessFlat2.header.stamp = ros::Time::now();
     surfPointsLessFlat2.header.frame_id = "map";
     pubSurfPointsLessFlat.publish(surfPointsLessFlat2);
-
-
 }
+
+string inputTopic;
 
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "scanRegistration");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
+    nh.getParam("inputTopic", inputTopic);
 
-    ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/rslidar_points", 2, laserCloudHandler);
+    ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>(inputTopic, 2, laserCloudHandler);
 
     pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2>("/full_cloud_2", 2);
     pubCornerPointsSharp = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 2);

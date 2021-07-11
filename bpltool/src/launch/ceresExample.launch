@@ -1,0 +1,6 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="ceresExample" name="ceresExample" output="screen">
+
+    </node>
+</launch>

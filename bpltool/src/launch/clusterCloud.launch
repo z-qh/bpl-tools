@@ -1,0 +1,15 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="clusterCloud" name="clusterCloud" output="screen">
+        <!-- online mode need input topic name and output topic name -->
+        <param name="mode" value="rosOnLine"/>
+        <param name="inputTopic" value="/rslidar_points"/>
+        <param name="outputTopic" value="/cluster_points"/>
+
+        <!-- outline mode need input file name and output file name -->
+        <!--param name = "mode" value="outline"/-->
+        <param name="pcdInputFile" value="/home/qh/points2.pcd"/>
+        <param name="pcdOutputFile" value="/home/qh/points2Clouster.pcd"/>
+
+    </node>
+</launch>

@@ -186,7 +186,7 @@ void generatePosi(nav_msgs::Odometry& p, double x_bias, double y_bias, nav_msgs:
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "opt_test");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
 
     odomPub = nh.advertise<nav_msgs::Odometry>("/odom", 1);
     pathSub = nh.subscribe("/originPath", 1, handleOriginPath);

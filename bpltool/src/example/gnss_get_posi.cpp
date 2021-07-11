@@ -5,7 +5,7 @@
 #include <fstream>
 //这个文件需要以来一个ROS下的消息文件，这个消息文件和生成的头文件都放在include下
 //这个依赖项是gnss_driver,xsens_imu_driver,serial这三个包
-#include "include/gps_navi_msg.h"
+#include "../include/gps_navi_msg.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "tf/transform_datatypes.h"
 #include "tf/transform_broadcaster.h"

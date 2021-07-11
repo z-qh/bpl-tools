@@ -1,0 +1,10 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="seg_ground" name="seg_ground" output="screen">
+
+        <param name="inputTopic" value="/rslidar_points"/>
+        <param name="pureTopic" value="/pure_cloud"/>
+        <param name="groundTopic" value="/gropund_cloud"/>
+
+    </node>
+</launch>

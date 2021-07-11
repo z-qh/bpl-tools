@@ -72,6 +72,38 @@ uint16_t *queueIndX;
 uint16_t *queueIndY;
 int labelCount;
 
+void allocateMemory();
+void resetParameters();
+void copyPointCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg);
+void findStartEndAngle();
+void projectPointCloud();
+void groundRemoval();
+void labelComponents(int row, int col);
+void cloudSegmentation();
+void publishCloud();
+void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg);
+
+string inputTopic;
+string pureTopic;
+string groundTopic;
+
+int main(int argc, char** argv)
+{
+    allocateMemory();
+    ros::init(argc, argv, "seg_ground");
+    ros::NodeHandle nh("~");
+    nh.getParam("inputTopic", inputTopic);
+    nh.getParam("pureTopic", pureTopic);
+    nh.getParam("groundTopic", groundTopic);
+
+    subLidarCloud = nh.subscribe(inputTopic, 1, cloudHandler);
+    pubSegmentedCloud = nh.advertise<sensor_msgs::PointCloud2>(groundTopic, 1);
+    pubSegmentedCloudPure = nh.advertise<sensor_msgs::PointCloud2>(pureTopic, 1);
+
+    ros::spin();
+    return 0;
+}
+
 //分配内存
 void allocateMemory()
 {
@@ -430,17 +462,3 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     cout << " time cost: " << (time_used.count() * 1000) << " ms." << endl;
 }
 
-
-int main(int argc, char** argv)
-{
-    allocateMemory();
-    ros::init(argc, argv, "seg_ground");
-    ros::NodeHandle nh;
-
-    subLidarCloud = nh.subscribe("/rslidar_points", 1, cloudHandler);
-    pubSegmentedCloud = nh.advertise<sensor_msgs::PointCloud2>("/cloud_full", 1);
-    pubSegmentedCloudPure = nh.advertise<sensor_msgs::PointCloud2>("/cloud_pure", 1);
-
-    ros::spin();
-    return 0;
-}

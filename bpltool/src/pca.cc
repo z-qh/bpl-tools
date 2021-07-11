@@ -11,6 +11,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
@@ -30,8 +31,43 @@ ros::Subscriber subPcaPointCloud;
 ros::Publisher pubResutlCloud;
 ros::Publisher marker_pub;
 
+string mode;
+string inputTopic;
+string outputTopic;
 
-pcl::PointCloud<PointType> inCloud;
+pcl::PointCloud<pcl::PointXYZ> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B);
+double getCloudMaxDis(const pcl::PointXYZ center, pcl::PointCloud<pcl::PointXYZ>& cloud);
+pcl::PointXYZ getCloudCenter(const pcl::PointCloud<pcl::PointXYZ>& cloud);
+pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max);
+void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg);
+
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "pca_test");
+    ros::NodeHandle nh("~");
+    nh.getParam("mode", mode);
+    transform(mode.begin(), mode.end(), mode.begin(), ::tolower);
+    if(mode.find("online") != -1)
+    {
+        nh.getParam("inputTopic", inputTopic);
+        nh.getParam("outputTopic", outputTopic);
+        subPcaPointCloud = nh.subscribe<sensor_msgs::PointCloud2>(inputTopic, 1, subPcaPointCloudHandle);
+        pubResutlCloud = nh.advertise<sensor_msgs::PointCloud2>(outputTopic, 1);
+        ros::spin();
+    }
+    else if(mode.find("outline") != -1)
+    {
+
+    }
+    else
+    {
+        cout << "invalid param" << endl;
+        return 0;
+    }
+
+    return 0;
+}
+
 
 pcl::PointCloud<pcl::PointXYZ> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B)
 {
@@ -123,6 +159,7 @@ pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vect
 
 void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg)
 {
+    pcl::PointCloud<PointType> inCloud;
     //转为pcl数据
     pcl::fromROSMsg(msg, inCloud);
     //去除无用点
@@ -184,16 +221,3 @@ void subPcaPointCloudHandle(const sensor_msgs::PointCloud2 msg)
     cout << eigenValuesPca << endl;
 }
 
-int main(int argc, char** argv)
-{
-    ros::init(argc, argv, "pca_test");
-    ros::NodeHandle nh;
-
-    subPcaPointCloud = nh.subscribe<sensor_msgs::PointCloud2>("/pca_cloud", 1, subPcaPointCloudHandle);
-    pubResutlCloud = nh.advertise<sensor_msgs::PointCloud2>("/pca_result", 1);
-    marker_pub = nh.advertise<visualization_msgs::Marker>("/Orien", 1);
-
-    ros::spin();
-
-    return 0;
-}

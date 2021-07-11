@@ -118,20 +118,19 @@ catkin_package(
 #        CATKIN_DEPENDS other_catkin_pkg
 #        DEPENDS system_lib
 )
-
 ###########
 ## Build ##
 ###########
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include
+include_directories(
+        include
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
         ${Ceres_INCLUDE_DIRS}
 )
-
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/bpltool.cpp
@@ -145,29 +144,103 @@ include_directories(include
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(gnss_get_posi src/gnss_get_posi.cpp)
-add_executable(opt_test src/opt_test.cpp)
-add_executable(steer_test src/steer_test.cpp)
-add_executable(opt_test_slidewindow src/opt_test_slidewindow.cc)
-add_executable(feature_test src/feature_test.cc)
+## USING
 add_executable(temp src/temp.cc)
-add_executable(radar_points src/conver_radarimg_points.cc)
-add_executable(odom src/odom.cc)
-add_executable(clusteringCloud src/clusteringCloud.cc)
-add_executable(elerealy src/elerealy.cc)
-add_executable(feature_test_seg src/feature_test_seg.cc)
-add_executable(traj_opt src/traj_opt.cc)
-add_executable(pc_to_scan src/pc3d_to_scan2d.cc)
+target_link_libraries(temp
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        usb-1.0
+        )
+##
+add_executable(rand_map src/rand_map.cpp)
+target_link_libraries(rand_map
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+        ${PCL_LIBRARIES}
+        )
+##
+add_executable(ceresExample src/ceresExample.cpp)
+target_link_libraries(ceresExample
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        )
+##
 add_executable(netCamera src/netCamera.cc)
-add_executable(tfExample src/tfExample.cc)
-add_executable(xyziToPcd src/xyziToPcd.cc)
-add_executable(getOneLidarFrameFile src/getOneLidarFrameFile.cc)
-add_executable(matchFrameToFrame src/matchFrameToFrame.cc)
-add_executable(cluster_test src/cluster_test.cc)
+target_link_libraries(netCamera
+        ${catkin_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(pca src/pca.cc)
+target_link_libraries(pca
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(plumb src/plumb.cc)
+target_link_libraries(plumb
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(xyziAndPC src/xyziAndPC.cc)
+target_link_libraries(xyziAndPC
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+##
 add_executable(seg_ground src/seg_ground.cc)
-add_executable(pca_test src/pca_test.cc)
-
-
+target_link_libraries(seg_ground
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(clusterCloud src/clusterCloud.cc)
+target_link_libraries(clusterCloud
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+##
+add_executable(featureExtract src/featureExtract.cc)
+target_link_libraries(featureExtract
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(getPCD src/getPCD.cc)
+target_link_libraries(getPCD
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+## OLD
+add_executable(gnss_get_posi src/example/gnss_get_posi.cpp)
+target_link_libraries(gnss_get_posi
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+##
+add_executable(elerealy src/example/elerealy.cc)
+target_link_libraries(elerealy
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        usb-1.0
+        )
+add_executable(steer_test src/example/steer_test.cpp)
+target_link_libraries(steer_test
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -179,127 +252,6 @@ add_executable(pca_test src/pca_test.cc)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-
-target_link_libraries(pca_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-target_link_libraries(seg_ground
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-target_link_libraries(cluster_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-
-target_link_libraries(matchFrameToFrame
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-
-target_link_libraries(getOneLidarFrameFile
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-
-target_link_libraries(xyziToPcd
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-
-target_link_libraries(elerealy
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        usb-1.0
-        )
-
-target_link_libraries(tfExample
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-
-target_link_libraries(netCamera
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-target_link_libraries(feature_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-target_link_libraries(gnss_get_posi
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-target_link_libraries(opt_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${CERES_LIBRARIES}
-        )
-target_link_libraries(steer_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-target_link_libraries(opt_test_slidewindow
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        )
-target_link_libraries(temp
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        usb-1.0
-        )
-target_link_libraries(radar_points
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-target_link_libraries(odom
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-target_link_libraries(clusteringCloud
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-target_link_libraries(feature_test_seg
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-target_link_libraries(traj_opt
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-
-
-target_link_libraries(pc_to_scan
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
 #############
 ## Install ##
 #############

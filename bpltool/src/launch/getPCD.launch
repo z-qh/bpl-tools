@@ -1,0 +1,18 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+<node pkg="bpltool" type="getPCD" name="getPCD" output="screen">
+    <param name="savePathHeader" value="/home/qh/bagPCD"/>
+
+    <!-- online mode need input topic name and output topic name -->
+    <param name="mode" value="rosOnLine"/>
+    <param name="inputTopic" value="/rslidar_points"/>
+
+    <!-- outline mode need input file name and output file name -->
+    <!--param name = "mode" value="outline"/-->
+    <param name="bagPath" value="/home/qh/points.bag"/>
+    <param name="bagTopic" value="/rslidar_points"/>
+    <param name="bagPosition" value="100"/>
+
+</node>
+</launch>
+

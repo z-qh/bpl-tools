@@ -1,5 +1,5 @@
 /*
- * CVC聚类并画框显示，针对某一帧点云文件
+ * CVC聚类并画框显示，针对单一文件处理和在线处理
  */
 /*
  * Tips，亿天一个小技巧
@@ -8,28 +8,77 @@
  *vector<pcl::PointCloud<pcl::PointXYZI>> pointCloudVector(2);×
  *vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> pointCloudVector(2);√
  *
- *
  *直接使用点云，不需要对点云进行初始化，默认构造就好
- *
  *
  *使用点云智能指针，需要对点云进行初始化，像这样
  *pcl::PointCloud<pcl::PointXYZI>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZI>());
  *
  */
-
 #include "ros/ros.h"
+#include "sensor_msgs/PointCloud2.h"
 
 #include "CVC.hpp"
 
 #include "Eigen/Eigen"
 
 #include "pcl/common/common.h"
+#include "pcl_conversions/pcl_conversions.h"
 
 #include <iostream>
 #include <algorithm>
 #include <iterator>
 
 using namespace std;
+
+//launch 参数
+string mode;
+string inputTopic;
+string outputTopic;
+string pcdInputFile;
+string pcdOutputFile;
+
+ros::Subscriber subCloud;//订阅点云
+ros::Publisher pubCloud;//发布点云
+
+void subCloudHandle(const sensor_msgs::PointCloud2& msg);
+void outlineHandle(string inputFile, string outputName);
+pcl::PointCloud<pcl::PointXYZI> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max);
+pcl::PointCloud<pcl::PointXYZI> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B);
+
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "test_node");
+    ros::NodeHandle nh("~");
+
+    nh.getParam("mode", mode);
+    transform(mode.begin(), mode.end(), mode.begin(), ::tolower);
+
+    if(mode.find("outline") != -1)
+    {
+        nh.getParam("pcdInputFile", pcdInputFile);
+        nh.getParam("pcdOutputFile", pcdOutputFile);
+        cout << "input" << pcdInputFile << endl;
+        cout << "output" << pcdOutputFile << endl;
+        outlineHandle(pcdInputFile, pcdOutputFile);
+    }
+    else if(mode.find("online") != -1)
+    {
+        nh.getParam("inputTopic", inputTopic);
+        nh.getParam("outputTopic", outputTopic);
+        cout << "inputTopic" << inputTopic << endl;
+        cout << "outputTopic" << outputTopic << endl;
+        subCloud = nh.subscribe(inputTopic, 1, subCloudHandle);
+        pubCloud = nh.advertise<sensor_msgs::PointCloud2>(outputTopic, 1);
+        ros::spin();
+    }
+    else
+    {
+        cout << "invalid param" << endl;
+        return 0;
+    }
+    return 0;
+}
+
 /*
  * 两点之间绘制直线，100个点每米
  */
@@ -88,26 +137,22 @@ pcl::PointCloud<pcl::PointXYZI> createFrameCloud(Eigen::Vector4f min, Eigen::Vec
     return frame;
 }
 
-int main(int argc, char** argv)
+/*
+ * 离线单帧处理
+ */
+void outlineHandle(string inputFile, string outputName)
 {
-    ros::init(argc, argv, "test_node");
-    ros::NodeHandle nh;
-
-    ros::Rate loop(1);
-
     //读出PCD中的点云
-    pcl::PointCloud<pcl::PointXYZI> fram105;
-    pcl::io::loadPCDFile("/home/qh/frame105.pcd", fram105);
-
+    pcl::PointCloud<pcl::PointXYZI> frame;
+    pcl::io::loadPCDFile(inputFile, frame);
     //构建分类器
     vector<PointAPR> papr;
-    calculateAPR(fram105, papr);
+    calculateAPR(frame, papr);
     unordered_map<int, Voxel> hvoxel;
     build_hash_table(papr, hvoxel);
     vector<int> cluster_index = CVC(hvoxel, papr);
     vector<int> cluster_id;
     most_frequent_value(cluster_index, cluster_id);
-
     //统计分割种类
     map<int, int> classes;
     for(int i = 0; i < cluster_index.size(); i++)
@@ -141,7 +186,7 @@ int main(int argc, char** argv)
         {
             if(cluster_index[i] == it->first)
             {
-                tempCloud.push_back(fram105[i]);
+                tempCloud.push_back(frame[i]);
             }
         }
         //计算这部分点云的PCA并画框框
@@ -153,14 +198,85 @@ int main(int argc, char** argv)
         saveCloud += tempCloud;
     }
     cout << saveCloud.size() << endl;
-
     //保存
-    pcl::io::savePCDFileASCII("/home/qh/seg.pcd", saveCloud);
+    pcl::io::savePCDFileASCII(outputName, saveCloud);
+}
 
-    while (ros::ok())
+/*
+ * 在线处理回调
+ */
+void subCloudHandle(const sensor_msgs::PointCloud2& msg)
+{
+    pcl::PointCloud<pcl::PointXYZI> originCloud;
+    pcl::fromROSMsg(msg, originCloud);
+
+    //耗时统计
+    chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+
+    //构建分类器
+    vector<PointAPR> papr;
+    calculateAPR(originCloud, papr);
+    unordered_map<int, Voxel> hvoxel;
+    build_hash_table(papr, hvoxel);
+    vector<int> cluster_index = CVC(hvoxel, papr);
+    vector<int> cluster_id;
+    most_frequent_value(cluster_index, cluster_id);
+
+    //耗时统计
+    chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+    chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << " time cost: " << (time_used.count() * 1000) << " ms." << endl;
+
+    //统计聚类结果
+    map<int, int> classes;
+    for(int i = 0; i < cluster_index.size(); i++)
     {
-        loop.sleep();
+        map<int, int>::iterator it = classes.find(cluster_index[i]) ;
+        //如果不存在key则添加新的key，如果存在key则原有的值加一
+        if(it == classes.end())
+            classes.insert(make_pair(cluster_index[i], 1));
+        else
+            it->second++;
     }
 
-    return 0;
+    //去除点数量比较少的聚类
+    for(map<int, int>::iterator it = classes.begin(); it != classes.end(); )
+    {
+        if(it->second <= 500)
+            classes.erase(it++);
+        else
+            it++;
+    }
+    cout << classes.size() << endl;
+    //保存点云，计算每个聚类的框框，然后画出来
+    pcl::PointCloud<pcl::PointXYZI> saveCloud;
+
+    //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
+    for(map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
+    {
+        //保存聚类的点云
+        pcl::PointCloud<pcl::PointXYZI> tempCloud;
+        tempCloud.clear();
+        for(int i = 0; i < cluster_index.size(); i++)
+        {
+            if(cluster_index[i] == it->first)
+            {
+                tempCloud.push_back(originCloud[i]);
+            }
+        }
+        //计算这部分点云的PCA并画框框
+        Eigen::Vector4f min, max;
+        pcl::getMinMax3D(tempCloud, min, max);
+        tempCloud += createFrameCloud(min, max);
+
+        //将点云保存到总点云中
+        saveCloud += tempCloud;
+    }
+
+    //发布点云
+    sensor_msgs::PointCloud2 ROSCloud;
+    pcl::toROSMsg(saveCloud, ROSCloud);
+    ROSCloud.header.frame_id = "map";
+    ROSCloud.header.stamp = ros::Time::now();
+    pubCloud.publish(ROSCloud);
 }

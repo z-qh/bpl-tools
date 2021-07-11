@@ -1,0 +1,10 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="getPCD" name="getPCD" output="screen">
+
+        <param name="frontTopic" value="/frontImg"/>
+        <param name="backTopic" value="/backImg"/>
+
+    </node>
+</launch>
+

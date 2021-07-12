@@ -1,9 +1,8 @@
 <!-- -*- mode: XML -*- -->
 <launch>
     <node pkg="bpltool" type="xyziAndPC" name="xyziAndPC" output="screen">
-
         <param name="mode" value="toxyzi"/>
-        <param name="pcdPath" value="/home/qh/point.pcd"/>
-        <param name="xyziPath" value="/home/qh/point.xyzi"/>
+        <param name="pcdPath" value="/home/qh/points.pcd"/>
+        <param name="xyziPath" value="/home/qh/points.xyzi"/>
     </node>
 </launch>

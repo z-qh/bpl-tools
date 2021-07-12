@@ -15,9 +15,35 @@ const double angleFactor = SCAN_ANGLE / SCAN_NUMS * 1.0;
 using namespace std;
 
 ros::Subscriber subPointCloud;
+ros::Publisher pubPlumbCloud;
 
 typedef pcl::PointXYZI PointType;
-//提取其中的垂直特征
+
+pcl::PointCloud<pcl::PointXYZ> extractPlumbFeature(const pcl::PointCloud<pcl::PointXYZ>& cloud);
+void subPointCloudHandle(const sensor_msgs::PointCloud2& msg);
+
+string inputTopic;
+string outputTopic;
+
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "plumn_test");
+    ros::NodeHandle nh("~");
+    nh.getParam("inputTopic", inputTopic);
+    nh.getParam("outputTopic", outputTopic);
+
+    subPointCloud = nh.subscribe(inputTopic, 1, subPointCloudHandle);
+    pubPlumbCloud = nh.advertise<sensor_msgs::PointCloud2>(outputTopic, 1);
+
+    ros::spin();
+
+    return 0;
+
+}
+
+/*
+ * 提取其中的垂直特征
+ */
 pcl::PointCloud<pcl::PointXYZ> extractPlumbFeature(const pcl::PointCloud<pcl::PointXYZ>& cloud)
 {
     //划分有序点云
@@ -68,6 +94,9 @@ pcl::PointCloud<pcl::PointXYZ> extractPlumbFeature(const pcl::PointCloud<pcl::Po
     return cloud;
 
 }
+/*
+ * 回调处理
+ */
 void subPointCloudHandle(const sensor_msgs::PointCloud2& msg)
 {
     //接受去掉地面点的点云
@@ -76,14 +105,4 @@ void subPointCloudHandle(const sensor_msgs::PointCloud2& msg)
 
 }
 
-int main(int argc, char** argv)
-{
-    ros::init(argc, argv, "plumn_test");
-    ros::NodeHandle nh;
-    subPointCloud = nh.subscribe("/seg_points", 1, subPointCloudHandle);
 
-    ros::spin();
-
-    return 0;
-
-}

@@ -1,0 +1,9 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="plumb" name="plumb" output="screen">
+
+        <param name="inputTopic" value="/pure_cloud"/>
+        <param name="outputTopic" value="/plumb_cloud"/>
+
+    </node>
+</launch>

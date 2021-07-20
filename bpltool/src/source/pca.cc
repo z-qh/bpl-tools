@@ -138,6 +138,8 @@ pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vect
     p[5].x = min[0];  p[5].y = max[1];  p[5].z = min[2];
     p[6].x = min[0];  p[6].y = min[1];  p[6].z = max[2];
     p[7].x = min[0];  p[7].y = min[1];  p[7].z = min[2];
+
+
     //绘制一共是二个线条
     frame += createLineCLoud(p[0], p[1]);
     frame += createLineCLoud(p[2], p[3]);

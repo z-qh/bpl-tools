@@ -1,0 +1,6 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <include file="$(find bpltool)/src/launch/segGround.launch"/>
+    <include file="$(find bpltool)/src/launch/clusterCloud.launch"/>
+    <include file="$(find bpltool)/src/launch/pca.launch"/>
+</launch>

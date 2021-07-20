@@ -3,8 +3,9 @@
     <node pkg="bpltool" type="clusterCloud" name="clusterCloud" output="screen">
         <!-- online mode need input topic name and output topic name -->
         <param name="mode" value="online"/>
-        <param name="inputTopic" value="/rslidar_points"/>
+        <param name="inputTopic" value="/pure_cloud"/>
         <param name="outputTopic" value="/cluster_points"/>
+        <param name="pcaPre" value="/pcaPre"/>
 
         <!-- outline mode need input file name and output file name -->
         <!--param name = "mode" value="outline"/-->

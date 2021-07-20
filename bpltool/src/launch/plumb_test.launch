@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find bpltool)/src/launch/segGround.launch"/>
+    <include file="$(find bpltool)/src/launch/plumb.launch"/>
+</launch>

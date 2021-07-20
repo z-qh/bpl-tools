@@ -145,7 +145,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
-add_executable(temp src/temp.cc)
+add_executable(temp src/source/temp.cc)
 target_link_libraries(temp
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
@@ -154,14 +154,14 @@ target_link_libraries(temp
         usb-1.0
         )
 ##
-add_executable(rand_map src/rand_map.cpp)
+add_executable(rand_map src/source/rand_map.cpp)
 target_link_libraries(rand_map
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
         ${PCL_LIBRARIES}
         )
 ##
-add_executable(ceresExample src/ceresExample.cpp)
+add_executable(ceresExample src/source/ceresExample.cpp)
 target_link_libraries(ceresExample
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
@@ -169,46 +169,46 @@ target_link_libraries(ceresExample
         ${CERES_LIBRARIES}
         )
 ##
-add_executable(netCamera src/netCamera.cc)
+add_executable(netCamera src/source/netCamera.cc)
 target_link_libraries(netCamera
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
         )
 ##
-add_executable(pca src/pca.cc)
+add_executable(pca src/source/pca.cc)
 target_link_libraries(pca
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${OpenCV_LIBS}
         )
 ##
-add_executable(plumb src/plumb.cc)
+add_executable(plumb src/source/plumb.cc)
 target_link_libraries(plumb
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${OpenCV_LIBS}
         )
 ##
-add_executable(xyziAndPC src/xyziAndPC.cc)
+add_executable(xyziAndPC src/source/xyziAndPC.cc)
 target_link_libraries(xyziAndPC
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         )
 ##
-add_executable(seg_ground src/seg_ground.cc)
+add_executable(seg_ground src/source/seg_ground.cc)
 target_link_libraries(seg_ground
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${OpenCV_LIBS}
         )
 ##
-add_executable(clusterCloud src/clusterCloud.cc)
+add_executable(clusterCloud src/source/clusterCloud.cc)
 target_link_libraries(clusterCloud
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         )
 ##
-add_executable(featureExtract src/featureExtract.cc)
+add_executable(featureExtract src/source/featureExtract.cc)
 target_link_libraries(featureExtract
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
@@ -216,7 +216,7 @@ target_link_libraries(featureExtract
         ${OpenCV_LIBS}
         )
 ##
-add_executable(getPCD src/getPCD.cc)
+add_executable(getPCD src/source/getPCD.cc)
 target_link_libraries(getPCD
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}

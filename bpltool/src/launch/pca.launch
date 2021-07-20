@@ -3,7 +3,7 @@
     <node pkg="bpltool" type="pca" name="pca" output="screen">
         <!-- online mode need input topic name and output topic name -->
         <param name="mode" value="rosOnLine"/>
-        <param name="inputTopic" value="/rslidar_points"/>
+        <param name="inputTopic" value="/pcaPre"/>
         <param name="outputTopic" value="/pca_points"/>
     </node>
 </launch>

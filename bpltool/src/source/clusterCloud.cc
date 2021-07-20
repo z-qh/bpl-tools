@@ -5,13 +5,13 @@
  * Tips，亿天一个小技巧
  *
  *vector里面嵌套非指针类型的点云将引发内存深浅拷贝错误，使用第二种方式请注意reset
- *vector<pcl::PointCloud<pcl::PointXYZI>> pointCloudVector(2);×
- *vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> pointCloudVector(2);√
+ *vector<pcl::PointCloud<pcl::PointXYZ>> pointCloudVector(2);×
+ *vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> pointCloudVector(2);√
  *
  *直接使用点云，不需要对点云进行初始化，默认构造就好
  *
  *使用点云智能指针，需要对点云进行初始化，像这样
- *pcl::PointCloud<pcl::PointXYZI>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZI>());
+ *pcl::PointCloud<pcl::PointXYZ>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZ>());
  *
  */
 #include "ros/ros.h"
@@ -36,14 +36,16 @@ string inputTopic;
 string outputTopic;
 string pcdInputFile;
 string pcdOutputFile;
+string pcaPre;
 
 ros::Subscriber subCloud;//订阅点云
 ros::Publisher pubCloud;//发布点云
+ros::Publisher pubOneCloud;
 
 void subCloudHandle(const sensor_msgs::PointCloud2& msg);
 void outlineHandle(string inputFile, string outputName);
-pcl::PointCloud<pcl::PointXYZI> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max);
-pcl::PointCloud<pcl::PointXYZI> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B);
+pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max);
+pcl::PointCloud<pcl::PointXYZ> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B);
 
 int main(int argc, char** argv)
 {
@@ -63,12 +65,14 @@ int main(int argc, char** argv)
     }
     else if(mode.find("online") != -1)
     {
+        nh.getParam("pcaPre", pcaPre);
         nh.getParam("inputTopic", inputTopic);
         nh.getParam("outputTopic", outputTopic);
         cout << "inputTopic" << inputTopic << endl;
         cout << "outputTopic" << outputTopic << endl;
         subCloud = nh.subscribe(inputTopic, 1, subCloudHandle);
         pubCloud = nh.advertise<sensor_msgs::PointCloud2>(outputTopic, 1);
+        pubOneCloud = nh.advertise<sensor_msgs::PointCloud2>(pcaPre, 1);
         ros::spin();
     }
     else
@@ -80,11 +84,32 @@ int main(int argc, char** argv)
 }
 
 /*
+ * 粗略确定点云中心
+ */
+pcl::PointXYZ getCloudCenter(const pcl::PointCloud<pcl::PointXYZ>& cloud)
+{
+    double sumX, sumY, sumZ;
+    for(int i = 0; i < cloud.size(); i++)
+    {
+        sumX += cloud.points[i].x;
+        sumY += cloud.points[i].y;
+        sumZ += cloud.points[i].z;
+    }
+    pcl::PointXYZ result;
+    result.x = sumX / cloud.size();
+    result.y = sumY / cloud.size();
+    result.z = sumZ / cloud.size();
+    cout << result.x << result.y << result.z << endl;
+    return result;
+}
+
+
+/*
  * 两点之间绘制直线，100个点每米
  */
-pcl::PointCloud<pcl::PointXYZI> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B)
+pcl::PointCloud<pcl::PointXYZ> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B)
 {
-    pcl::PointCloud<pcl::PointXYZI> result;
+    pcl::PointCloud<pcl::PointXYZ> result;
     result.clear();
     double diffX = A.x - B.x;
     double diffY = A.y - B.y;
@@ -93,7 +118,7 @@ pcl::PointCloud<pcl::PointXYZI> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B
     double nums = distance * 100;
     for(int i = 0; i < nums; i++)
     {
-        pcl::PointXYZI tempPoint;
+        pcl::PointXYZ tempPoint;
         tempPoint.x = B.x + diffX / nums * i;
         tempPoint.y = B.y + diffY / nums * i;
         tempPoint.z = B.z + diffZ / nums * i;
@@ -104,9 +129,9 @@ pcl::PointCloud<pcl::PointXYZI> createLineCLoud(pcl::PointXYZ A, pcl::PointXYZ B
 /*
  * 根据XYZ最大最小值画框
  */
-pcl::PointCloud<pcl::PointXYZI> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max)
+pcl::PointCloud<pcl::PointXYZ> createFrameCloud(Eigen::Vector4f min, Eigen::Vector4f max)
 {
-    pcl::PointCloud<pcl::PointXYZI> frame;
+    pcl::PointCloud<pcl::PointXYZ> frame;
     frame.clear();
     pcl::PointXYZ p[8];
     //取出八个点坐标
@@ -143,7 +168,7 @@ pcl::PointCloud<pcl::PointXYZI> createFrameCloud(Eigen::Vector4f min, Eigen::Vec
 void outlineHandle(string inputFile, string outputName)
 {
     //读出PCD中的点云
-    pcl::PointCloud<pcl::PointXYZI> frame;
+    pcl::PointCloud<pcl::PointXYZ> frame;
     pcl::io::loadPCDFile(inputFile, frame);
     //构建分类器
     vector<PointAPR> papr;
@@ -175,12 +200,12 @@ void outlineHandle(string inputFile, string outputName)
     }
     cout << classes.size() << endl;
     //保存点云，计算每个聚类的框框，然后画出来
-    pcl::PointCloud<pcl::PointXYZI> saveCloud;
+    pcl::PointCloud<pcl::PointXYZ> saveCloud;
     //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
     {
         //保存聚类的点云
-        pcl::PointCloud<pcl::PointXYZI> tempCloud;
+        pcl::PointCloud<pcl::PointXYZ> tempCloud;
         tempCloud.clear();
         for(int i = 0; i < cluster_index.size(); i++)
         {
@@ -207,7 +232,7 @@ void outlineHandle(string inputFile, string outputName)
  */
 void subCloudHandle(const sensor_msgs::PointCloud2& msg)
 {
-    pcl::PointCloud<pcl::PointXYZI> originCloud;
+    pcl::PointCloud<pcl::PointXYZ> originCloud;
     pcl::fromROSMsg(msg, originCloud);
 
     //耗时统计
@@ -249,13 +274,13 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
     }
     cout << classes.size() << endl;
     //保存点云，计算每个聚类的框框，然后画出来
-    pcl::PointCloud<pcl::PointXYZI> saveCloud;
+    pcl::PointCloud<pcl::PointXYZ> saveCloud;
 
     //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
     {
         //保存聚类的点云
-        pcl::PointCloud<pcl::PointXYZI> tempCloud;
+        pcl::PointCloud<pcl::PointXYZ> tempCloud;
         tempCloud.clear();
         for(int i = 0; i < cluster_index.size(); i++)
         {
@@ -264,7 +289,8 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
                 tempCloud.push_back(originCloud[i]);
             }
         }
-        //计算这部分点云的PCA并画框框
+
+        //画框
         Eigen::Vector4f min, max;
         pcl::getMinMax3D(tempCloud, min, max);
         tempCloud += createFrameCloud(min, max);

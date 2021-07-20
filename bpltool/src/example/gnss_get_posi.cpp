@@ -113,7 +113,7 @@ void handle_gps_callback(const gnss_driver::gps_navi_msg& msg)
     //std::cout << "yaw: " << NorthEastW << std::endl;
 
     current_time = ros::Time::now();
-    Odom.header.frame_id = "gps";
+    Odom.header.frame_id = "map";
     Odom.header.stamp = current_time;
     Odom.pose.pose.orientation.x = tempQuat.x;
     Odom.pose.pose.orientation.y = tempQuat.y;
@@ -128,7 +128,7 @@ void handle_gps_callback(const gnss_driver::gps_navi_msg& msg)
     sensor_msgs::PointCloud2 tmpCloud;
     pcl::toROSMsg(*groundTruth,tmpCloud);
     tmpCloud.header.stamp = current_time;
-    tmpCloud.header.frame_id = "gps";
+    tmpCloud.header.frame_id = "map";
     pub_groundTruth.publish(tmpCloud);
 }
 

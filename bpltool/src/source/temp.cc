@@ -75,9 +75,22 @@ int main(int argc, char** argv)
     subMap = nh.subscribe<sensor_msgs::PointCloud2>("/node_position", 1, handleMap);
     pubOdom = nh.advertise<nav_msgs::Odometry>("/hhh", 1);
     pubMap = nh.advertise<sensor_msgs::PointCloud2>("/qqq", 1);
+    //ros::spin();
 
 
-    ros::spin();
+    deque<sensor_msgs::PointCloud2> A;
+    sensor_msgs::PointCloud2 temp;
+    cout << A.size() << endl;
+    A.push_back(temp);
+    A.push_back(temp);
+    cout << A.size() << endl;
+    A.push_back(temp);
+    A.push_back(temp);
+    if(A.size() > 2)
+    {
+        A.pop_front();
+        cout << A.size() << endl;
+    }
 
     return 0;
 }

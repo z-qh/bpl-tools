@@ -1,20 +1,19 @@
-#ifndef _UTILITY_LIDAR_ODOMETRY_H_
-#define _UTILITY_LIDAR_ODOMETRY_H_
+#pragma once
 
-
+#define PCL_NO_PRECOMPILE
 #include <ros/ros.h>
 
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <nav_msgs/Odometry.h>
 
-#include "cloud_info.h"
+#include <opencv2/imgproc.hpp>
 
-#include <opencv2/opencv.hpp>
+#include <ceres/ceres.h>
+#include <ceres/rotation.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/range_image/range_image.h>
 #include <pcl/filters/filter.h>
@@ -22,10 +21,12 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/common/common.h>
 #include <pcl/registration/icp.h>
+#include <pcl/common/transforms.h>
 
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
- 
+#include <Eigen/Geometry>
+#include <Eigen/Core>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -41,12 +42,20 @@
 #include <limits>
 #include <iomanip>
 #include <array>
+#include <thread>
+#include <mutex>
 
-//#define PI 3.14159265
 
 using namespace std;
 
-typedef pcl::PointXYZI  PointType;
+// typedef pcl::PointXYZI  PointType;
+// lslidar
+//extern const int N_SCAN = 32;
+//extern const int Horizon_SCAN = 2000;
+//extern const float ang_res_x = 0.18;
+//extern const float ang_res_y = 1.0;
+//extern const float ang_bottom = 16.1;
+//extern const int groundScanInd = 15;
 
 //VLP-16
 extern const int N_SCAN = 16;
@@ -56,31 +65,17 @@ extern const float ang_res_y = 2.0;
 extern const float ang_bottom = 15.0+0.1;
 extern const int groundScanInd = 7;
 
-//Ouster OS1-64
-//extern const int N_SCAN = 64;
-//extern const int Horizon_SCAN = 1024;
-//extern const float ang_res_x = 360.0/float(Horizon_SCAN);
-//extern const float ang_res_y = 33.2/float(N_SCAN-1);
-//extern const float ang_bottom = 16.6+0.1;
-//extern const int groundScanInd = 15;
 
-//lslidar
-//extern const int N_SCAN = 32;
-//extern const int Horizon_SCAN = 2000;
-//extern const float ang_res_x = 0.18;
-//extern const float ang_res_y = 1.0;
-//extern const float ang_bottom = 16.1;
-//extern const int groundScanInd = 15;
-
-//extern const bool loopClosureEnableFlag = true;	        //闭环检测标志位
-extern const double mappingProcessInterval = 0.1;//map建图间隔控制，曾经是3hz--0.3秒
+extern const bool loopClosureEnableFlag = true;	        //闭环检测标志位
+extern const double mappingProcessInterval = 0.2;      //4hz??  0.2
 
 extern const float scanPeriod = 0.1;
 extern const int systemDelay = 0;
-extern const int imuQueLength = 200;
+extern const int imuQueLength = 100;
 
 extern const float sensorMountAngle = 0.0;
-extern const float segmentTheta = 1.0472; // segmentTheta=1.0472<==>60度,在imageProjection中用于判断平面
+//extern const float segmentTheta = 1.0472;
+extern const float segmentTheta = 45.0/180.0*M_PI;
 extern const int segmentValidPointNum = 5;
 extern const int segmentValidLineNum = 3;
 extern const float segmentAlphaX = ang_res_x / 180.0 * M_PI;
@@ -99,7 +94,7 @@ extern const int   surroundingKeyframeSearchNum = 50;
 
 extern const float historyKeyframeSearchRadius = 5.0;
 extern const int   historyKeyframeSearchNum = 25;
-extern const float historyKeyframeFitnessScore = 1.5;
+extern const float historyKeyframeFitnessScore = 0.3;
 
 extern const float globalMapVisualizationSearchRadius = 500.0;
 
@@ -134,5 +129,4 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
 )
 
 typedef PointXYZIRPYT  PointTypePose;
-
-#endif
+typedef pcl::PointXYZI PointType;

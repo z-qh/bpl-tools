@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="lo_handle" type="lo_handle" name="lo_handle" output="screen">
+        <param name="sourceBagPath" value="/home/qh/points.bag"/>
+        <param name="sourceBagPathTopic" value="/rslidar_points"/>
+    </node>
+</launch>
+

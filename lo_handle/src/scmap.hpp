@@ -11,14 +11,20 @@
 
 #include <gtsam/nonlinear/ISAM2.h>
 
+#include "include/Scancontext.h"
+
 using namespace gtsam;
 
-class mapOptimization{
+class SCmapOptimization{
 
 private:
+    /////////////////////
+    noiseModel::Base::shared_ptr robustNoiseModel;
+    SCManager scmanager;
+    float yawDiffRad;
     //回环检测标志位.，默认不弃用
     bool loopClosureEnableFlag;
-
+    ///////////////////////////
     NonlinearFactorGraph gtSAMgraph;
     Values initialEstimate;
     Values optimizedEstimate;
@@ -178,7 +184,7 @@ private:
     float ctRoll, stRoll, ctPitch, stPitch, ctYaw, stYaw, tInX, tInY, tInZ;
 
 public:
-    mapOptimization(bool loopFlag = false)
+    SCmapOptimization(bool loopFlag = true)
     {
         loopClosureEnableFlag = loopFlag;
         // 用于闭环图优化的参数设置，使用gtsam库
@@ -587,61 +593,45 @@ public:
 
     bool detectLoopClosure(){
 
+        /*
+         * SC
+         */
         latestSurfKeyFrameCloud->clear();
         nearHistorySurfKeyFrameCloud->clear();
         nearHistorySurfKeyFrameCloudDS->clear();
 
-        std::vector<int> pointSearchIndLoop;
-        std::vector<float> pointSearchSqDisLoop;
-        kdtreeHistoryKeyPoses->setInputCloud(cloudKeyPoses3D);
-        // 进行半径historyKeyframeSearchRadius内的邻域搜索，
-        // currentRobotPosPoint：需要查询的点，
-        // pointSearchIndLoop：搜索完的邻域点对应的索引
-        // pointSearchSqDisLoop：搜索完的每个邻域点与当前点之间的欧式距离
-        // 0：返回的邻域个数，为0表示返回全部的邻域点
-        kdtreeHistoryKeyPoses->radiusSearch(currentRobotPosPoint, historyKeyframeSearchRadius, pointSearchIndLoop, pointSearchSqDisLoop, 0);
-
-        closestHistoryFrameID = -1;
-        for (int i = 0; i < pointSearchIndLoop.size(); ++i){
-            int id = pointSearchIndLoop[i];
-            // 两个时间差值大于30秒
-            if (abs(cloudKeyPoses6D->points[id].time - timeLaserOdometry) > 30.0){
-                closestHistoryFrameID = id;
-                break;
-            }
-        }
-        if (closestHistoryFrameID == -1){
-            return false;
-        }
         latestFrameIDLoopCloure = cloudKeyPoses3D->points.size() - 1;
-        // 点云的xyz坐标进行坐标系变换(分别绕xyz轴旋转)
-        *latestSurfKeyFrameCloud += *transformPointCloud(cornerCloudKeyFrames[latestFrameIDLoopCloure], &cloudKeyPoses6D->points[latestFrameIDLoopCloure]);
-        *latestSurfKeyFrameCloud += *transformPointCloud(surfCloudKeyFrames[latestFrameIDLoopCloure],   &cloudKeyPoses6D->points[latestFrameIDLoopCloure]);
+        closestHistoryFrameID = -1;
+        auto detectResult = scmanager.detectLoopClosureID();
+        closestHistoryFrameID = detectResult.first;
+        yawDiffRad = detectResult.second;
+        if(closestHistoryFrameID == -1)
+            return false;
 
+        *latestSurfKeyFrameCloud += *transformPointCloud(cornerCloudKeyFrames[latestFrameIDLoopCloure], &cloudKeyPoses6D->points[closestHistoryFrameID]);
+        *latestSurfKeyFrameCloud += *transformPointCloud(surfCloudKeyFrames[latestFrameIDLoopCloure], &cloudKeyPoses6D->points[closestHistoryFrameID]);
 
-        pcl::PointCloud<PointType>::Ptr hahaCloud(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr SCACloud(new pcl::PointCloud<PointType>());
         int cloudSize = latestSurfKeyFrameCloud->points.size();
-        for (int i = 0; i < cloudSize; ++i){
-            if ((int)latestSurfKeyFrameCloud->points[i].intensity >= 0){
-                hahaCloud->push_back(latestSurfKeyFrameCloud->points[i]);
+        for(int k = 0; k < cloudSize; k++)
+        {
+            if((int)latestSurfKeyFrameCloud->points[k].intensity >= 0)
+            {
+                SCACloud->push_back(latestSurfKeyFrameCloud->points[k]);
             }
         }
         latestSurfKeyFrameCloud->clear();
-        *latestSurfKeyFrameCloud   = *hahaCloud;
+        *latestSurfKeyFrameCloud = *SCACloud;
 
-        // historyKeyframeSearchNum在utility.h中定义为25，前后25个点进行变换
-        for (int j = -historyKeyframeSearchNum; j <= historyKeyframeSearchNum; ++j){
-            if (closestHistoryFrameID + j < 0 || closestHistoryFrameID + j > latestFrameIDLoopCloure)
+        for(int j = -historyKeyframeSearchNum; j < historyKeyframeSearchNum; j++)
+        {
+            if(closestHistoryFrameID + j < 0 || closestHistoryFrameID + j > latestFrameIDLoopCloure)
                 continue;
-            // 要求closestHistoryFrameID + j在0到cloudKeyPoses3D->points.size()-1之间,不能超过索引
-            *nearHistorySurfKeyFrameCloud += *transformPointCloud(cornerCloudKeyFrames[closestHistoryFrameID+j], &cloudKeyPoses6D->points[closestHistoryFrameID+j]);
-            *nearHistorySurfKeyFrameCloud += *transformPointCloud(surfCloudKeyFrames[closestHistoryFrameID+j],   &cloudKeyPoses6D->points[closestHistoryFrameID+j]);
+            *nearHistorySurfKeyFrameCloud += *transformPointCloud(cornerCloudKeyFrames[closestHistoryFrameID + j], &cloudKeyPoses6D->points[closestHistoryFrameID + j]);
+            *nearHistorySurfKeyFrameCloud += *transformPointCloud(surfCloudKeyFrames[closestHistoryFrameID + j], &cloudKeyPoses6D->points[closestHistoryFrameID + j]);
         }
-
-        // 下采样滤波减少数据量
         downSizeFilterHistoryKeyFrames.setInputCloud(nearHistorySurfKeyFrameCloud);
         downSizeFilterHistoryKeyFrames.filter(*nearHistorySurfKeyFrameCloudDS);
-
 
         return true;
     }
@@ -661,52 +651,51 @@ public:
             if (potentialLoopFlag == false)
                 return;
         }
-        cout << "RS loop detected!" << endl;
+        cout << "SC loop detected!" << endl;
         potentialLoopFlag = false;
-
-        pcl::IterativeClosestPoint<PointType, PointType> icp;
-        icp.setMaxCorrespondenceDistance(100);
-        icp.setMaximumIterations(100);
-        icp.setTransformationEpsilon(1e-6);
-        icp.setEuclideanFitnessEpsilon(1e-6);
-        // 设置RANSAC运行次数
-        icp.setRANSACIterations(0);
-
-        icp.setInputSource(latestSurfKeyFrameCloud);
-        // 使用detectLoopClosure()函数中下采样刚刚更新nearHistorySurfKeyFrameCloudDS
-        icp.setInputTarget(nearHistorySurfKeyFrameCloudDS);
-        pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
-        // 进行icp点云对齐
-        icp.align(*unused_result);
-
-        // 为什么匹配分数高直接返回???分数高代表噪声太多
-        if (icp.hasConverged() == false || icp.getFitnessScore() > historyKeyframeFitnessScore)
-            return;
-
-
-        cout << "RS loop OK!" << endl;
-
+        //找到回环后处理
         float x, y, z, roll, pitch, yaw;
         Eigen::Affine3f correctionCameraFrame;
-        correctionCameraFrame = icp.getFinalTransformation();
-        // 得到平移和旋转的角度
-        pcl::getTranslationAndEulerAngles(correctionCameraFrame, x, y, z, roll, pitch, yaw);
-        Eigen::Affine3f correctionLidarFrame = pcl::getTransformation(z, x, y, yaw, roll, pitch);
-        Eigen::Affine3f tWrong = pclPointToAffine3fCameraToLidar(cloudKeyPoses6D->points[latestFrameIDLoopCloure]);
-        Eigen::Affine3f tCorrect = correctionLidarFrame * tWrong;
-        pcl::getTranslationAndEulerAngles (tCorrect, x, y, z, roll, pitch, yaw);
-        gtsam::Pose3 poseFrom = Pose3(Rot3::RzRyRx(roll, pitch, yaw), Point3(x, y, z));
-        gtsam::Pose3 poseTo = pclPointTogtsamPose3(cloudKeyPoses6D->points[closestHistoryFrameID]);
+        float noiseScore = 0.5; // constant is ok...
         gtsam::Vector Vector6(6);
-        float noiseScore = icp.getFitnessScore();
         Vector6 << noiseScore, noiseScore, noiseScore, noiseScore, noiseScore, noiseScore;
         constraintNoise = noiseModel::Diagonal::Variances(Vector6);
+        robustNoiseModel = gtsam::noiseModel::Robust::Create(
+                gtsam::noiseModel::mEstimator::Cauchy::Create(1), // optional: replacing Cauchy by DCS or GemanMcClure
+                gtsam::noiseModel::Diagonal::Variances(Vector6)
+        ); // - checked it works. but with robust kernel, map modification may be delayed (i.e,. requires more true-positive loop factors)
 
-        gtSAMgraph.add(BetweenFactor<Pose3>(latestFrameIDLoopCloure, closestHistoryFrameID, poseFrom.between(poseTo), constraintNoise));
-        isam->update(gtSAMgraph);
-        isam->update();
-        gtSAMgraph.resize(0);
+        bool isValidSCloopFactor = false;
+        if(closestHistoryFrameID != -1)
+        {
+            pcl::IterativeClosestPoint<PointType, PointType> icp;
+            icp.setMaxCorrespondenceDistance(100);
+            icp.setMaximumIterations(100);
+            icp.setTransformationEpsilon(1e-6);
+            icp.setEuclideanFitnessEpsilon(1e-6);
+            icp.setRANSACIterations(0);
+            icp.setInputSource(latestSurfKeyFrameCloud);
+            icp.setInputTarget(nearHistorySurfKeyFrameCloudDS);
+            pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
+            icp.align(*unused_result);
+            if(icp.hasConverged() == false || icp.getFitnessScore() > historyKeyframeFitnessScore)
+                isValidSCloopFactor = false;
+            else
+                isValidSCloopFactor = true;
+            if(isValidSCloopFactor == true)
+            {
+                correctionCameraFrame = icp.getFinalTransformation();
+                pcl::getTranslationAndEulerAngles(correctionCameraFrame, x, y, z, roll, pitch, yaw);
+                gtsam::Pose3 poseFrame = Pose3(Rot3::RzRyRx(roll, pitch, yaw), Point3(x, y, z));
+                gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
+                gtSAMgraph.add(BetweenFactor<Pose3>(latestFrameIDLoopCloure, closestHistoryFrameID, poseFrame.between(poseTo), robustNoiseModel));
+                isam->update(gtSAMgraph);
+                isam->update();
+                gtSAMgraph.resize(0);
 
+                cout << "SC loop OK!" << endl;
+            }
+        }
         aLoopIsClosed = true;
     }
 
@@ -1245,6 +1234,13 @@ public:
         pcl::copyPointCloud(*laserCloudCornerLastDS,  *thisCornerKeyFrame);
         pcl::copyPointCloud(*laserCloudSurfLastDS,    *thisSurfKeyFrame);
         pcl::copyPointCloud(*laserCloudOutlierLastDS, *thisOutlierKeyFrame);
+
+        /*
+           Scan Context loop detector
+           - ver 1: using surface feature as an input point cloud for scan context (2020.04.01: checked it works.)
+           - ver 2: using downsampled original point cloud (/full_cloud_projected + downsampling)
+           */
+        scmanager.makeAndSaveScancontextAndKeys(*thisSurfKeyFrame);
 
         cornerCloudKeyFrames.push_back(thisCornerKeyFrame);
         surfCloudKeyFrames.push_back(thisSurfKeyFrame);

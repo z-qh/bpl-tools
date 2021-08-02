@@ -9,65 +9,79 @@
 #include "map.hpp"
 #include "seg.hpp"
 #include "trans.hpp"
+#include "scmap.hpp"
+
 
 using namespace std;
 
-ros::Publisher TTTT;
-ros::Publisher RRRR;
-ros::Publisher EEEE;
+ros::Publisher mapOdomPub;
+ros::Publisher mapOdomNoLoopPub;
+ros::Publisher SCmapOdomPub;
+ros::Publisher odomTempPub;
+ros::Publisher cloudTempPub;
+
+//typedef sensor_msgs::PointCloud2ConstPtr SPCP;
 
 
-
-//string sourceBagPath = "/home/qh/points.bag";
-string sourceBagPath = "/media/qh/QH/Linuxbak/2020_9_16/2018-05-15-10-27-40_C.bag";
-
+string sourceBagPath = "/media/qh/QH/rosbagpack/kitti_odometry_00.bag";
+string sourceBagPathTopic = "/kitti/velo/pointcloud";
 
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "lo_handle");
     ros::NodeHandle nh("~");
-    nh.getParam("sourceBagPath", sourceBagPath);
+    //nh.getParam("sourceBagPath", sourceBagPath);
+    //nh.getParam("sourceBagPathTopic", sourceBagPathTopic);
 
-    TTTT = nh.advertise<sensor_msgs::PointCloud2>("/TTTT", 1);
-    RRRR = nh.advertise<nav_msgs::Odometry>("/RRRR", 1);
-    EEEE = nh.advertise<nav_msgs::Odometry>("/EEEE", 1);
+    mapOdomPub = nh.advertise<nav_msgs::Odometry>("/mapOdomPub", 1);
+    mapOdomNoLoopPub = nh.advertise<nav_msgs::Odometry>("/mapOdomNoLoopPub", 1);
+    SCmapOdomPub = nh.advertise<nav_msgs::Odometry>("/SCmapOdomPub", 1);
+
+    odomTempPub = nh.advertise<nav_msgs::Odometry>("/odomTempPub", 1);
+    cloudTempPub = nh.advertise<sensor_msgs::PointCloud2>("/cloudTempPub", 1);
 
     ImageProjection IP;
     FeatureAssociation FA;
     TransformFusion TF;
     mapOptimization MAP(true);
     mapOptimization MAP2(false);
+    SCmapOptimization SCMAP(true);
 
     rosbag::Bag bag;
     bag.open(sourceBagPath, rosbag::bagmode::Read);
-    vector<string> topics{"/rslidar_points"};
-
+    if(!bag.isOpen())
+    {
+        cout << "bag file load faild!" << endl;
+        return 0;
+    }
+    vector<string> topics;
+    topics.push_back(sourceBagPathTopic);
     rosbag::View view(bag, rosbag::TopicQuery(topics));
     rosbag::View::iterator it;
-
+    //地面分割
     sensor_msgs::PointCloud2 segCloud;
     detail_msgs::cloud_info segCloudInfo;
     sensor_msgs::PointCloud2 outCloud;
-
+    //特征提取
     sensor_msgs::PointCloud2 last_corner;
     sensor_msgs::PointCloud2 last_surf;
     sensor_msgs::PointCloud2 last_out;
     nav_msgs::Odometry odom;
-
+    //里程计
     nav_msgs::Odometry mapOdom;
     nav_msgs::Odometry mapOdomNoLoop;
+    nav_msgs::Odometry SCmapOdom;
 
-    ros::Rate loop(1);
-    int frameCunt = 0;
+    int frameCunt = 0;//帧计数器
     //耗时统计
     chrono::steady_clock::time_point t1;
-
+    //遍历bag
     for(it = view.begin(); it != view.end(); it++)
     {
         string nowTopic = (*it).getTopic();
         if(nowTopic == topics[0])
         {
-            static bool initFlag = true;
+            static bool initFlag = true;//初始化标志位，统计时间
             if(initFlag) {
                 t1 = chrono::steady_clock::now();
                 cout << "file open success!" << endl;
@@ -81,15 +95,19 @@ int main(int argc, char** argv)
             }
             sensor_msgs::PointCloud2 rosCloud = *tempCloud;
             frameCunt++;
+            //分割地面并处理
             IP.cloudHandler(rosCloud, segCloud, segCloudInfo, outCloud);
+            //帧间里程计
             FA.run(segCloud, segCloudInfo, outCloud, nullptr, last_corner, last_surf, last_out, odom);
+            //雷达里程计
             MAP.run(last_corner, last_surf, last_out, odom, nullptr, mapOdom);
             MAP2.run(last_corner, last_surf, last_out, odom, nullptr, mapOdomNoLoop);
-            //TTTT.publish(segCloud);
-            //TTTT.publish(last_corner);
-            //RRRR.publish(odom);
-            EEEE.publish(mapOdomNoLoop);
-            RRRR.publish(mapOdom);
+            SCMAP.run(last_corner, last_surf, last_out, odom, nullptr, SCmapOdom);
+            //发布消息
+            mapOdomPub.publish(mapOdom);
+            mapOdomNoLoopPub.publish(mapOdomNoLoop);
+            SCmapOdomPub.publish(SCmapOdom);
+
         }
     }
 

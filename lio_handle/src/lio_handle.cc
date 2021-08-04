@@ -11,7 +11,7 @@ string sourceBagPath;
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "lo_handle");
+    ros::init(argc, argv, "lio_handle");
     ros::NodeHandle nh("~");
     nh.getParam("sourceBagPath", sourceBagPath);
 

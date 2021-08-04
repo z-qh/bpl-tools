@@ -92,10 +92,32 @@ int main(int argc, char** argv)
         cout << A.size() << endl;
     }
 
+    pcl::PointCloud<pcl::PointXYZ> PPP;
+    for(int i = 0; i < 10000; i++)
+    {
+        pcl::PointXYZ tempP;
+        tempP.x = i;
+        tempP.y = i;
+        tempP.z = i;
+        PPP.push_back(tempP);
+    }
+
+    sensor_msgs::PointCloud2 SSS;
+    pcl::toROSMsg(PPP, SSS);
+
+    pcl::PointCloud<pcl::PointXYZ> CCC;
+    pcl::PointCloud<pcl::PointXYZ> DDD;
+
+    pcl::fromROSMsg(SSS, CCC);
+    cout << "before nums:" << CCC.points.size() << " " << SSS.header.seq << endl;
+
+
+    SSS.header.seq = 1;
+    pcl::fromROSMsg(SSS, DDD);
+    cout << "after nums:" << CCC.points.size() << " " << SSS.header.seq << endl;
+
     return 0;
 }
-
-
 
 
 

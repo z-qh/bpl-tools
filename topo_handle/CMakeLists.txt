@@ -21,8 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(OpenCV)
 find_package(PCL REQUIRED)
-find_package(Ceres REQUIRED)
-find_package(GTSAM REQUIRED)
+
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -121,14 +120,7 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
-        ${Ceres_INCLUDE_DIRS}
-        ${GTSAM_INCLUDE_DIR}
 )
-
-set(LIB_OPENCV_IMGPROC_DIR /usr/lib/x86_64-linux-gnu) #LIB_OPENCV_IMGPROC_DIR 是libtbb库的路径，缺哪个库找哪个，问题描述会有路径
-add_library(libtbb SHARED IMPORTED) #添加库文件
-set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_DIR}/libtbb.so.2) #对标库文件 这里的LIB_OPENCV_IMGPROC_DIR就是第一行定义的路径
-
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -143,9 +135,7 @@ add_executable(topo_handle src/topo_handle.cc)
 target_link_libraries(topo_handle
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
-        ${CHOLMOD_LIBRARIES} gtsam libtbb
         )
 ##
 ## Rename C++ executable without prefix

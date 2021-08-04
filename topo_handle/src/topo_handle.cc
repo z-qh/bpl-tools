@@ -19,7 +19,7 @@ string sourceBagPathOdomTopic = "/kitti/camera_left_poses";
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "lo_handle");
+    ros::init(argc, argv, "topo_handle");
     ros::NodeHandle nh("~");
 
     ros::Publisher groundCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/ground", 1);
@@ -32,8 +32,6 @@ int main(int argc, char** argv)
     Intersection IS;
     obstacle OBS;
     topomap TOPOMAP;
-
-
 
     sensor_msgs::PointCloud2 IS_cluster_cloud;
     sensor_msgs::PointCloud2 IS_ground_cloud;

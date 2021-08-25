@@ -132,6 +132,7 @@ void handle_gps_callback(const gnss_driver::gps_navi_msg& msg)
     pub_groundTruth.publish(tmpCloud);
 }
 
+
 int main(int argc, char** argv)
 {
     gps_file.open("/home/qh/nodelish.txt", std::ios::out);

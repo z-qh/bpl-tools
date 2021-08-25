@@ -22,102 +22,155 @@
 #include "pcl_conversions/pcl_conversions.h"
 using namespace std;
 
-//void test01();
-//void test02();
-//void test03();
-//void test04();
-//
-//void testTimeKdtree();
-
-void icp_test();
-
-ros::Subscriber subOdom;
-ros::Subscriber subMap;
-ros::Publisher pubOdom;
-ros::Publisher pubMap;
-
-void handleOdom(const nav_msgs::Odometry msgs)
+struct PointXYZIL
 {
-    nav_msgs::Odometry globalPose(msgs);
-    globalPose.header.frame_id = "map";
-    globalPose.header.stamp = ros::Time::now();
-    globalPose.pose.pose.position.x = msgs.pose.pose.position.z;
-    globalPose.pose.pose.position.y = msgs.pose.pose.position.x;
-    globalPose.pose.pose.position.z = msgs.pose.pose.position.y;
-    pubOdom.publish(globalPose);
-}
+    PCL_ADD_POINT4D
+    PCL_ADD_INTENSITY;
+    uint32_t label;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
 
-void handleMap(const sensor_msgs::PointCloud2 inCloud)
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIL,
+                                   (float, x, x)
+                                           (float, y, y)
+                                           (float, z, z)
+                                           (float, intensity, intensity)
+                                           (uint32_t, label, label)
+)
+
+typedef PointXYZIL PointSemantic;
+
+struct PointXYZIRPYT
 {
-    pcl::PointCloud<pcl::PointXYZI> globalPose;
-    pcl::fromROSMsg(inCloud, globalPose);
-    for(int i = 0; i < globalPose.size(); i++)
-    {
-        pcl::PointXYZI temp;
-        temp = globalPose.points[i];
-        globalPose.points[i].x = temp.z;
-        globalPose.points[i].y = temp.x;
-        globalPose.points[i].z = temp.y;
+    PCL_ADD_POINT4D
+    PCL_ADD_INTENSITY;
+    float roll;
+    float pitch;
+    float yaw;
+    double time;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
+                                   (float, x, x) (float, y, y)
+                                           (float, z, z) (float, intensity, intensity)
+                                           (float, roll, roll) (float, pitch, pitch) (float, yaw, yaw)
+                                           (double, time, time)
+)
+
+typedef PointXYZIRPYT PointTypePose;
+
+
+#include "rosbag/bag.h"
+#include "rosbag/view.h"
+#include "gnss_driver/gps_navi_msg.h"
+#include "tf/transform_datatypes.h"
+#include "pcl/io/io.h"
+#include "pcl/io/pcd_io.h"
+
+#include "tf2_ros/static_transform_broadcaster.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2/transform_datatypes.h"
+#include "tf/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
+
+bool isFirstGPS = true;
+bool isFirstGNSS = true;
+
+double first_Xe,first_Ye,first_Ze;
+double lat,lon,alt;
+double first_roll, first_pitch, first_yaw;
+double sinLat,cosLat,sinLon,cosLon;
+double NorthEastX,NorthEastY,NorthEastZ,NorthEastR,NorthEastP,NorthEastW;
+
+
+void BLH2ENU(double lat, double lon, double alt, double &x, double &y,
+             double &z, double sin_lat, double cos_lat, double sin_lon,
+             double cos_lon) {
+    //经度(单位为°),纬度(单位为°),高度(单位m),东北天坐标系下坐标,ECEF->ENU(trans)
+    lat = lat * M_PI / 180; // To rad.
+    lon = lon * M_PI / 180;
+    double f = 1 / 298.257223563; // WGS84
+    double A_GNSS = 6378137.0;         // WGS84
+    double B_GNSS = A_GNSS * (1 - f);
+    double e = sqrt(A_GNSS * A_GNSS - B_GNSS * B_GNSS) / A_GNSS;
+    double N = A_GNSS / sqrt(1 - e * e * sin(lat) * sin(lat));
+    // To ECEF  地心站直角坐标系
+    double Xe = (N + alt) * cos(lat) * cos(lon); //地心系下坐标(单位m)
+    double Ye = (N + alt) * cos(lat) * sin(lon);
+    double Ze = (N * (1 - (e * e)) + alt) * sin(lat);
+    if(isFirstGPS){
+        first_Xe = Xe;
+        first_Ye = Ye;
+        first_Ze = Ze;
+        isFirstGPS = false;
+        std::cout<<"xe "<<Xe<<" ye "<<Ye<<" ze "<<Ze<<std::endl;
+        std::cout<<lat<<" lon "<<lon<<" alt "<<alt<<std::endl;
     }
-    sensor_msgs::PointCloud2 tempCloud;
-    pcl::toROSMsg(globalPose, tempCloud);
-    tempCloud.header.frame_id = "map";
-    tempCloud.header.stamp = ros::Time::now();
-    pubMap.publish(tempCloud);
+    Xe -= first_Xe;
+    Ye -= first_Ye;
+    Ze -= first_Ze;
+
+    // To ENU
+    x = -Xe * sin_lon + Ye * cos_lon; //东北天坐标系下坐标
+    y = -Xe * sin_lat * cos_lon - Ye * sin_lat * sin_lon + Ze * cos_lat;
+    z = Xe * cos_lat * cos_lon + Ye * cos_lat * sin_lon + Ze * sin_lat;
+}
+pcl::PointXYZ handle_gps_callback(gnss_driver::gps_navi_msgConstPtr msg)
+{
+    pcl::PointXYZ result;
+
+    if(msg->latitude==0 || msg->longitude==0)
+        return result;
+    lat = msg->latitude;
+    lon = msg->longitude;
+    alt = msg->elevation;
+    if(isFirstGNSS){
+        std::cout<<"first init"<<std::endl;
+        isFirstGNSS = false;
+        sinLat = sin(lat * M_PI / 180.0);
+        cosLat = cos(lat * M_PI / 180);
+        sinLon = sin(lon * M_PI / 180);
+        cosLon = cos(lon * M_PI / 180);
+        first_roll = msg->rollAngle;
+        first_pitch = msg->pitchAngle;
+        first_yaw = -msg->yawAngle + 90;
+    }
+    BLH2ENU(lat, lon, alt, NorthEastX, NorthEastY, NorthEastZ, sinLat, cosLat, sinLon, cosLon);
+    pcl::PointXYZI thisPoint;
+    thisPoint.x = NorthEastX;
+    thisPoint.y = NorthEastY;
+    thisPoint.z = NorthEastZ;
+    NorthEastR = (msg->rollAngle);
+    NorthEastP = (msg->pitchAngle);
+    NorthEastW = (90-(msg->yawAngle));
+
+    geometry_msgs::Quaternion tempQuat;
+    tempQuat = tf::createQuaternionMsgFromRollPitchYaw(NorthEastR*M_PI/180.0, NorthEastP*M_PI/180.0, NorthEastW*M_PI/180.0);
+
+    result.x = thisPoint.x;
+    result.y = thisPoint.y;
+    result.z = thisPoint.z;
+
+    return result;
 }
 
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "odomTrans");
-    ros::NodeHandle nh;
-    subOdom = nh.subscribe<nav_msgs::Odometry>("/remove_obstacle_odom", 1, handleOdom);
-    subMap = nh.subscribe<sensor_msgs::PointCloud2>("/node_position", 1, handleMap);
-    pubOdom = nh.advertise<nav_msgs::Odometry>("/hhh", 1);
-    pubMap = nh.advertise<sensor_msgs::PointCloud2>("/qqq", 1);
-    //ros::spin();
+    ros::init(argc, argv, "AAAA");
+    ros::NodeHandle nh("~");
 
-
-    deque<sensor_msgs::PointCloud2> A;
-    sensor_msgs::PointCloud2 temp;
-    cout << A.size() << endl;
-    A.push_back(temp);
-    A.push_back(temp);
-    cout << A.size() << endl;
-    A.push_back(temp);
-    A.push_back(temp);
-    if(A.size() > 2)
+    while (ros::ok())
     {
-        A.pop_front();
-        cout << A.size() << endl;
+        std::cout << "123" << std::endl;
     }
-
-    pcl::PointCloud<pcl::PointXYZ> PPP;
-    for(int i = 0; i < 10000; i++)
-    {
-        pcl::PointXYZ tempP;
-        tempP.x = i;
-        tempP.y = i;
-        tempP.z = i;
-        PPP.push_back(tempP);
-    }
-
-    sensor_msgs::PointCloud2 SSS;
-    pcl::toROSMsg(PPP, SSS);
-
-    pcl::PointCloud<pcl::PointXYZ> CCC;
-    pcl::PointCloud<pcl::PointXYZ> DDD;
-
-    pcl::fromROSMsg(SSS, CCC);
-    cout << "before nums:" << CCC.points.size() << " " << SSS.header.seq << endl;
-
-
-    SSS.header.seq = 1;
-    pcl::fromROSMsg(SSS, DDD);
-    cout << "after nums:" << CCC.points.size() << " " << SSS.header.seq << endl;
-
     return 0;
 }
+
+
+
+
 
 
 

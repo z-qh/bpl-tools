@@ -25,11 +25,11 @@ find_package(OpenCV)
 find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(LIBSUB)
+find_package(GTSAM REQUIRED QUIET)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
 # catkin_python_setup()
-
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
@@ -130,6 +130,7 @@ include_directories(
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
         ${Ceres_INCLUDE_DIRS}
+        ${GTSAM_INCLUDE_DIR}
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -173,6 +174,16 @@ add_executable(netCamera src/source/netCamera.cc)
 target_link_libraries(netCamera
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}
+        )
+##
+add_executable(gtsamExample src/source/gtsamExample.cc)
+target_link_libraries(gtsamExample
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+        ${GTSAM_LIBRARY_DIRS}
+        ${CHOLMOD_LIBRARIES}
+        gtsam
         )
 ##
 add_executable(pca src/source/pca.cc)

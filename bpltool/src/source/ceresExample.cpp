@@ -221,3 +221,168 @@ int main(int argc, char** argv)
     }
     return 0;
 }
+
+
+
+#include "ceres/ceres.h"
+#include "pcl/common/common.h"
+#include "pcl/point_cloud.h"
+#include "pcl/registration/icp.h"
+#include "pcl/point_types.h"
+#include "Eigen/Eigen"
+
+//构建ceres求解类似ICP问题，N点-N点
+//点对点的优化icp位姿，残差三个自由度为平移上的误差，待优化的量六个自由度
+class ceres_icp{
+public:
+    template<typename T>
+    bool operator()(const T* const x, T* residual) const
+    {
+        //位置上的残差
+        Eigen::Matrix<T, 3, 1> posi;
+        posi[0] = x[0];
+        posi[1] = x[1];
+        posi[2] = x[2];
+        Eigen::Matrix<T, 3, 1> RPY;
+        RPY[0] = x[3];
+        RPY[1] = x[4];
+        RPY[2] = x[5];
+        Eigen::Matrix<T, 3, 1> P1;
+        P1[0] = (T)p1[0];
+        P1[1] = (T)p1[1];
+        P1[2] = (T)p1[2];
+        Eigen::Matrix<T, 3, 1> P2;
+        P2[0] = (T)p2[0];
+        P2[1] = (T)p2[1];
+        P2[2] = (T)p2[2];
+        Eigen::Matrix<T, 3, 3> quat;
+        quat = Eigen::AngleAxis<T>(RPY[0], Eigen::Matrix<T, 3, 1>::UnitZ()) *
+               Eigen::AngleAxis<T>(RPY[1], Eigen::Matrix<T, 3, 1>::UnitY()) *
+               Eigen::AngleAxis<T>(RPY[2], Eigen::Matrix<T, 3, 1>::UnitX());
+        Eigen::Matrix<T, 3, 1> temp;
+        temp = quat * P1 + posi - P2;//六自由度上的估计
+        //temp = quat * P1 - P2;//一自由度上的估计
+        residual[0] = temp[0];
+        residual[1] = temp[1];
+        residual[2] = temp[2];
+        return true;
+    }
+    //观测数据
+    const Eigen::Vector3f p1, p2;
+    ceres_icp() = delete;
+    ceres_icp(Eigen::Vector3f _p1, Eigen::Vector3f _p2)
+            :p1(_p1), p2(_p2)
+    {}
+};
+
+
+void ceres_icp_solve(vector<Eigen::Vector3f> nodesSetSour, vector<Eigen::Vector3f> nodesSetTar,
+                     pcl::PointCloud<pcl::PointXYZ>::Ptr source = nullptr,
+                     pcl::PointCloud<pcl::PointXYZ>::Ptr target = nullptr)
+{
+    //耗时统计
+    chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+
+    //构建最小二乘
+    int pNums = nodesSetSour.size();
+    bool succeed = false;
+    double result[6] = {0, 0, 0, 0, 0, 0};//初值
+    ceres::Problem problem;
+    for (int i = 0; i < pNums; i++) {
+        Eigen::Vector3f p1, p2;
+        p1 = nodesSetSour[i];
+        p2 = nodesSetTar[i];
+        ceres::CostFunction *cost_function = new ceres::AutoDiffCostFunction<ceres_icp, 3, 6>(new ceres_icp(p1, p2));
+        problem.AddResidualBlock(cost_function, nullptr, result);
+    }
+    succeed = solveOptimizationProblem(&problem);
+    if (succeed) {
+        cout << "6 dof final :";
+        for (int i = 0; i < 6; i++){
+            if (i < 3)  cout << result[i] << " ";
+            else        cout << result[i] * 180 / M_PI << " ";
+        }
+        cout << endl;
+    } else
+        cout << "6 dof ceres filed!" << endl;
+
+    //耗时统计
+    chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+    chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << "ceres time cost: " << (time_used.count() * 1000) << " ms." << endl;
+
+    //耗时统计
+    t1 = chrono::steady_clock::now();
+
+    //用pcl中的icp方法求解
+    if(source == nullptr || target == nullptr)
+        return;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr sourceCloud,targetCloud;
+    sourceCloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
+    targetCloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
+    *sourceCloud = *source;
+    *targetCloud = *target;
+    pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+    icp.setInputSource(sourceCloud);
+    icp.setInputTarget(targetCloud);
+    pcl::PointCloud<pcl::PointXYZ> finalCloud;
+    icp.align(finalCloud);
+    cout << "converged or not: " << icp.hasConverged() << endl;
+    cout << "score : " << icp.getFitnessScore() << endl;
+    double R, P, Y;
+    tf::Quaternion ori;
+
+    Eigen::Matrix4f mat;
+    mat = icp.getFinalTransformation();
+    Eigen::Matrix3f mat2;
+    mat2 << mat(0, 0), mat(0, 1), mat(0, 2),
+            mat(1, 0), mat(1, 1), mat(1, 2),
+            mat(2, 0), mat(2, 1), mat(2, 2);
+    Eigen::Quaternionf quat(mat2);
+    ori.setX(quat.x());
+    ori.setY(quat.y());
+    ori.setZ(quat.z());
+    ori.setW(quat.w());
+    tf::Matrix3x3(ori).getRPY(R, P, Y);
+    R = R * 180 / M_PI;
+    P = P * 180 / M_PI;
+    Y = Y * 180 / M_PI;
+    double icpResult[6];
+    icpResult[0] = mat(0, 3);
+    icpResult[1] = mat(1, 3);
+    icpResult[2] = mat(2, 3);
+    icpResult[3] = Y;
+    icpResult[4] = P;
+    icpResult[5] = R;
+
+    sourceCloud->clear();
+    targetCloud->clear();
+
+    if (icp.hasConverged())
+    {
+        cout << "icp final  :";
+        for (int i = 0; i < 6; i++) {
+            cout << icpResult[i] << " ";
+        }
+        cout << endl;
+    } else
+        cout << "icp filed!" << endl;
+    //耗时统计
+    t2 = chrono::steady_clock::now();
+    time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << "icp time cost: " << (time_used.count() * 1000) << " ms." << endl;
+
+}
+
+//构建ceres求解轨迹优化问题，N点+1点
+//问题描述为前面的N点为六自由度的位姿，最后的1点为六自由度的位姿
+//前N点为LO数据，后1点为GNSS数据等于位姿真实值，如何优化前面N点的位姿
+class ceres_traj_opt{
+public:
+    template<typename T>
+    bool operator()(const T* const x, T* residual) const{
+
+    }
+
+
+};

@@ -1,0 +1,9 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="binToBag" name="binToBag" output="screen">
+        <param name="bagPath" value="/home/qh/bin2bag/gnss.bag"/>
+        <param name="binPath" value="/home/qh/bin2bag/"/>
+        <param name="outPath" value="/home/qh/bin2bag/test.bag"/>
+        <param name="base" value="00" />
+    </node>
+</launch>

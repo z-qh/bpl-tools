@@ -155,16 +155,73 @@ pcl::PointXYZ handle_gps_callback(gnss_driver::gps_navi_msgConstPtr msg)
     return result;
 }
 
+vector<nav_msgs::Odometry> hisOdom;
+
+//qh add for debug
+void read_odom_from_file(std::vector<nav_msgs::Odometry>& msgs, std::string path)
+{
+    std::ifstream file;
+    file.open(path);
+    if(!file)
+        return;
+    msgs.clear();
+    int odomSize = 0;
+    file >> odomSize;
+    for(int i = 0; i < odomSize; i++)
+    {
+        nav_msgs::Odometry tempOdom;
+        file >> tempOdom.pose.pose.position.x
+             >> tempOdom.pose.pose.position.y
+             >> tempOdom.pose.pose.position.z
+             >> tempOdom.pose.pose.orientation.x
+             >> tempOdom.pose.pose.orientation.y
+             >> tempOdom.pose.pose.orientation.z
+             >> tempOdom.pose.pose.orientation.w;
+        msgs.push_back(tempOdom);
+    }
+    file.close();
+}
 
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "AAAA");
     ros::NodeHandle nh("~");
 
-    while (ros::ok())
+    read_odom_from_file(hisOdom, "/home/qh/B1HallCorrected.txt");
+
+    vector<string> topics;
+    topics.push_back("/os_cloud_node/points");
+    rosbag::Bag lmx;
+    lmx.open("/home/qh/B1HallOuster.bag", rosbag::bagmode::Read|rosbag::bagmode::Append);
+    if(!lmx.isOpen())
+        return 0;
+    rosbag::View VV(lmx, rosbag::TopicQuery(topics));
+    auto it = VV.begin();
+    int jump = 3;
+    int count = 0;
+
+    for(it = VV.begin(); it != VV.end(); it++)
     {
-        std::cout << "123" << std::endl;
+        string topic_now = it->getTopic();
+        if(topic_now == topics[0])
+        {
+            if(jump != 0){
+                jump--;
+                continue;
+            }
+            sensor_msgs::PointCloud2 tempMsg;
+            tempMsg = *(it->instantiate<sensor_msgs::PointCloud2>());
+            geometry_msgs::PoseStamped tempOdom;
+            tempOdom.header = tempMsg.header;
+            tempOdom.pose = hisOdom[count].pose.pose;
+            lmx.write("/current_pose", tempMsg.header.stamp, tempOdom);
+            cout << count << " done" << endl;
+            count++;
+        }
     }
+
+
+
     return 0;
 }
 

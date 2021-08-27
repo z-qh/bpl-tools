@@ -33,7 +33,7 @@ void wirte_odom_to_file(std::vector<nav_msgs::Odometry> msg, std::string path)
     file << odomSize << std::endl;
     for(int i = 0; i < odomSize; i++)
     {
-        file << setprecision(12) << msg[i].pose.pose.position.x << ""
+        file << setprecision(12) << msg[i].pose.pose.position.x << " "
         << msg[i].pose.pose.position.y << " "
         << msg[i].pose.pose.position.z << " "
         << msg[i].pose.pose.orientation.x << " "
@@ -153,37 +153,38 @@ int main(int argc, char** argv)
             //MAP2.run(last_corner, last_surf, last_out, odom, nullptr, mapOdomNoLoop);
             //SCMAP.run(last_corner, last_surf, last_out, odom, nullptr, SCmapOdom);
             //发布消息
-            mapOdomPub.publish(mapOdom);
-            mapOdomNoLoopPub.publish(mapOdomNoLoop);
-            SCmapOdomPub.publish(SCmapOdom);
+            //mapOdomPub.publish(mapOdom);
+            //mapOdomNoLoopPub.publish(mapOdomNoLoop);
+            //SCmapOdomPub.publish(SCmapOdom);
             //qh add for debug
-            // tf::Quaternion orientation;
-            // tf::quaternionMsgToTF(mapOdom.pose.pose.orientation, orientation);
-            // tf::Matrix3x3 ori(orientation);
-            // tf::Vector3 pose(mapOdom.pose.pose.position.x, 
-            //                  mapOdom.pose.pose.position.y,
-            //                  mapOdom.pose.pose.position.z); 
-            // tf::Matrix3x3 A(0, 0, 1, 1, 0, 0, 0, 1, 0);
-            // auto AT = A.inverse();
+            tf::Quaternion orientation;
+            tf::quaternionMsgToTF(mapOdom.pose.pose.orientation, orientation);
+            tf::Matrix3x3 ori(orientation);
+            tf::Vector3 pose(mapOdom.pose.pose.position.x,
+                          mapOdom.pose.pose.position.y,
+                          mapOdom.pose.pose.position.z);
+            tf::Matrix3x3 A(0, 0, 1, 1, 0, 0, 0, 1, 0);
+            auto AT = A.inverse();
 
-            // tf::Quaternion res_ori;
-            // (A * ori * AT).getRotation(res_ori);
-            // res_ori.normalize();
-            // tf::Vector3 res_pos = A * pose;
+            tf::Quaternion res_ori;
+            (A * ori * AT).getRotation(res_ori);
+            res_ori.normalize();
+            tf::Vector3 res_pos = A * pose;
 
-            // nav_msgs::Odometry correctedOdom;
-            // correctedOdom.pose.pose.orientation.x = res_ori.x();
-            // correctedOdom.pose.pose.orientation.y = res_ori.y();
-            // correctedOdom.pose.pose.orientation.z = res_ori.z();
-            // correctedOdom.pose.pose.orientation.w = res_ori.w();
-            // correctedOdom.pose.pose.position.x = res_pos.x();
-            // correctedOdom.pose.pose.position.y = res_pos.y();
-            // correctedOdom.pose.pose.position.z = res_pos.z();
-            // correctedOdom.header.frame_id = "map";
-            // correctedOdom.header.stamp = ros::Time::now();
+            nav_msgs::Odometry correctedOdom;
+            correctedOdom.pose.pose.orientation.x = res_ori.x();
+            correctedOdom.pose.pose.orientation.y = res_ori.y();
+            correctedOdom.pose.pose.orientation.z = res_ori.z();
+            correctedOdom.pose.pose.orientation.w = res_ori.w();
+            correctedOdom.pose.pose.position.x = res_pos.x();
+            correctedOdom.pose.pose.position.y = res_pos.y();
+            correctedOdom.pose.pose.position.z = res_pos.z();
+            correctedOdom.header.frame_id = "map";
+            correctedOdom.header.stamp = ros::Time::now();
+            if(correctedOdom.pose.pose.position.x != NAN)
+                hisOdom.push_back(correctedOdom);
+            mapOdomPub.publish(correctedOdom);
             //qh add for debug
-            //mapOdomPub.publish(correctedOdom);
-            //hisOdom.push_back(correctedOdom);//qh add for debug
 
         }
     }

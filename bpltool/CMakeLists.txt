@@ -176,6 +176,12 @@ target_link_libraries(netCamera
         ${OpenCV_LIBS}
         )
 ##
+add_executable(binToBag src/source/binToBag.cc)
+target_link_libraries(binToBag
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        )
+##
 add_executable(gtsamExample src/source/gtsamExample.cc)
 target_link_libraries(gtsamExample
         ${catkin_LIBRARIES}

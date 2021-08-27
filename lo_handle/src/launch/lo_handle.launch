@@ -1,6 +1,6 @@
 <launch>
     <node pkg="lo_handle" type="lo_handle" name="lo_handle" output="screen">
-        <param name="sourceBagPath" value="/home/qh/2021-08-25-10-49-48.bag"/>
+        <param name="sourceBagPath" value="/home/qh/B1HallOuster.bag"/>
         <!-- 
             /os_cloud_node/points
             /rslidar_points

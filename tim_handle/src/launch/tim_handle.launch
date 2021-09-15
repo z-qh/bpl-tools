@@ -1,0 +1,8 @@
+<launch>
+    <node pkg="lo_handle" type="lo_handle" name="lo_handle" output="screen">
+        <param name="sourceBagPath" value="/media/qh/QH/rosbagpack/2021-01-19-10-59-40DianQiLou.bag"/>
+        <param name="sourceBagPathTopic" value="/lslidar_point_cloud"/>
+        <param name="sourceBagGnssTopic" value="/gps_navi"/>
+    </node>
+</launch>
+

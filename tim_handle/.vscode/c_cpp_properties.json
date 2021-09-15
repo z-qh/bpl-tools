@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "",
+        "limitSymbolsToIncludedHeaders": true
+      },
+      "includePath": [
+        "/home/qh/qh_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/qh/qh_ws/src/Base_control/include/**",
+        "/home/qh/qh_ws/src/Insrob_server/include/**",
+        "/home/qh/qh_ws/src/Show_GPS/include/**",
+        "/home/qh/qh_ws/src/bpl-tools/gnss_driver/include/**",
+        "/home/qh/qh_ws/src/lio-mapping/include/**",
+        "/home/qh/qh_ws/src/local_map/include/**",
+        "/home/qh/qh_ws/src/ouster_example/ouster_ros/include/**",
+        "/home/qh/qh_ws/src/path_planner/include/**",
+        "/home/qh/qh_ws/src/platform_publisher/include/**",
+        "/home/qh/qh_ws/src/serial/include/**",
+        "/home/qh/qh_ws/src/slam_master/slam_algorithm/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS"
+    }
+  ],
+  "version": 4
+}

@@ -195,7 +195,7 @@ int main(int argc, char** argv)
 			
 			//提前设置好一些变量
 			sensor_msgs::Imu imuData;
-			imuData.header.frame_id = "/imu";
+			imuData.header.frame_id = "imu";
 			
 			std_msgs::Header synout_msg;
 			uint32_t synout_counter = 0;

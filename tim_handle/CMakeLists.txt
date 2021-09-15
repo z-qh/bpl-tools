@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(bpltool)
+project(tim_handle)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
@@ -13,8 +13,6 @@ find_package(catkin REQUIRED COMPONENTS
         sensor_msgs
         cv_bridge
         image_transport
-        gnss_driver
-        serial
         tf2
         tf2_geometry_msgs
         rosbag
@@ -24,12 +22,12 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV)
 find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
-find_package(LIBSUB)
-find_package(GTSAM REQUIRED QUIET)
+find_package(GTSAM REQUIRED)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
 # catkin_python_setup()
+
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
@@ -55,11 +53,6 @@ find_package(GTSAM REQUIRED QUIET)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -112,9 +105,8 @@ find_package(GTSAM REQUIRED QUIET)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
         CATKIN_DEPENDS
-        rosserial_msgs
 #        INCLUDE_DIRS include
-#        LIBRARIES bpltool
+#        LIBRARIES tim_handle
 #        CATKIN_DEPENDS other_catkin_pkg
 #        DEPENDS system_lib
 )
@@ -132,10 +124,11 @@ include_directories(
         ${Ceres_INCLUDE_DIRS}
         ${GTSAM_INCLUDE_DIR}
 )
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/bpltool.cpp
-# )
+
+set(LIB_OPENCV_IMGPROC_DIR /usr/lib/x86_64-linux-gnu) #LIB_OPENCV_IMGPROC_DIR 是libtbb库的路径，缺哪个库找哪个，问题描述会有路径
+add_library(libtbb SHARED IMPORTED) #添加库文件
+set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_DIR}/libtbb.so.2) #对标库文件 这里的LIB_OPENCV_IMGPROC_DIR就是第一行定义的路径
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -146,141 +139,15 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
-#
-
-add_executable(relocateTIM src/source/relocateTIM.cc)
-target_link_libraries(relocateTIM
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-#
-add_executable(imuIntegral src/source/imuIntegral.cc)
-target_link_libraries(imuIntegral
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-#
-add_executable(visSematic src/source/visSematic.cc)
-target_link_libraries(visSematic
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-#
-add_executable(temp src/source/temp.cc)
-target_link_libraries(temp
+add_executable(tim_handle src/tim_handle.cc src/Scancontext.cpp)
+target_link_libraries(tim_handle
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
-        usb-1.0
+        ${CHOLMOD_LIBRARIES} gtsam libtbb
         )
 ##
-add_executable(rand_map src/source/rand_map.cpp)
-target_link_libraries(rand_map
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(ceresExample src/source/ceresExample.cpp)
-target_link_libraries(ceresExample
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        )
-##
-add_executable(netCamera src/source/netCamera.cc)
-target_link_libraries(netCamera
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(binToBag src/source/binToBag.cc)
-target_link_libraries(binToBag
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(gtsamExample src/source/gtsamExample.cc)
-target_link_libraries(gtsamExample
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${GTSAM_LIBRARY_DIRS}
-        ${CHOLMOD_LIBRARIES}
-        gtsam
-        )
-##
-add_executable(pca src/source/pca.cc)
-target_link_libraries(pca
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(plumb src/source/plumb.cc)
-target_link_libraries(plumb
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(xyziAndPC src/source/xyziAndPC.cc)
-target_link_libraries(xyziAndPC
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(seg_ground src/source/seg_ground.cc)
-target_link_libraries(seg_ground
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(clusterCloud src/source/clusterCloud.cc)
-target_link_libraries(clusterCloud
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(featureExtract src/source/featureExtract.cc)
-target_link_libraries(featureExtract
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(getPCD src/source/getPCD.cc)
-target_link_libraries(getPCD
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-## OLD
-add_executable(gnss_get_posi src/example/gnss_get_posi.cpp)
-target_link_libraries(gnss_get_posi
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(elerealy src/example/elerealy.cc)
-target_link_libraries(elerealy
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        usb-1.0
-        )
-add_executable(steer_test src/example/steer_test.cpp)
-target_link_libraries(steer_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -339,7 +206,7 @@ target_link_libraries(steer_test
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_bpltool.cpp)
+
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

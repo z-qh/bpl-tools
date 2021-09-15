@@ -335,7 +335,7 @@ int main(int argc, char** argv)
 					//m_gpgga.header.stamp = ros::Time::now();
 //					m_gpgga.header.stamp = ros::Time().fromSec(current_secs);
                     m_gpgga.header.stamp = ros::Time::now();
-					m_gpgga.header.frame_id = "/GNSS";
+					m_gpgga.header.frame_id = "GNSS";
 					m_gpgga.head            = "$GPGGA";
 					m_gpgga.timeUTC         = m_nmea.p_gpgga[i].timeUTC;//UTC时间
 					m_gpgga.latitude        = m_nmea.p_gpgga[i].latitude;//纬度

@@ -86,7 +86,7 @@ int main(int argc, char** argv)
         {
             sensor_msgs::Image ROSImgFront = *cv_bridge::CvImage(std_msgs::Header(), "bgr8", imgQueueFront.back()).toImageMsg();
 
-            ROSImgFront.header.frame_id = "/map";
+            ROSImgFront.header.frame_id = "map";
             ROSImgFront.header.stamp = ros::Time::now();
             pubImgFront.publish(ROSImgFront);
         }
@@ -94,7 +94,7 @@ int main(int argc, char** argv)
         {
             sensor_msgs::Image ROSImgBack = *cv_bridge::CvImage(std_msgs::Header(), "bgr8", imgQueueBack.back()).toImageMsg();
 
-            ROSImgBack.header.frame_id = "/map";
+            ROSImgBack.header.frame_id = "map";
             ROSImgBack.header.stamp = ros::Time::now();
             pubImgBack.publish(ROSImgBack);
         }

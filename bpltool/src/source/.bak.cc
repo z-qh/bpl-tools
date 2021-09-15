@@ -738,3 +738,473 @@
 //    chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
 //    cout << "kdtree time cost: " << (time_used.count() * 1000) << " ms." << endl;
 //}
+
+/*
+ * Tips，亿天一个小技巧
+ *
+ *vector里面嵌套非指针类型的点云将引发内存深浅拷贝错误，使用第二种方式请注意reset
+ *vector<pcl::PointCloud<pcl::PointXYZI>> pointCloudVector(2);×
+ *vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> pointCloudVector(2);√
+ *
+ *
+ *直接使用点云，不需要对点云进行初始化，默认构造就好
+ *
+ *
+ *使用点云智能指针，需要对点云进行初始化，像这样
+ *pcl::PointCloud<pcl::PointXYZI>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZI>());
+ *
+ */
+
+#include "ros/ros.h"
+#include "nav_msgs/Odometry.h"
+#include "sensor_msgs/PointCloud2.h"
+#include "pcl/point_types.h"
+#include "pcl/point_cloud.h"
+#include "pcl_conversions/pcl_conversions.h"
+#include "pcl/io/io.h"
+using namespace std;
+
+struct PointXYZIL
+{
+    PCL_ADD_POINT4D
+            PCL_ADD_INTENSITY;
+    uint32_t label;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIL,
+(float, x, x)
+(float, y, y)
+(float, z, z)
+(float, intensity, intensity)
+(uint32_t, label, label)
+)
+
+typedef PointXYZIL PointSemantic;
+
+struct PointXYZIRPYT
+{
+    PCL_ADD_POINT4D
+            PCL_ADD_INTENSITY;
+    float roll;
+    float pitch;
+    float yaw;
+    double time;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
+(float, x, x) (float, y, y)
+(float, z, z) (float, intensity, intensity)
+(float, roll, roll) (float, pitch, pitch) (float, yaw, yaw)
+(double, time, time)
+)
+
+typedef PointXYZIRPYT PointTypePose;
+
+
+#include "rosbag/bag.h"
+#include "rosbag/view.h"
+#include "gnss_driver/gps_navi_msg.h"
+#include "tf/transform_datatypes.h"
+#include "pcl/io/io.h"
+#include "pcl/io/pcd_io.h"
+
+#include "tf2_ros/static_transform_broadcaster.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2/transform_datatypes.h"
+#include "tf/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
+
+bool isFirstGPS = true;
+bool isFirstGNSS = true;
+
+double first_Xe,first_Ye,first_Ze;
+double lat,lon,alt;
+double first_roll, first_pitch, first_yaw;
+double sinLat,cosLat,sinLon,cosLon;
+double NorthEastX,NorthEastY,NorthEastZ,NorthEastR,NorthEastP,NorthEastW;
+
+
+void BLH2ENU(double lat, double lon, double alt, double &x, double &y,
+             double &z, double sin_lat, double cos_lat, double sin_lon,
+             double cos_lon) {
+    //经度(单位为°),纬度(单位为°),高度(单位m),东北天坐标系下坐标,ECEF->ENU(trans)
+    lat = lat * M_PI / 180; // To rad.
+    lon = lon * M_PI / 180;
+    double f = 1 / 298.257223563; // WGS84
+    double A_GNSS = 6378137.0;         // WGS84
+    double B_GNSS = A_GNSS * (1 - f);
+    double e = sqrt(A_GNSS * A_GNSS - B_GNSS * B_GNSS) / A_GNSS;
+    double N = A_GNSS / sqrt(1 - e * e * sin(lat) * sin(lat));
+    // To ECEF  地心站直角坐标系
+    double Xe = (N + alt) * cos(lat) * cos(lon); //地心系下坐标(单位m)
+    double Ye = (N + alt) * cos(lat) * sin(lon);
+    double Ze = (N * (1 - (e * e)) + alt) * sin(lat);
+    if(isFirstGPS){
+        first_Xe = Xe;
+        first_Ye = Ye;
+        first_Ze = Ze;
+        isFirstGPS = false;
+        std::cout<<"xe "<<Xe<<" ye "<<Ye<<" ze "<<Ze<<std::endl;
+        std::cout<<lat<<" lon "<<lon<<" alt "<<alt<<std::endl;
+    }
+    Xe -= first_Xe;
+    Ye -= first_Ye;
+    Ze -= first_Ze;
+
+    // To ENU
+    x = -Xe * sin_lon + Ye * cos_lon; //东北天坐标系下坐标
+    y = -Xe * sin_lat * cos_lon - Ye * sin_lat * sin_lon + Ze * cos_lat;
+    z = Xe * cos_lat * cos_lon + Ye * cos_lat * sin_lon + Ze * sin_lat;
+}
+nav_msgs::Odometry handle_gps_callback2(gnss_driver::gps_navi_msgConstPtr msg)
+{
+    pcl::PointXYZ result;
+    nav_msgs::Odometry tempOdom;
+
+    if(msg->latitude==0 || msg->longitude==0)
+        return tempOdom;
+    lat = msg->latitude;
+    lon = msg->longitude;
+    alt = msg->elevation;
+    if(isFirstGNSS){
+        std::cout<<"first init"<<std::endl;
+        isFirstGNSS = false;
+        sinLat = sin(lat * M_PI / 180.0);
+        cosLat = cos(lat * M_PI / 180);
+        sinLon = sin(lon * M_PI / 180);
+        cosLon = cos(lon * M_PI / 180);
+        first_roll = msg->rollAngle;
+        first_pitch = msg->pitchAngle;
+        first_yaw = -msg->yawAngle + 90;
+    }
+    BLH2ENU(lat, lon, alt, NorthEastX, NorthEastY, NorthEastZ, sinLat, cosLat, sinLon, cosLon);
+    pcl::PointXYZI thisPoint;
+    thisPoint.x = NorthEastX;
+    thisPoint.y = NorthEastY;
+    thisPoint.z = NorthEastZ;
+    NorthEastR = (msg->rollAngle);
+    NorthEastP = (msg->pitchAngle);
+    NorthEastW = (90-(msg->yawAngle));
+
+    geometry_msgs::Quaternion tempQuat;
+    tempQuat = tf::createQuaternionMsgFromRollPitchYaw(NorthEastR*M_PI/180.0, NorthEastP*M_PI/180.0, NorthEastW*M_PI/180.0);
+
+    result.x = thisPoint.x;
+    result.y = thisPoint.y;
+    result.z = thisPoint.z;
+
+    tempOdom.pose.pose.position.x = thisPoint.x;
+    tempOdom.pose.pose.position.y = thisPoint.y;
+    tempOdom.pose.pose.position.z = thisPoint.z;
+    tempOdom.pose.pose.orientation = tempQuat;
+
+    return tempOdom;
+}
+pcl::PointXYZRGB handle_gps_callback(gnss_driver::gps_navi_msgConstPtr msg)
+{
+    pcl::PointXYZRGB result;
+
+    if(msg->latitude==0 || msg->longitude==0)
+        return result;
+    lat = msg->latitude;
+    lon = msg->longitude;
+    alt = msg->elevation;
+    if(isFirstGNSS){
+        std::cout<<"first init"<<std::endl;
+        isFirstGNSS = false;
+        sinLat = sin(lat * M_PI / 180.0);
+        cosLat = cos(lat * M_PI / 180);
+        sinLon = sin(lon * M_PI / 180);
+        cosLon = cos(lon * M_PI / 180);
+        first_roll = msg->rollAngle;
+        first_pitch = msg->pitchAngle;
+        first_yaw = -msg->yawAngle + 90;
+    }
+    BLH2ENU(lat, lon, alt, NorthEastX, NorthEastY, NorthEastZ, sinLat, cosLat, sinLon, cosLon);
+    pcl::PointXYZI thisPoint;
+    thisPoint.x = NorthEastX;
+    thisPoint.y = NorthEastY;
+    thisPoint.z = NorthEastZ;
+    NorthEastR = (msg->rollAngle);
+    NorthEastP = (msg->pitchAngle);
+    NorthEastW = (90-(msg->yawAngle));
+
+    geometry_msgs::Quaternion tempQuat;
+    tempQuat = tf::createQuaternionMsgFromRollPitchYaw(NorthEastR*M_PI/180.0, NorthEastP*M_PI/180.0, NorthEastW*M_PI/180.0);
+
+    result.x = thisPoint.x;
+    result.y = thisPoint.y;
+    result.z = thisPoint.z;
+    string pos = msg->PosStatus;
+    string state = msg->InsWorkStatus;
+    //INS_RTKFIXED
+    //INS_RTKFLOAT
+    //INS_PSRDIFF
+    if(state == ";INS_SOLUTION_GOOD" && (pos == "INS_RTKFIXED"))
+    {
+        result.r = 0;
+        result.g = 255;
+        result.b = 0;
+    }
+    else if(state == ";INS_SOLUTION_GOOD" && (pos == "INS_RTKFLOAT"))
+    {
+        result.r = 255;
+        result.g = 193;
+        result.b = 193;
+    }
+    else if(state == ";INS_SOLUTION_GOOD" && (pos == "INS_PSRDIFF"))
+    {
+        result.r = 255;
+        result.g = 255;
+        result.b = 0;
+    }
+    else
+    {
+        result.r = 255;
+        result.g = 0;
+        result.b = 0;
+    }
+    return result;
+}
+
+vector<nav_msgs::Odometry> hisOdom;
+
+//qh add for debug
+void read_odom_from_file(std::vector<nav_msgs::Odometry>& msgs, std::string path)
+{
+    std::ifstream file;
+    file.open(path);
+    if(!file)
+        return;
+    msgs.clear();
+    int odomSize = 0;
+    file >> odomSize;
+    for(int i = 0; i < odomSize; i++)
+    {
+        nav_msgs::Odometry tempOdom;
+        file >> tempOdom.pose.pose.position.x
+             >> tempOdom.pose.pose.position.y
+             >> tempOdom.pose.pose.position.z
+             >> tempOdom.pose.pose.orientation.x
+             >> tempOdom.pose.pose.orientation.y
+             >> tempOdom.pose.pose.orientation.z
+             >> tempOdom.pose.pose.orientation.w;
+        msgs.push_back(tempOdom);
+    }
+    file.close();
+}
+
+int main3(int argc, char** argv)
+{
+    ros::init(argc, argv, "AAAA");
+    ros::NodeHandle nh("~");
+    ros::Publisher subGNSS = nh.advertise<nav_msgs::Odometry>("/GNSS", 1);
+    ros::Publisher subGNSSP = nh.advertise<sensor_msgs::PointCloud2>("/GNSSP", 1);
+
+    vector<nav_msgs::Odometry> odomList;
+    pcl::PointCloud<pcl::PointXYZRGB> PointList;
+    vector<pair<double,double>> GPSP;
+    rosbag::Bag GNSS;
+    GNSS.open("/media/qh/何国建/DLUTdatasetBin/2021-08-30-19-17-22.bag", rosbag::bagmode::Read);
+    if(!GNSS.isOpen())
+        return 0;
+    vector<string> topics;
+    topics.push_back("/gps_navi");
+    rosbag::View VV(GNSS, rosbag::TopicQuery(topics));
+    auto it = VV.begin();
+    for(it = VV.begin(); it != VV.end(); it++)
+    {
+        string nowTopic = it->getTopic();
+        if(nowTopic == topics[0])
+        {
+            gnss_driver::gps_navi_msgConstPtr tempMsg = (it->instantiate<gnss_driver::gps_navi_msg>());
+            double nowlon = 0,nowlat = 0;
+            nav_msgs::Odometry nowOdom = handle_gps_callback2(tempMsg);
+            pcl::PointXYZRGB nowPoint = handle_gps_callback(tempMsg);
+            PointList.push_back(nowPoint);
+            nowOdom.header.frame_id = "map";
+            nowOdom.header.stamp = tempMsg->header.stamp;
+            odomList.push_back(nowOdom);
+        }
+    }
+    GNSS.close();
+    cout << "the bag has " << odomList.size() << " msgs !" << endl;
+    sensor_msgs::PointCloud2 tempCloud;
+    pcl::toROSMsg(PointList, tempCloud);
+    tempCloud.header.frame_id = "map";
+    ros::Rate loop(10);
+    int count = 0;
+    pcl::io::savePCDFileASCII("/home/qh/test4.pcd", PointList);
+    cout << "pcd save succeed !" << endl;
+
+    while(ros::ok())
+    {
+        subGNSS.publish(odomList[count]);
+        subGNSSP.publish(tempCloud);
+        count++;
+        if(count >= odomList.size())
+            break;
+        loop.sleep();
+    }
+    return 0;
+}
+
+int main2(int argc, char** argv)
+{
+    ros::init(argc, argv, "AAAA");
+    ros::NodeHandle nh("~");
+
+    read_odom_from_file(hisOdom, "/home/qh/B1HallCorrected.txt");
+
+    vector<string> topics;
+    topics.push_back("/os_cloud_node/points");
+    rosbag::Bag lmx;
+    lmx.open("/home/qh/B1HallOuster.bag", rosbag::bagmode::Read|rosbag::bagmode::Append);
+    if(!lmx.isOpen())
+        return 0;
+    rosbag::View VV(lmx, rosbag::TopicQuery(topics));
+    auto it = VV.begin();
+    int jump = 3;
+    int count = 0;
+
+    for(it = VV.begin(); it != VV.end(); it++)
+    {
+        string topic_now = it->getTopic();
+        if(topic_now == topics[0])
+        {
+            if(jump != 0){
+                jump--;
+                continue;
+            }
+            sensor_msgs::PointCloud2 tempMsg;
+            tempMsg = *(it->instantiate<sensor_msgs::PointCloud2>());
+            nav_msgs::Odometry AAA;
+
+            geometry_msgs::PoseStamped tempOdom;
+            tempOdom.pose = AAA.pose.pose;
+
+            ros::Publisher Pub = nh.advertise<geometry_msgs::PoseStamped>("lmx", 1);
+            Pub.publish(tempOdom);
+
+            tempOdom.header = tempMsg.header;
+            tempOdom.pose = hisOdom[count].pose.pose;
+            lmx.write("/current_pose", tempMsg.header.stamp, tempOdom);
+            cout << count << " done" << endl;
+            count++;
+        }
+    }
+
+
+
+    return 0;
+}
+
+#include "geometry_msgs/Twist.h"
+
+
+int main(int argc, char** argv)
+{
+    Eigen::Vector3d startP,endP;
+    startP << 0.0,0.0,0.0;
+    endP << 10.0,10.0,0.0;
+    Eigen::Vector3d angle(0.0, 0.0, M_PI/2);
+    Eigen::Quaterniond startO;
+    startO.setIdentity();
+    Eigen::Quaterniond endO;
+    endO = Eigen::AngleAxisd(angle[2], Eigen::Vector3d::UnitZ()) *
+           Eigen::AngleAxisd(angle[1], Eigen::Vector3d::UnitY()) *
+           Eigen::AngleAxisd(angle[0], Eigen::Vector3d::UnitX());
+    nav_msgs::Odometry startOdom,endOdom;
+    startOdom.pose.pose.position.x = startP(0);
+    startOdom.pose.pose.position.y = startP(1);
+    startOdom.pose.pose.position.z = startP(2);
+    startOdom.pose.pose.orientation.x = startO.x();
+    startOdom.pose.pose.orientation.y = startO.y();
+    startOdom.pose.pose.orientation.z = startO.z();
+    startOdom.pose.pose.orientation.w = startO.w();
+    endOdom.pose.pose.position.x = endP(0);
+    endOdom.pose.pose.position.y = endP(1);
+    endOdom.pose.pose.position.z = endP(2);
+    endOdom.pose.pose.orientation.x = endO.x();
+    endOdom.pose.pose.orientation.y = endO.y();
+    endOdom.pose.pose.orientation.z = endO.z();
+    endOdom.pose.pose.orientation.w = endO.w();
+    startOdom.header.frame_id = "map";
+    endOdom.header.frame_id = "map";
+    vector<nav_msgs::Odometry> list;
+    list.push_back(startOdom);
+
+    Eigen::Vector3d t_ = endP - startP;
+    Eigen::Quaterniond r_ = endO;
+    Eigen::Vector3d angle_ = r_.matrix().eulerAngles(2,1,0);
+    cout << "t_es" << endl << t_ << endl;
+    cout << "angle_es" << endl << angle_ << endl;
+
+    for(int i = 0; i < 100; i ++)
+    {
+        double s = (i - 0.0) / (100.0 - 0.0);
+        Eigen::Vector3d P = s * t_;
+        Eigen::Vector3d now_angle = s * angle;
+
+        Eigen::Quaterniond q_now;
+        q_now = Eigen::AngleAxisd(now_angle[0], Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(now_angle[1], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(now_angle[2], Eigen::Vector3d::UnitX());
+        P = q_now.matrix() * P;
+
+        nav_msgs::Odometry nowO = startOdom;
+        nowO.pose.pose.position.x = P(0);
+        nowO.pose.pose.position.y = P(1);
+        nowO.pose.pose.position.z = P(2);
+        nowO.pose.pose.orientation.x = q_now.x();
+        nowO.pose.pose.orientation.y = q_now.y();
+        nowO.pose.pose.orientation.z = q_now.z();
+        nowO.pose.pose.orientation.w = q_now.w();
+        nowO.header.frame_id = "map";
+        list.push_back(nowO);
+    }
+
+    for(int i = 0; i < 100; i ++)
+    {
+        double s = (i - 0.0) / (100.0 - 0.0);
+        Eigen::Vector3d P = s * t_;
+        Eigen::Quaterniond q_now;
+        q_now = endO.slerp(s, startO);
+        //P = q_now.matrix() * P;
+
+        nav_msgs::Odometry nowO = startOdom;
+        nowO.pose.pose.position.x = P(0);
+        nowO.pose.pose.position.y = P(1);
+        nowO.pose.pose.position.z = P(2);
+        nowO.pose.pose.orientation.x = q_now.x();
+        nowO.pose.pose.orientation.y = q_now.y();
+        nowO.pose.pose.orientation.z = q_now.z();
+        nowO.pose.pose.orientation.w = q_now.w();
+        nowO.header.frame_id = "map";
+        list.push_back(nowO);
+    }
+
+    list.push_back(endOdom);
+
+    ros::init(argc, argv, "WTM");
+    ros::NodeHandle nh;
+    ros::Publisher pub = nh.advertise<nav_msgs::Odometry>("/WTM", 1);
+    ros::Rate loop(30);
+    int count = 0;
+    while(ros::ok())
+    {
+        if(count == list.size())
+            break;
+        pub.publish(list[count++]);
+        loop.sleep();
+    }
+    return 0;
+}
+
+
+
+
+
+

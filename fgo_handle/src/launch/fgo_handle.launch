@@ -1,0 +1,11 @@
+<launch>
+    <node pkg="fgo_handle" type="fgo_handle" name="fgo_handle" output="screen">
+        <param name="sourceBagPath" value="/home/qh/B1HallOusterWithPose.bag"/>
+        <!-- 
+            /os_cloud_node/points
+            /rslidar_points
+        -->
+        <param name="sourceBagPathTopic" value="/os_cloud_node/points"/>
+    </node>
+</launch>
+

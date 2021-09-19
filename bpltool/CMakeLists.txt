@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
         image_transport
         gnss_driver
         serial
+        tf
         tf2
         tf2_geometry_msgs
         rosbag

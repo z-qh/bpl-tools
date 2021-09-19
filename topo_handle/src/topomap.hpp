@@ -442,7 +442,7 @@ private:
         return false;
     }
 public:
-    topomap()
+    topomap(double scoreThreshold_ = 1.0, double distanceThreshold_ = 15.3)
     {
         ////////////////////
         kdtreeHistroyKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
@@ -456,9 +456,9 @@ public:
         weight_similarity = 0.5;
         scoreBetweenScanContext = 0.165;//描述子余弦距离
         save_data_to_files = false;//是否保存文件
-        scoreThreshold = 1.0;
+        scoreThreshold = scoreThreshold_;//todo
         scanContextThreshold = 0.4;
-        distanceThreshold = 15.3;
+        distanceThreshold = distanceThreshold_;
         distanceInterThreshold = 4.0;
         create_history_nodes = false;//是否从已有文件创建节点
         removeId = 0;
@@ -477,7 +477,8 @@ public:
              sensor_msgs::PointCloud2 intersection,
              //输出
              sensor_msgs::PointCloud2& node_position_,
-             sensor_msgs::PointCloud2& cloud_local_map)
+             sensor_msgs::PointCloud2& cloud_local_map,
+             bool isSim)
     {
         /////////////
         if(remove_obstacle_cloud.data.empty())//初始的时候可能为空，因此判断
@@ -623,173 +624,327 @@ public:
 
                     sc_current = makeScancontext(localMap);
                     double similarityScore = getScoreFromLastNode(sc_current, sc_last);
-                    // std::cout<<"distance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<std::endl;
-                    // double score = weight_distance * distanceFromPreNode + weight_similarity*similarityScore;
-                    // double score = weight_distance*std::exp((distanceFromPreNode-distanceThreshold)/(distanceThreshold*1.0)) +
-                    //                 weight_similarity*std::exp((similarityScore - scanContextThreshold)/(scanContextThreshold*1.0));
-                    double score = weight_distance*std::exp((distanceFromPreNode-distanceThreshold)/(distanceThreshold*1.0)) +
-                                   weight_similarity*std::exp((similarityScore - scanContextThreshold)/(scanContextThreshold*1.0)) +
-                                   weight_intersection * std::exp((distanceFromPreInter - distanceInterThreshold)/(distanceInterThreshold*1.0));
 
-                    // std::cout<<"distance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" weight_dis "<<weight_distance
-                    //         <<" "<<weight_distance * distanceFromPreNode<<" score "<<score<<std::endl;
-                    if(score > scoreThreshold && distanceFromPreNode>=distanceInterThreshold)
-                    {
-                        std::cout<<"\ndistance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" distanceFromPreInter "<<distanceFromPreInter<<" score "<<score<<std::endl;
-                        lastIntersection = currentIntersection;
-                        node_number++;
-                        constructNode(sc_current);
-                        //需要构建节点
-                        //在孩子节点上重定位
-                        int child_id =  loopClouserFromChild(sc_current);       //返回的是孩子节点的id
-                        if(child_id != -1)
+                    double score = 0;
+                    if(!isSim) {//GNSS good
+                        if(distanceFromPreNode>=distanceInterThreshold)
                         {
-                            int child_id_index = findIndexInNodes(nodes, child_id);
-                            if(child_id_index!= -1 && nodeKeyIndex.count(child_id_index))
+                            std::cout<<"\ndistance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" distanceFromPreInter "<<distanceFromPreInter<<" score "<<score<<std::endl;
+                            lastIntersection = currentIntersection;
+                            node_number++;
+                            constructNode(sc_current);
+                            //需要构建节点
+                            //在孩子节点上重定位
+                            int child_id =  loopClouserFromChild(sc_current);       //返回的是孩子节点的id
+                            if(child_id != -1)
                             {
-                                if(child_id != last_node_id)
+                                int child_id_index = findIndexInNodes(nodes, child_id);
+                                if(child_id_index!= -1 && nodeKeyIndex.count(child_id_index))
                                 {
-                                    std::cout<<"loopClosureFromChild find success the father id is [ "<<
-                                             last_node_id<<" ] the child id is [ "<<child_id<<" ]"<<std::endl;
+                                    if(child_id != last_node_id)
+                                    {
+                                        std::cout<<"loopClosureFromChild find success the father id is [ "<<
+                                                 last_node_id<<" ] the child id is [ "<<child_id<<" ]"<<std::endl;
+                                        node_success++;
+                                        std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
+                                        //child_id 检测到的闭环节点id
+                                        latestNodePose = nodes[child_id_index].vertices_.globalTransformMatrix_;
+                                        last_node_id = child_id;
+
+                                        sc_last = sc_current;
+                                        localMap->clear();
+                                        Eigen::Vector3d currentNodePosition = odometryQue.at(odometryQue.size()/2).matrix().block<3,1>(0,3);
+                                        PreviousNodePosition(0) = currentNodePosition(0);
+                                        PreviousNodePosition(1) = currentNodePosition(1);
+                                        PreviousNodePosition(2) = currentNodePosition(2);
+
+                                        nodes[child_id_index].success_call_freq_++;
+                                        if(save_data_to_files)
+                                        {
+                                            string file_path = node_save_path + "node/";
+                                            nodes[child_id_index].nodes_save(file_path);
+                                        }
+                                        double average_time = cost_time/(node_number*1.0);
+                                        std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
+                                        return;
+                                    }
+                                }
+                            }
+                            //全局拓扑节点重定位
+                            int loopClosureIndex = loopClosureFromKDTree(sc_current);//返回值为在nodes中的索引
+                            double average_time = cost_time/(node_number*1.0);
+                            std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
+
+                            if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex))
+                            {
+
+                                int loopNodeId = nodeKeyIndex[loopClosureIndex];
+                                if(loopNodeId != last_node_id)
+                                {
+                                    std::cout<<"loopClosureFromKDTree find success the father id is [ "
+                                             <<last_node_id<<" ] the child id is [ "<<loopNodeId<<" ]"<<std::endl;
                                     node_success++;
                                     std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
-                                    //child_id 检测到的闭环节点id
-                                    latestNodePose = nodes[child_id_index].vertices_.globalTransformMatrix_;
-                                    last_node_id = child_id;
+                                    latestNodePose = nodes[loopClosureIndex].vertices_.globalTransformMatrix_;
 
                                     sc_last = sc_current;
-                                    localMap->clear();
+
+                                    int father_id = findIndexInNodes(nodes, last_node_id);
+                                    if(father_id == -1)
+                                    {
+                                        std::cout<<"loopClosureFromKD father id == -1"<<std::endl;
+                                        return;
+                                    }
+                                    int child_number = nodes[father_id].as_father_edges_.size();
+
                                     Eigen::Vector3d currentNodePosition = odometryQue.at(odometryQue.size()/2).matrix().block<3,1>(0,3);
                                     PreviousNodePosition(0) = currentNodePosition(0);
                                     PreviousNodePosition(1) = currentNodePosition(1);
                                     PreviousNodePosition(2) = currentNodePosition(2);
 
-                                    nodes[child_id_index].success_call_freq_++;
+                                    nodes[loopClosureIndex].success_call_freq_++;
                                     if(save_data_to_files)
                                     {
                                         string file_path = node_save_path + "node/";
-                                        nodes[child_id_index].nodes_save(file_path);
+                                        nodes[loopClosureIndex].nodes_save(file_path);
                                     }
-                                    double average_time = cost_time/(node_number*1.0);
-                                    std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
-                                    return;
+                                    bool create_now_edge(true);     //判断两个节点之间是否已经有边
+                                    if(child_number == 0)
+                                    {
+                                        create_now_edge = true;
+                                    }else{
+                                        for(int i=0; i<child_number; ++i)
+                                        {
+                                            if(nodes[father_id].as_father_edges_[i].child_id_ == loopNodeId)
+                                            {
+                                                create_now_edge = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if(!create_now_edge)
+                                    {
+                                        last_node_id = loopNodeId;
+                                        localMap->clear();
+                                        return;
+                                    }else{
+                                        //创建新的边，父节点为last_node_id，子节点为loopClosureIndex
+                                        creataEdge(nodes, father_id, loopClosureIndex);
+                                        if(save_data_to_files)
+                                        {
+                                            string file_path = node_save_path + "node/";
+                                            nodes[father_id].nodes_save(file_path);
+                                            nodes[loopClosureIndex].nodes_save(file_path);
+                                        }
+                                        cout<<"create new edge father => "<<last_node_id<<" child "<<loopNodeId<<endl;
+                                        last_node_id = loopNodeId;
+                                        return;
+                                    }
                                 }
                             }
-                        }
-                        //全局拓扑节点重定位
-                        int loopClosureIndex = loopClosureFromKDTree(sc_current);//返回值为在nodes中的索引
-                        double average_time = cost_time/(node_number*1.0);
-                        std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
 
-                        if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex))
-                        {
+                            std::cout<<"relocation error, create new node !!"<<std::endl;
+                            //重定位失败，构建新的节点
+                            node tmp_node = create_new_node(current_node_id);
+                            nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
+                            nodes.push_back(tmp_node);
+                            PointType thisPose;
+                            thisPose.x = tmp_node.vertices_.Global_Pose_.x;
+                            thisPose.y = tmp_node.vertices_.Global_Pose_.y;
+                            thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                            thisPose.intensity = current_node_id;
+                            globalKeyPose3d->push_back(thisPose);
+                            pubGlobalNodePosition->push_back(thisPose);
+                            sc_last = tmp_node.vertices_.scanContext_;
 
-                            int loopNodeId = nodeKeyIndex[loopClosureIndex];
-                            if(loopNodeId != last_node_id)
+                            PreviousNodePosition(0) = thisPose.x;
+                            PreviousNodePosition(1) = thisPose.y;
+                            PreviousNodePosition(2) = thisPose.z;
+                            //创建节点边
+                            int father_id = findIndexInNodes(nodes, last_node_id);
+                            if(father_id == -1)
                             {
-                                std::cout<<"loopClosureFromKDTree find success the father id is [ "
-                                         <<last_node_id<<" ] the child id is [ "<<loopNodeId<<" ]"<<std::endl;
-                                node_success++;
-                                std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
-                                latestNodePose = nodes[loopClosureIndex].vertices_.globalTransformMatrix_;
-
-                                sc_last = sc_current;
-
-                                int father_id = findIndexInNodes(nodes, last_node_id);
-                                if(father_id == -1)
-                                {
-                                    std::cout<<"loopClosureFromKD father id == -1"<<std::endl;
-                                    return;
-                                }
-                                int child_number = nodes[father_id].as_father_edges_.size();
-
-                                Eigen::Vector3d currentNodePosition = odometryQue.at(odometryQue.size()/2).matrix().block<3,1>(0,3);
-                                PreviousNodePosition(0) = currentNodePosition(0);
-                                PreviousNodePosition(1) = currentNodePosition(1);
-                                PreviousNodePosition(2) = currentNodePosition(2);
-
-                                nodes[loopClosureIndex].success_call_freq_++;
+                                std::cout<<"new node father id == -1 "<<last_node_id<<" nodes size "<<nodes.size()<<std::endl;
+                                return ;
+                            }
+                            if(last_node_id!=-1 && last_node_id != tmp_node.id_)
+                            {
+                                creataEdge(nodes, father_id, (int)(nodes.size()-1));
                                 if(save_data_to_files)
                                 {
                                     string file_path = node_save_path + "node/";
-                                    nodes[loopClosureIndex].nodes_save(file_path);
+                                    nodes[father_id].nodes_save(file_path);
+                                    nodes[(int)(nodes.size()-1)].nodes_save(file_path);
                                 }
-                                bool create_now_edge(true);     //判断两个节点之间是否已经有边
-                                if(child_number == 0)
+                                std::cout<<"create edge and the father is "<<last_node_id<<" child id is "<<tmp_node.id_<<std::endl;
+                            }
+                            // std::cout<<"relative:\n"<<relativeMeasurementsToLastNode.matrix()<<std::endl;
+                            // std::cout<<"edge: \n"<<nodes[tmp_node.id_].as_child_edges_[0].keyTransformMatrix_.matrix()<<std::endl;
+                            last_node_id = current_node_id;
+                            current_node_id++;
+                            localMap->clear();
+                            std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
+                        }
+                    }else{//no GNSS signal
+                        score = weight_similarity*std::exp((similarityScore - scanContextThreshold)/(scanContextThreshold*1.0));
+                        if(score>=scoreThreshold)
+                        {
+                            std::cout<<"\ndistance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" distanceFromPreInter "<<distanceFromPreInter<<" score "<<score<<std::endl;
+                            lastIntersection = currentIntersection;
+                            node_number++;
+                            constructNode(sc_current);
+                            //需要构建节点
+                            //在孩子节点上重定位
+                            int child_id =  loopClouserFromChild(sc_current);       //返回的是孩子节点的id
+                            if(child_id != -1)
+                            {
+                                int child_id_index = findIndexInNodes(nodes, child_id);
+                                if(child_id_index!= -1 && nodeKeyIndex.count(child_id_index))
                                 {
-                                    create_now_edge = true;
-                                }else{
-                                    for(int i=0; i<child_number; ++i)
+                                    if(child_id != last_node_id)
                                     {
-                                        if(nodes[father_id].as_father_edges_[i].child_id_ == loopNodeId)
+                                        std::cout<<"loopClosureFromChild find success the father id is [ "<<
+                                                 last_node_id<<" ] the child id is [ "<<child_id<<" ]"<<std::endl;
+                                        node_success++;
+                                        std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
+                                        //child_id 检测到的闭环节点id
+                                        latestNodePose = nodes[child_id_index].vertices_.globalTransformMatrix_;
+                                        last_node_id = child_id;
+
+                                        sc_last = sc_current;
+                                        localMap->clear();
+                                        Eigen::Vector3d currentNodePosition = odometryQue.at(odometryQue.size()/2).matrix().block<3,1>(0,3);
+                                        PreviousNodePosition(0) = currentNodePosition(0);
+                                        PreviousNodePosition(1) = currentNodePosition(1);
+                                        PreviousNodePosition(2) = currentNodePosition(2);
+
+                                        nodes[child_id_index].success_call_freq_++;
+                                        if(save_data_to_files)
                                         {
-                                            create_now_edge = false;
-                                            break;
+                                            string file_path = node_save_path + "node/";
+                                            nodes[child_id_index].nodes_save(file_path);
                                         }
+                                        double average_time = cost_time/(node_number*1.0);
+                                        std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
+                                        return;
                                     }
                                 }
-                                if(!create_now_edge)
+                            }
+                            //全局拓扑节点重定位
+                            int loopClosureIndex = loopClosureFromKDTree(sc_current);//返回值为在nodes中的索引
+                            double average_time = cost_time/(node_number*1.0);
+                            std::cout<<"cost time "<<cost_time<<" average_time "<<average_time<<std::endl;
+
+                            if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex))
+                            {
+
+                                int loopNodeId = nodeKeyIndex[loopClosureIndex];
+                                if(loopNodeId != last_node_id)
                                 {
-                                    last_node_id = loopNodeId;
-                                    localMap->clear();
-                                    return;
-                                }else{
-                                    //创建新的边，父节点为last_node_id，子节点为loopClosureIndex
-                                    creataEdge(nodes, father_id, loopClosureIndex);
+                                    std::cout<<"loopClosureFromKDTree find success the father id is [ "
+                                             <<last_node_id<<" ] the child id is [ "<<loopNodeId<<" ]"<<std::endl;
+                                    node_success++;
+                                    std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
+                                    latestNodePose = nodes[loopClosureIndex].vertices_.globalTransformMatrix_;
+
+                                    sc_last = sc_current;
+
+                                    int father_id = findIndexInNodes(nodes, last_node_id);
+                                    if(father_id == -1)
+                                    {
+                                        std::cout<<"loopClosureFromKD father id == -1"<<std::endl;
+                                        return;
+                                    }
+                                    int child_number = nodes[father_id].as_father_edges_.size();
+
+                                    Eigen::Vector3d currentNodePosition = odometryQue.at(odometryQue.size()/2).matrix().block<3,1>(0,3);
+                                    PreviousNodePosition(0) = currentNodePosition(0);
+                                    PreviousNodePosition(1) = currentNodePosition(1);
+                                    PreviousNodePosition(2) = currentNodePosition(2);
+
+                                    nodes[loopClosureIndex].success_call_freq_++;
                                     if(save_data_to_files)
                                     {
                                         string file_path = node_save_path + "node/";
-                                        nodes[father_id].nodes_save(file_path);
                                         nodes[loopClosureIndex].nodes_save(file_path);
                                     }
-                                    cout<<"create new edge father => "<<last_node_id<<" child "<<loopNodeId<<endl;
-                                    last_node_id = loopNodeId;
-                                    return;
+                                    bool create_now_edge(true);     //判断两个节点之间是否已经有边
+                                    if(child_number == 0)
+                                    {
+                                        create_now_edge = true;
+                                    }else{
+                                        for(int i=0; i<child_number; ++i)
+                                        {
+                                            if(nodes[father_id].as_father_edges_[i].child_id_ == loopNodeId)
+                                            {
+                                                create_now_edge = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if(!create_now_edge)
+                                    {
+                                        last_node_id = loopNodeId;
+                                        localMap->clear();
+                                        return;
+                                    }else{
+                                        //创建新的边，父节点为last_node_id，子节点为loopClosureIndex
+                                        creataEdge(nodes, father_id, loopClosureIndex);
+                                        if(save_data_to_files)
+                                        {
+                                            string file_path = node_save_path + "node/";
+                                            nodes[father_id].nodes_save(file_path);
+                                            nodes[loopClosureIndex].nodes_save(file_path);
+                                        }
+                                        cout<<"create new edge father => "<<last_node_id<<" child "<<loopNodeId<<endl;
+                                        last_node_id = loopNodeId;
+                                        return;
+                                    }
                                 }
                             }
-                        }
 
-                        std::cout<<"relocation error, create new node !!"<<std::endl;
-                        //重定位失败，构建新的节点
-                        node tmp_node = create_new_node(current_node_id);
-                        nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                        nodes.push_back(tmp_node);
-                        PointType thisPose;
-                        thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-                        thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-                        thisPose.z = tmp_node.vertices_.Global_Pose_.z;
-                        thisPose.intensity = current_node_id;
-                        globalKeyPose3d->push_back(thisPose);
-                        pubGlobalNodePosition->push_back(thisPose);
-                        sc_last = tmp_node.vertices_.scanContext_;
+                            std::cout<<"relocation error, create new node !!"<<std::endl;
+                            //重定位失败，构建新的节点
+                            node tmp_node = create_new_node(current_node_id);
+                            nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
+                            nodes.push_back(tmp_node);
+                            PointType thisPose;
+                            thisPose.x = tmp_node.vertices_.Global_Pose_.x;
+                            thisPose.y = tmp_node.vertices_.Global_Pose_.y;
+                            thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                            thisPose.intensity = current_node_id;
+                            globalKeyPose3d->push_back(thisPose);
+                            pubGlobalNodePosition->push_back(thisPose);
+                            sc_last = tmp_node.vertices_.scanContext_;
 
-                        PreviousNodePosition(0) = thisPose.x;
-                        PreviousNodePosition(1) = thisPose.y;
-                        PreviousNodePosition(2) = thisPose.z;
-                        //创建节点边
-                        int father_id = findIndexInNodes(nodes, last_node_id);
-                        if(father_id == -1)
-                        {
-                            std::cout<<"new node father id == -1 "<<last_node_id<<" nodes size "<<nodes.size()<<std::endl;
-                            return ;
-                        }
-                        if(last_node_id!=-1 && last_node_id != tmp_node.id_)
-                        {
-                            creataEdge(nodes, father_id, (int)(nodes.size()-1));
-                            if(save_data_to_files)
+                            PreviousNodePosition(0) = thisPose.x;
+                            PreviousNodePosition(1) = thisPose.y;
+                            PreviousNodePosition(2) = thisPose.z;
+                            //创建节点边
+                            int father_id = findIndexInNodes(nodes, last_node_id);
+                            if(father_id == -1)
                             {
-                                string file_path = node_save_path + "node/";
-                                nodes[father_id].nodes_save(file_path);
-                                nodes[(int)(nodes.size()-1)].nodes_save(file_path);
+                                std::cout<<"new node father id == -1 "<<last_node_id<<" nodes size "<<nodes.size()<<std::endl;
+                                return ;
                             }
-                            std::cout<<"create edge and the father is "<<last_node_id<<" child id is "<<tmp_node.id_<<std::endl;
+                            if(last_node_id!=-1 && last_node_id != tmp_node.id_)
+                            {
+                                creataEdge(nodes, father_id, (int)(nodes.size()-1));
+                                if(save_data_to_files)
+                                {
+                                    string file_path = node_save_path + "node/";
+                                    nodes[father_id].nodes_save(file_path);
+                                    nodes[(int)(nodes.size()-1)].nodes_save(file_path);
+                                }
+                                std::cout<<"create edge and the father is "<<last_node_id<<" child id is "<<tmp_node.id_<<std::endl;
+                            }
+                            // std::cout<<"relative:\n"<<relativeMeasurementsToLastNode.matrix()<<std::endl;
+                            // std::cout<<"edge: \n"<<nodes[tmp_node.id_].as_child_edges_[0].keyTransformMatrix_.matrix()<<std::endl;
+                            last_node_id = current_node_id;
+                            current_node_id++;
+                            localMap->clear();
+                            std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
                         }
-                        // std::cout<<"relative:\n"<<relativeMeasurementsToLastNode.matrix()<<std::endl;
-                        // std::cout<<"edge: \n"<<nodes[tmp_node.id_].as_child_edges_[0].keyTransformMatrix_.matrix()<<std::endl;
-                        last_node_id = current_node_id;
-                        current_node_id++;
-                        localMap->clear();
-                        std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
                     }
                 }
 

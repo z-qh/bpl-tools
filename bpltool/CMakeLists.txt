@@ -1,5 +1,9 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(bpltool)
+
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
@@ -20,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
         tf2_geometry_msgs
         rosbag
 )
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(OpenCV)
@@ -27,6 +32,7 @@ find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(LIBSUB)
 find_package(GTSAM REQUIRED QUIET)
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -148,9 +154,25 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
 #
-
-add_executable(relocateTIM src/source/relocateTIM.cc)
-target_link_libraries(relocateTIM
+##
+##
+#add_executable(relocateTIM src/source/relocateTIM.cc)
+#target_link_libraries(relocateTIM
+#        ${catkin_LIBRARIES}
+#        ${PCL_LIBRARIES}
+#        ${OpenCV_LIBS}
+#        )
+##
+#
+#
+add_executable(qParam
+        src/qParam/main.cpp
+        src/qParam/mainwindow.cpp
+        src/qParam/mainwindow.h
+        src/qParam/mainwindow.ui
+        )
+target_link_libraries(qParam
+        PRIVATE Qt5::Widgets
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${OpenCV_LIBS}

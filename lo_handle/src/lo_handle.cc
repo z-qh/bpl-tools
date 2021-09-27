@@ -70,8 +70,8 @@ void read_odom_from_file(std::vector<nav_msgs::Odometry>& msgs, std::string path
 }
 //qh add for debug
 
-string sourceBagPath = "/media/qh/QH/rosbagpack/kitti_odometry_00.bag";
-string sourceBagPathTopic = "/kitti/velo/pointcloud";
+string sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+string sourceBagPathTopic = "/os_cloud_node/points";
 
 int main(int argc, char** argv)
 {
@@ -176,10 +176,10 @@ int main(int argc, char** argv)
             correctedOdom.pose.pose.orientation.y = res_ori.y();
             correctedOdom.pose.pose.orientation.z = res_ori.z();
             correctedOdom.pose.pose.orientation.w = res_ori.w();
-            correctedOdom.pose.pose.position.x = res_pos.x();
-            correctedOdom.pose.pose.position.y = res_pos.y();
+            correctedOdom.pose.pose.position.x = -res_pos.x();
+            correctedOdom.pose.pose.position.y = -res_pos.y();
             correctedOdom.pose.pose.position.z = res_pos.z();
-            correctedOdom.header.frame_id = "map";
+            correctedOdom.header.frame_id = "camera_init";
             correctedOdom.header.stamp = ros::Time::now();
             if(correctedOdom.pose.pose.position.x != NAN)
                 hisOdom.push_back(correctedOdom);

@@ -130,7 +130,7 @@ int main(int argc, char** argv)
             //cout << "TOPOMAP input time intersection:" << setprecision(14) << IS_intersecction.header.stamp.toSec() << endl;
             //cout << "TOPOMAP input size:" << OBS_remove_obstacle_cloud.data.size() << endl;
             t1 = chrono::steady_clock::now();//耗时统计
-            TOPOMAP.run(OBS_remove_obstacle_cloud, OBS_remove_odom, IS_intersecction, topoMapGlobal, cloud_local_map);
+            TOPOMAP.run(OBS_remove_obstacle_cloud, OBS_remove_odom, IS_intersecction, topoMapGlobal, cloud_local_map, true);
             t2 = chrono::steady_clock::now();//耗时统计
             time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);//耗时统计
             //show answers here

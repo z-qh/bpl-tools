@@ -386,7 +386,20 @@ private:
 
         pcl::PointCloud<PointType>::Ptr tempGround(new pcl::PointCloud<PointType>());
         pcl::fromROSMsg(groundMsg.front(), *tempGround);
-        *pubCloud += *tempGround;
+        //*pubCloud += *tempGround;
+
+        //////////trans//////////////////////
+        Eigen::Isometry3d nowPoseTemp = Eigen::Isometry3d::Identity();
+        nowPoseTemp.rotate(Eigen::Quaterniond(odomMsgIn.front().pose.pose.orientation.w,
+                                               odomMsgIn.front().pose.pose.orientation.x,
+                                               odomMsgIn.front().pose.pose.orientation.y,
+                                               odomMsgIn.front().pose.pose.orientation.z));
+        nowPoseTemp.pretranslate(Eigen::Vector3d(odomMsgIn.front().pose.pose.position.x,
+                                                 odomMsgIn.front().pose.pose.position.y,
+                                                 odomMsgIn.front().pose.pose.position.z));
+
+        Eigen::Matrix4d transMatrix = nowPoseTemp.matrix();
+        pcl::transformPointCloud(*pubCloud, *pubCloud, transMatrix);
 
         sensor_msgs::PointCloud2 laserCloudTemp;
         pcl::toROSMsg(*pubCloud, laserCloudTemp);
@@ -394,6 +407,7 @@ private:
         laserCloudTemp.header.frame_id = lidarPointCloudsQueue.front().header.frame_id;
         remove_obstacle_cloud_ = laserCloudTemp;
 
+        tempGround->clear();
         pubCloud->clear();
         /////////main handle//////////////
     }

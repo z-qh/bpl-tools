@@ -43,8 +43,8 @@ bool getOdomFronFile(vector<nav_msgs::Odometry>& odom, string filePath)
     return true;
 }
 
-string realPath = "/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanLbak/odomReal.txt";
-string simPath = "/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanLbak/odomSim.txt";
+string realPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/odomRealSematic.txt";
+string simPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/odomSimSematic.txt";
 
 ros::Publisher pubGT;
 sensor_msgs::PointCloud2 tempMsgGT;
@@ -58,7 +58,7 @@ void pubGTThread()
     }
 }
 
-int main(int argc, char** argv)
+int mai2n(int argc, char** argv)
 {
     ros::init(argc, argv, "imuWatcher");
     ros::NodeHandle nh;
@@ -183,4 +183,17 @@ int main(int argc, char** argv)
         loop->sleep();
     }
     return 0;
+}
+//nan
+//none
+//null
+
+
+int main(){
+    queue<int> QQQ;
+    QQQ.front();
+    int NaN_ = std::numeric_limits<int>::signaling_NaN();
+    cout << NaN_ << endl;
+    cout << std::isnan(NaN_) << endl;
+
 }

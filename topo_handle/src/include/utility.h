@@ -57,13 +57,23 @@ using namespace std;
 //extern const float ang_bottom = 16.1;
 //extern const int groundScanInd = 15;
 
+//Ouster OS1-32
+extern const string imuTopic = "/imu/data";
+extern const string lidarTopic = "/os_cloud_node/points";
+extern const int N_SCAN = 32;
+extern const int Horizon_SCAN = 1024;
+extern const float ang_res_x = 360.0/float(Horizon_SCAN);
+extern const float ang_res_y = 45.0/float(N_SCAN-1);
+extern const float ang_bottom = 16.0+0.1;
+extern const int groundScanInd = 15;
+
 //VLP-16
-extern const int N_SCAN = 16;
-extern const int Horizon_SCAN = 1800;
-extern const float ang_res_x = 0.2;
-extern const float ang_res_y = 2.0;
-extern const float ang_bottom = 15.0+0.1;
-extern const int groundScanInd = 7;
+//extern const int N_SCAN = 16;
+//extern const int Horizon_SCAN = 1800;
+//extern const float ang_res_x = 0.2;
+//extern const float ang_res_y = 2.0;
+//extern const float ang_bottom = 15.0+0.1;
+//extern const int groundScanInd = 7;
 
 
 extern const bool loopClosureEnableFlag = true;	        //闭环检测标志位
@@ -126,6 +136,22 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
                                    (float, z, z) (float, intensity, intensity)
                                    (float, roll, roll) (float, pitch, pitch) (float, yaw, yaw)
                                    (double, time, time)
+)
+
+struct PointXYZIL
+{
+    PCL_ADD_POINT4D
+    PCL_ADD_INTENSITY;
+    uint32_t label;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIL,
+                                   (float, x, x)
+                                           (float, y, y)
+                                           (float, z, z)
+                                           (float, intensity, intensity)
+                                           (uint32_t, label, label)
 )
 
 typedef PointXYZIRPYT  PointTypePose;

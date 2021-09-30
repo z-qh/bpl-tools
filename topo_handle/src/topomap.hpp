@@ -6,6 +6,15 @@
 #include "unordered_map"
 #include "deque"
 
+//double
+int64_t __NaN=0xFFF8000000000000,__Infinity=0x7FF0000000000000,__Neg_Infinity=0xFFF0000000000000;
+const double NaN=*((double *)&__NaN),Infinity=*((double *)&__Infinity),Neg_Infinity=*((double *)&__Neg_Infinity);
+
+bool IsNaN(double dat)
+{
+    int64_t & ref=*(int64_t *)&dat;
+    return (ref&0x7FF0000000000000) == 0x7FF0000000000000 && (ref&0xfffffffffffff)!=0;
+}
 
 class topomap{
 private:
@@ -20,6 +29,7 @@ private:
     double laserCloudTime = 0;
     double laserOdomTime  = 0;
     pcl::PointCloud<PointType>::Ptr localMap;
+    pcl::PointCloud<PointType>::Ptr arouncMapShow;
     //////////////////////////////////////
     double weight_distance, weight_similarity, weight_intersection;
     bool save_data_to_files;
@@ -207,7 +217,7 @@ private:
         std::vector<int>pointSearchIndLoop;
         std::vector<float>pointSearchSqDisLoop;
         kdtreeHistroyKeyPoses->setInputCloud(globalKeyPose3d);
-        kdtreeHistroyKeyPoses->radiusSearch(currentPose, 50.0, pointSearchIndLoop, pointSearchSqDisLoop, 0);
+        kdtreeHistroyKeyPoses->radiusSearch(currentPose, 20.0, pointSearchIndLoop, pointSearchSqDisLoop, 0);
 
         unordered_set<int>proposeIndex;
         //可能存在闭环的拓扑节点
@@ -426,11 +436,13 @@ private:
         if((int)laserCloudQue.size() == (int)odometryQue.size() && (int)laserCloudQue.size() == bufferQueLength)
         {
             localMap->clear();
+            arouncMapShow->clear();
             Eigen::Isometry3d keyMatrix = odometryQue.at(odometryQue.size()/2).inverse();
             int queSize = laserCloudQue.size();
             pcl::PointCloud<PointType>::Ptr tmpMap(new pcl::PointCloud<PointType>() );
             for(int i=0; i<queSize; ++i)
             {
+                *arouncMapShow += laserCloudQue.at(i);
                 Eigen::Matrix4d transMatrix = keyMatrix.matrix();
                 pcl::transformPointCloud(laserCloudQue.at(i), *tmpMap, transMatrix);
                 *localMap += *tmpMap;
@@ -442,19 +454,20 @@ private:
         return false;
     }
 public:
-    topomap(double scoreThreshold_ = 1.0, double distanceThreshold_ = 15.3)
+    topomap(double scoreThreshold_ = 0.3, double distanceThreshold_ = 30.0)
     {
         ////////////////////
         kdtreeHistroyKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
         globalKeyPose3d.reset(new pcl::PointCloud<PointType>());
         localMap.reset(new pcl::PointCloud<PointType>());
+        arouncMapShow.reset(new pcl::PointCloud<PointType>());
         pubGlobalNodePosition.reset(new pcl::PointCloud<PointType>());
         node_save_path = "/home/qh/robot_ws/map/";//路径
-        bufferQueLength = 2;
+        bufferQueLength = 12;
         weight_distance = 0.25;
         weight_intersection = 0.4;
         weight_similarity = 0.5;
-        scoreBetweenScanContext = 0.165;//描述子余弦距离
+        scoreBetweenScanContext = 0.6;//描述子余弦距离
         save_data_to_files = false;//是否保存文件
         scoreThreshold = scoreThreshold_;//todo
         scanContextThreshold = 0.4;
@@ -478,13 +491,23 @@ public:
              //输出
              sensor_msgs::PointCloud2& node_position_,
              sensor_msgs::PointCloud2& cloud_local_map,
-             bool isSim)
+             bool isSim,
+             sensor_msgs::PointCloud2& newNopeCloudAround,
+             bool& genNewNodeFlag)
     {
         /////////////
         if(remove_obstacle_cloud.data.empty())//初始的时候可能为空，因此判断
             return;
         /////////////
-
+        static int nodeCountLast = current_node_id;
+        if(current_node_id != nodeCountLast){//generate new node !
+            nodeCountLast = current_node_id;
+            pcl::toROSMsg(*arouncMapShow, newNopeCloudAround);
+            newNopeCloudAround.header.frame_id = "camera_init";
+            genNewNodeFlag = true;
+        }else{
+            genNewNodeFlag = false;
+        }
         ////////////////////
         laserOdomTime = remove_obstacle_odom.header.stamp.toSec();
         Eigen::Isometry3d currentPose = Eigen::Isometry3d::Identity();
@@ -498,14 +521,9 @@ public:
         odometryQue.push_back(currentPose);
         newlaserOdometry = true;
         ///////////////////////
-
-        ///////////////////////
-        laserCloudTime = remove_obstacle_cloud.header.stamp.toSec();
         pcl::PointCloud<PointType> LaserCloud;
         pcl::fromROSMsg(remove_obstacle_cloud, LaserCloud);
-        pcl::transformPointCloud(LaserCloud, LaserCloud, currentPose.matrix());
-        pcl::toROSMsg(LaserCloud, cloud_local_map);
-        cloud_local_map.header = remove_obstacle_cloud.header;
+        laserCloudTime = remove_obstacle_cloud.header.stamp.toSec();
         ///////////////////////
         laserCloudQue.push_back(LaserCloud);
         lidarTimeStampQue.push_back(laserCloudTime);
@@ -533,6 +551,32 @@ public:
             newlaserOdometry = false;
             if(createLocalMap())
             {
+                ///////////////////////pub to show
+                pcl::toROSMsg(*arouncMapShow, cloud_local_map);
+                cloud_local_map.header = remove_obstacle_cloud.header;
+
+                //////////////////////
+                //switch signal area to no signal area and reverse
+                static bool isSimLast = isSim;
+                static bool waitBuffer = false;
+                static double waitTime = 5.0;
+                static double lastTime = 0;
+                static int mode = 0;
+                if(!waitBuffer && isSim){//no sig mode is 1
+                    mode = 1;
+                }else if(!waitBuffer && !isSim){// sig mode is 2
+                    mode = 2;
+                }if(waitBuffer){//waitbuff mode no change
+                    if(remove_obstacle_cloud.header.stamp.toSec() - lastTime > waitTime){
+                        waitBuffer = false;
+                    }
+                }
+                if(isSim != isSimLast){
+                    isSimLast = isSim;
+                    waitBuffer = true;
+                    lastTime = remove_obstacle_cloud.header.stamp.toSec();
+                }
+
                 if(relocation)
                 {
                     node_number++;
@@ -576,6 +620,7 @@ public:
                         thisPose.z = tmp_node.vertices_.Global_Pose_.z;
                         thisPose.intensity = current_node_id;
                         globalKeyPose3d->push_back(thisPose);
+                        thisPose.intensity = isSim;// qh add for debug
                         pubGlobalNodePosition->push_back(thisPose);
                         PreviousNodePosition(0) = thisPose.x;
                         PreviousNodePosition(1) = thisPose.y;
@@ -586,6 +631,7 @@ public:
                         return;
                     }
                 }
+
                 if(nodes.empty())
                 {
                     constructNode();
@@ -600,6 +646,7 @@ public:
                     thisPose.z = tmp_node.vertices_.Global_Pose_.z;
                     thisPose.intensity = current_node_id;
                     globalKeyPose3d->push_back(thisPose);
+                    thisPose.intensity = isSim;// qh add for debug
                     pubGlobalNodePosition->push_back(thisPose);
 
                     PreviousNodePosition(0) = thisPose.x;
@@ -624,10 +671,11 @@ public:
 
                     sc_current = makeScancontext(localMap);
                     double similarityScore = getScoreFromLastNode(sc_current, sc_last);
-
+                    cout << setprecision(6) << "distanceFromPreNode" << distanceFromPreNode << endl;
+                    cout << setprecision(6) << "similarityScore" << similarityScore << endl;
                     double score = 0;
                     if(!isSim) {//GNSS good
-                        if(distanceFromPreNode>=distanceInterThreshold)
+                        if(distanceFromPreNode>=distanceThreshold)
                         {
                             std::cout<<"\ndistance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" distanceFromPreInter "<<distanceFromPreInter<<" score "<<score<<std::endl;
                             lastIntersection = currentIntersection;
@@ -754,6 +802,7 @@ public:
                             thisPose.z = tmp_node.vertices_.Global_Pose_.z;
                             thisPose.intensity = current_node_id;
                             globalKeyPose3d->push_back(thisPose);
+                            thisPose.intensity = isSim;// qh add for debug
                             pubGlobalNodePosition->push_back(thisPose);
                             sc_last = tmp_node.vertices_.scanContext_;
 
@@ -786,7 +835,8 @@ public:
                             std::cout<<"node number "<<node_number<<" success "<<node_success<<std::endl;
                         }
                     }else{//no GNSS signal
-                        score = weight_similarity*std::exp((similarityScore - scanContextThreshold)/(scanContextThreshold*1.0));
+                        //score = std::exp((similarityScore - scanContextThreshold)/(scanContextThreshold*1.0));
+                        score = similarityScore;
                         if(score>=scoreThreshold)
                         {
                             std::cout<<"\ndistance "<<distanceFromPreNode <<" similarityScore "<<similarityScore<<" distanceFromPreInter "<<distanceFromPreInter<<" score "<<score<<std::endl;
@@ -914,6 +964,8 @@ public:
                             thisPose.z = tmp_node.vertices_.Global_Pose_.z;
                             thisPose.intensity = current_node_id;
                             globalKeyPose3d->push_back(thisPose);
+                            //qh add for debug
+                            thisPose.intensity = isSim;//qh add for debug
                             pubGlobalNodePosition->push_back(thisPose);
                             sc_last = tmp_node.vertices_.scanContext_;
 
@@ -949,8 +1001,8 @@ public:
                 }
 
             }
-                localMap->clear();
-            }
+            localMap->clear();
+        }
         /////////////main handle/////////////////////
         sensor_msgs::PointCloud2 pubNodePositionTmp_;
         pcl::toROSMsg(*pubGlobalNodePosition, pubNodePositionTmp_);

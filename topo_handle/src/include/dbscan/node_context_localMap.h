@@ -21,8 +21,8 @@ using KeyMat = std::vector<std::vector<float> >;
 using InvKeyTree = KDTreeVectorOfVectorsAdaptor< KeyMat, float >;;
 
 const float  LIDAR_HEIGHT = 20.0;             //雷达安装高度保证点云z轴数据大于0
-const int    PC_NUM_RING = 40;              // 20 in the original paper (IROS 18) 40， 80
-const int    PC_NUM_SECTOR = 180;            // 60 in the original paper (IROS 18)
+const int    PC_NUM_RING = 20;              // 20 in the original paper (IROS 18) 40，180
+const int    PC_NUM_SECTOR = 60;            // 60 in the original paper (IROS 18)
 const double PC_MAX_RADIUS = 80.0;          // 80 meter 激光点最远距离
 const double PC_UNIT_SECTORANGLE = 360.0 / double(PC_NUM_SECTOR);
 const double PC_UNIT_RINGGAP = PC_MAX_RADIUS / double(PC_NUM_RING);

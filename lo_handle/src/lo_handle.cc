@@ -70,7 +70,7 @@ void read_odom_from_file(std::vector<nav_msgs::Odometry>& msgs, std::string path
 }
 //qh add for debug
 
-string sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+string sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
 string sourceBagPathTopic = "/os_cloud_node/points";
 
 int main(int argc, char** argv)

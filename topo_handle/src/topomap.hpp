@@ -454,7 +454,7 @@ private:
         return false;
     }
 public:
-    topomap(double scoreThreshold_ = 0.3, double distanceThreshold_ = 30.0)
+    topomap(std::string node_save_path_, double scoreThreshold_ = 0.3, double distanceThreshold_ = 30.0 )
     {
         ////////////////////
         kdtreeHistroyKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
@@ -462,13 +462,13 @@ public:
         localMap.reset(new pcl::PointCloud<PointType>());
         arouncMapShow.reset(new pcl::PointCloud<PointType>());
         pubGlobalNodePosition.reset(new pcl::PointCloud<PointType>());
-        node_save_path = "/home/qh/robot_ws/map/";//路径
+        node_save_path = node_save_path_;//"/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/0.70-15/";//路径
         bufferQueLength = 12;
         weight_distance = 0.25;
         weight_intersection = 0.4;
         weight_similarity = 0.5;
         scoreBetweenScanContext = 0.6;//描述子余弦距离
-        save_data_to_files = false;//是否保存文件
+        save_data_to_files = true;//是否保存文件
         scoreThreshold = scoreThreshold_;//todo
         scanContextThreshold = 0.4;
         distanceThreshold = distanceThreshold_;
@@ -479,7 +479,7 @@ public:
         /////////////////////
         if(create_history_nodes)
         {
-            string file_path = node_save_path + "node/";
+            string file_path = node_save_path;
             read_nodes_from_files(nodes, file_path);
         }
         /////////////////////
@@ -598,7 +598,7 @@ public:
                         nodes[loopClosureIndex].success_call_freq_++;
                         if(save_data_to_files)
                         {
-                            string file_path = node_save_path + "node/";
+                            string file_path = node_save_path;
                             nodes[loopClosureIndex].nodes_save(file_path);
                         }
                         last_node_id = loopNodeId;
@@ -709,7 +709,7 @@ public:
                                         nodes[child_id_index].success_call_freq_++;
                                         if(save_data_to_files)
                                         {
-                                            string file_path = node_save_path + "node/";
+                                            string file_path = node_save_path;
                                             nodes[child_id_index].nodes_save(file_path);
                                         }
                                         double average_time = cost_time/(node_number*1.0);
@@ -753,7 +753,7 @@ public:
                                     nodes[loopClosureIndex].success_call_freq_++;
                                     if(save_data_to_files)
                                     {
-                                        string file_path = node_save_path + "node/";
+                                        string file_path = node_save_path;
                                         nodes[loopClosureIndex].nodes_save(file_path);
                                     }
                                     bool create_now_edge(true);     //判断两个节点之间是否已经有边
@@ -780,7 +780,7 @@ public:
                                         creataEdge(nodes, father_id, loopClosureIndex);
                                         if(save_data_to_files)
                                         {
-                                            string file_path = node_save_path + "node/";
+                                            string file_path = node_save_path;
                                             nodes[father_id].nodes_save(file_path);
                                             nodes[loopClosureIndex].nodes_save(file_path);
                                         }
@@ -821,7 +821,7 @@ public:
                                 creataEdge(nodes, father_id, (int)(nodes.size()-1));
                                 if(save_data_to_files)
                                 {
-                                    string file_path = node_save_path + "node/";
+                                    string file_path = node_save_path;
                                     nodes[father_id].nodes_save(file_path);
                                     nodes[(int)(nodes.size()-1)].nodes_save(file_path);
                                 }
@@ -871,7 +871,7 @@ public:
                                         nodes[child_id_index].success_call_freq_++;
                                         if(save_data_to_files)
                                         {
-                                            string file_path = node_save_path + "node/";
+                                            string file_path = node_save_path;
                                             nodes[child_id_index].nodes_save(file_path);
                                         }
                                         double average_time = cost_time/(node_number*1.0);
@@ -915,7 +915,7 @@ public:
                                     nodes[loopClosureIndex].success_call_freq_++;
                                     if(save_data_to_files)
                                     {
-                                        string file_path = node_save_path + "node/";
+                                        string file_path = node_save_path;
                                         nodes[loopClosureIndex].nodes_save(file_path);
                                     }
                                     bool create_now_edge(true);     //判断两个节点之间是否已经有边
@@ -942,7 +942,7 @@ public:
                                         creataEdge(nodes, father_id, loopClosureIndex);
                                         if(save_data_to_files)
                                         {
-                                            string file_path = node_save_path + "node/";
+                                            string file_path = node_save_path;
                                             nodes[father_id].nodes_save(file_path);
                                             nodes[loopClosureIndex].nodes_save(file_path);
                                         }
@@ -984,8 +984,7 @@ public:
                                 creataEdge(nodes, father_id, (int)(nodes.size()-1));
                                 if(save_data_to_files)
                                 {
-                                    string file_path = node_save_path + "node/";
-                                    nodes[father_id].nodes_save(file_path);
+                                    string file_path = node_save_path;                                    nodes[father_id].nodes_save(file_path);
                                     nodes[(int)(nodes.size()-1)].nodes_save(file_path);
                                 }
                                 std::cout<<"create edge and the father is "<<last_node_id<<" child id is "<<tmp_node.id_<<std::endl;

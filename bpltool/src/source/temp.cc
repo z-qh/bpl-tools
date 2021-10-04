@@ -190,10 +190,8 @@ int mai2n(int argc, char** argv)
 
 
 int main(){
-    queue<int> QQQ;
-    QQQ.front();
-    int NaN_ = std::numeric_limits<int>::signaling_NaN();
-    cout << NaN_ << endl;
-    cout << std::isnan(NaN_) << endl;
 
+    sleep(1);
+    cout << " 123" << endl;
+    return 0;
 }

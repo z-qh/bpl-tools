@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
         sensor_msgs
         cv_bridge
         image_transport
+        tf
         tf2
         tf2_geometry_msgs
         rosbag
@@ -137,6 +138,33 @@ target_link_libraries(topo_handle
         ${PCL_LIBRARIES}
         ${OpenCV_LIBS}
         )
+
+add_executable(AS1 src/recallTopoAS1.cc)
+target_link_libraries(AS1 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(AS3 src/recallTopoAS3.cc)
+target_link_libraries(AS3 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(TestSim src/showSim.cc)
+target_link_libraries(TestSim ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(buildD src/buildD.cc)
+target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(buildN src/buildN.cc)
+target_link_libraries(buildN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(buildS src/buildS.cc)
+target_link_libraries(buildS ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+
+add_executable(AD1 src/recallTopoAD1.cc)
+target_link_libraries(AD1 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(AD3 src/recallTopoAD3.cc)
+target_link_libraries(AD3 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+
+add_executable(AN1 src/recallTopoAN1.cc)
+target_link_libraries(AN1 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(AN3 src/recallTopoAN3.cc)
+target_link_libraries(AN3 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 ##
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

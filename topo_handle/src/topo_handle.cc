@@ -13,9 +13,20 @@
 #include "topomap.hpp"
 #include "recall.hpp"
 
+#include <stdio.h>
+#include <unistd.h>
+
+#include "createNode.hpp"
+#include "tf/tf.h"
+#include "tf2/transform_datatypes.h"
+#include "tf2_ros/transform_broadcaster.h"
+#define CLEAR() printf("\033[2J")
+#define RESET_CURSOR() printf("\033[H")
+
 using namespace std;
 
-bool isRecall;
+bool isRecall = false;
+bool isAllCreateNode = true;
 
 bool continueFlag = true;
 void keyControlSubHandle(std_msgs::String cmd);
@@ -25,22 +36,36 @@ void keyControlSubHandle(std_msgs::String cmd);
 
 
 string sourceBagPathTopic = "/os_cloud_node/points";
+//string sourceBagPathTopic = "/lslidar_point_cloud";
 //recall
-string sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
-//string sourceBagPath = "/media/qh/YES/2021-08-30-19-17-22L.bag";
+//string sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
+string sourceBagPath;// = "/media/qh/YES/2021-01-19-11-10-53DaQuanL.bag";
 //else
 //string sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+string allNodeSavePath;// = "/home/qh/robot_ws/map/allNode/4/";
+
 
 vector<pair<double,nav_msgs::Odometry>> odomList;
 vector<int> odomStatueList;
-void readFileOdom(){
+void readFileOdom(string filePathIn){
     ifstream fileIn;
-    if(isRecall){
-        fileIn.open("/home/qh/robot_ws/map/2021-08-30-16-12-25L/gtFittingA.txt");
-        // fileIn.open("/home/qh/robot_ws/map/2021-08-30-19-17-22L/gtFittingA.txt");
-    }else{
-        fileIn.open("/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt");
-    }
+//    if(isRecall && !isAllCreateNode){
+//        //fileIn.open("/home/qh/robot_ws/map/2021-08-30-16-12-25L/gtFittingA.txt");
+//        fileIn.open("/home/qh/robot_ws/map/2021-08-30-19-17-22L/gtFittingA.txt");
+//    }else{
+//        fileIn.open("/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt");
+//    }
+//
+    //if(isAllCreateNode){
+        //fileIn.open("/home/qh/robot_ws/map/2021-08-30-16-12-25L/gtFittingA.txt");
+        //fileIn.open("/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt");
+        //fileIn.open("/home/qh/robot_ws/map/2021-08-30-19-17-22L/gtFittingA.txt");
+    //}
+
+    //fileIn.open("/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanL/odomRealSematic.txt");
+
+    fileIn.open(filePathIn);
+
     int odomSize = 0;
     double tempNone;
     fileIn >> tempNone >> tempNone >> tempNone;
@@ -72,50 +97,82 @@ void readFileOdom(){
     cout << "odom size open succeed : " << odomSize << " poses!" << endl;
 }
 bool isSim(int state){
-    if(state == 0 || state == -1 || state == 1)
+//    if(state == 0 || state == -1 || state == 1)
+//        return true;
+//    else
+//        return false;
+    if(state == -1)
         return true;
     else
         return false;
 }
 
-double valueNow = 0.40;
+double valueNow = 0.25;
+double recallValue = 0.20;
 
-int posesCount = 30;
+int posesCount = 0;
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "topo_handle");
+    ros::init(argc, argv, "topo_handle4");
     ros::NodeHandle nh("~");
-    nh.getParam("valueNow", valueNow);
-    nh.getParam("isRecall", isRecall);
+//    nh.getParam("valueNow", valueNow);
+//    nh.getParam("isRecall", isRecall);
+//    nh.getParam("isAllCreateNode", isAllCreateNode);
+//    nh.getParam("recallValue", recallValue);
 
+//    if(isRecall && !isAllCreateNode){
+//        //sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
+//        sourceBagPath = "/media/qh/YES/2021-08-30-19-17-22L.bag";
+//    }else{
+//        sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+//    }
+//
+    if(isAllCreateNode){
+        //sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
+        //sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+        //sourceBagPath = "/media/qh/YES/2021-08-30-19-17-22L.bag";
+    }
 
-    readFileOdom();
-    ros::Subscriber keyControlSub = nh.subscribe<std_msgs::String>("/keyboardControlCmd", 1, keyControlSubHandle);
-    ros::AsyncSpinner spinner(1);
-    spinner.start();
+    sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+    allNodeSavePath = "/home/qh/robot_ws/map/allNode/2/";
+    string OdomPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt";
 
-    ros::Publisher groundCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/ground", 1);
-    ros::Publisher nogroundCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/noground", 1);
-    ros::Publisher showSegCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/showSegCloud", 1);
-    ros::Publisher removeOBSCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/remove", 1);
-    ros::Publisher topoMapGlobalPub = nh.advertise<sensor_msgs::PointCloud2>("/topomap", 1);
+    readFileOdom(OdomPath);
+//    ros::Subscriber keyControlSub = nh.subscribe<std_msgs::String>("/keyboardControlCmd", 1, keyControlSubHandle);
+//    ros::AsyncSpinner spinner(1);
+//    spinner.start();
+
+//    ros::Publisher groundCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/ground", 1);
+//    ros::Publisher nogroundCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/noground", 1);
+//    ros::Publisher showSegCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/showSegCloud", 1);
+//    ros::Publisher removeOBSCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/remove", 1);
+//    ros::Publisher topoMapGlobalPub = nh.advertise<sensor_msgs::PointCloud2>("/topomap", 1);
     ros::Publisher cloudLocalMapPub = nh.advertise<sensor_msgs::PointCloud2>("/localMap", 1);
-    ros::Publisher topoMapAllNodeCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/nodeCloud", 1);
-
-    ros::Publisher oldNodePosiPub = nh.advertise<sensor_msgs::PointCloud2>("/oldNodePosi", 1);
-    ros::Publisher newNodePosiPub = nh.advertise<sensor_msgs::PointCloud2>("/newNodePosi", 1);
-    ros::Publisher recallCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/recallCloud", 1);
+//    ros::Publisher topoMapAllNodeCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/nodeCloud", 1);
+//
+//    ros::Publisher oldNodePosiPub = nh.advertise<sensor_msgs::PointCloud2>("/oldNodePosi", 1);
+//    ros::Publisher newNodePosiPub = nh.advertise<sensor_msgs::PointCloud2>("/newNodePosi", 1);
+//    ros::Publisher recallCloudPub = nh.advertise<sensor_msgs::PointCloud2>("/recallCloud", 1);
+//    ros::Publisher recallCloudPrePub = nh.advertise<sensor_msgs::PointCloud2>("/PreCloud", 1);
 
     Intersection IS;
     obstacle OBS;
-    stringstream ss;
-    ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << valueNow;
-    string pathNow = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/"+ss.str()+"-15/";
-    string pathLoad = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/"+ss.str()+"-15/";
-    string pathLoadOut = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/"+ss.str()+"3.0-Recall/";
-    topomap TOPOMAP(pathNow, valueNow, 15);
-    topomapRecall TopoMapRecall(pathLoad, pathLoadOut, 3.0);
-    cout << pathNow << endl;
+    //stringstream ss;
+    //ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << valueNow;
+    //ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << recallValue;
+    //string pathNow = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/"+ss.str()+"-fixed/";
+    //string pathLoad = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/"+ss.str()+"-15/";
+    //string pathLoadOut = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/"+ss.str()+"-Recall/";
+    //string pathLoadOut = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/node/"+ss.str()+"-Recall/";
+
+
+    //pathNow = "/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanL/node/0.25-15/";
+    //topomap TOPOMAP(pathNow, valueNow, 15);
+    //topomapRecall TopoMapRecall(pathLoad, pathLoadOut, 8.0, recallValue);
+
+    createNode TopoMapAllNode(allNodeSavePath);
+
+    //cout << pathNow << endl;
     char keytemp = getchar();
     if(keytemp == 'q'){
         exit(0);
@@ -141,7 +198,14 @@ int main(int argc, char** argv)
     sensor_msgs::PointCloud2 newNodePosi;
     sensor_msgs::PointCloud2 recallCloud;
     pcl::PointCloud<pcl::PointXYZI>::Ptr recallAllCoud(new pcl::PointCloud<pcl::PointXYZI>());
-
+    pcl::PointCloud<pcl::PointXYZI>::Ptr recallAllCoudPre(new pcl::PointCloud<pcl::PointXYZI>());
+    sensor_msgs::PointCloud2 recallAllCoudPreMsgs;
+    //if(isRecall && !isAllCreateNode) {
+        //pcl::io::loadPCDFile(pathNow + "nodeAll.pcd", *recallAllCoudPre);
+        //pcl::toROSMsg(*recallAllCoudPre, recallAllCoudPreMsgs);
+        //recallAllCoudPreMsgs.header.frame_id = "camera_init";
+        //recallCloudPrePub.publish(recallAllCoudPreMsgs);
+    //}
 
     rosbag::Bag bag;
     bag.open(sourceBagPath, rosbag::bagmode::Read);
@@ -163,9 +227,15 @@ int main(int argc, char** argv)
     sensor_msgs::PointCloud2 BagCloud;
     nav_msgs::Odometry BagOdom;
     double cloudTime = -1;
-    for(it = view.begin(); it != view.end(); it++)
+    cout << "start" <<endl;
+
+
+    for(it = view.begin(); it != view.end()&&ros::ok(); it++)
     {
         frameCunt++;
+        if(frameCunt <= 100){
+            //recallCloudPrePub.publish(recallAllCoudPreMsgs);
+        }
         while(!continueFlag){
             char key = getchar();
             if(key == 'q'){
@@ -205,6 +275,8 @@ int main(int argc, char** argv)
         if(cloudTime != -1 &&
            abs(cloudTime - odomList[posesCount].first) < 0.15)
         {
+            cout << frameCunt;
+            cout << setprecision(5) << setw(6) << " timediff " << cloudTime- odomList[posesCount].first << endl;
             cloudTime = -1;
             /*
              * 分割
@@ -217,9 +289,9 @@ int main(int argc, char** argv)
             //t2 = chrono::steady_clock::now();//耗时统计
             //time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);//耗时统计
 
-            groundCloudPub.publish(IS_ground_cloud);
-            nogroundCloudPub.publish(IS_noground_cloud);
-            showSegCloudPub.publish(IS_show_cloud);
+            //groundCloudPub.publish(IS_ground_cloud);
+            //nogroundCloudPub.publish(IS_noground_cloud);
+            //showSegCloudPub.publish(IS_show_cloud);
             //getchar();
             //cout << frameCunt << " IS frame succeed : " << (time_used.count() * 1000) << " ms" << endl;
             /*
@@ -235,7 +307,7 @@ int main(int argc, char** argv)
             //time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);//耗时统计
             //show answers here
             //getchar();
-            removeOBSCloudPub.publish(OBS_remove_obstacle_cloud);
+            //removeOBSCloudPub.publish(OBS_remove_obstacle_cloud);
             //cout << frameCunt << " OBS frame succeed : " << (time_used.count() * 1000) << " ms" << endl;
             /*
              *几何地图
@@ -245,51 +317,60 @@ int main(int argc, char** argv)
             //cout << "TOPOMAP input time intersection:" << setprecision(14) << IS_intersecction.header.stamp.toSec() << endl;
             //cout << "TOPOMAP input size:" << OBS_remove_obstacle_cloud.data.size() << endl;
             //t1 = chrono::steady_clock::now();//耗时统计
-            if(isRecall){
-                sensor_msgs::PointCloud2 tempMsgs;
-                bool isRecall = false;
-                TopoMapRecall.run(OBS_remove_obstacle_cloud, OBS_remove_odom, IS_intersecction,
-                                  oldNodePosi, newNodePosi, recallCloud, isRecall);
-                if(isRecall){
-                    isRecall = false;
-                    pcl::PointCloud<PointType>::Ptr tempCloud(new pcl::PointCloud<PointType>());
-                    pcl::fromROSMsg(recallCloud, *tempCloud);
-                    *recallAllCoud += *tempCloud;
-                    tempCloud->clear();
-                }
-                pcl::toROSMsg(*recallAllCoud, tempMsgs);
-                tempMsgs.header.frame_id = "camera_init";
+            //if(isRecall && !isAllCreateNode){
+                //sensor_msgs::PointCloud2 tempMsgs;
+                //bool isRecallSucceed = false;
+                //TopoMapRecall.run(OBS_remove_obstacle_cloud, OBS_remove_odom,
+                //                  oldNodePosi, newNodePosi, recallCloud, isRecallSucceed);
+                //oldNodePosi.header.frame_id = "camera_init";
+                //newNodePosi.header.frame_id = "camera_init";
+                //recallCloud.header.frame_id = "camera_init";
+                //oldNodePosiPub.publish(oldNodePosi);
+                //newNodePosiPub.publish(newNodePosi);
+                //recallCloudPub.publish(recallCloud);
+            //}else if(!isRecall && !isAllCreateNode){
+                //cout << " 123" << endl;
+                //sensor_msgs::PointCloud2 tempMsgs;
+                //TOPOMAP.run(OBS_remove_obstacle_cloud, OBS_remove_odom, IS_intersecction, topoMapGlobal, cloud_local_map, isSim(odomStatueList[posesCount]), tempMsgs, genNewNodeFlag);
+//                if(genNewNodeFlag){
+//                    genNewNodeFlag = false;
+//                    pcl::PointCloud<PointType>::Ptr tempCloud(new pcl::PointCloud<PointType>());
+//                    pcl::fromROSMsg(tempMsgs, *tempCloud);
+//                    *topoMapAllNodeCloud += *tempCloud;
+//                    tempCloud->clear();
+//                }
+                //pcl::toROSMsg(*topoMapAllNodeCloud, topoMapAllNodeCloudMsg);
+                //topoMapAllNodeCloudMsg.header.frame_id = "camera_init";
 
-                oldNodePosiPub.publish(oldNodePosi);
-                newNodePosiPub.publish(newNodePosi);
-                recallCloudPub.publish(tempMsgs);
-            }else{
-                sensor_msgs::PointCloud2 tempMsgs;
-                TOPOMAP.run(OBS_remove_obstacle_cloud, OBS_remove_odom, IS_intersecction, topoMapGlobal, cloud_local_map, isSim(odomStatueList[posesCount]), tempMsgs, genNewNodeFlag);
-                if(genNewNodeFlag){
-                    genNewNodeFlag = false;
-                    pcl::PointCloud<PointType>::Ptr tempCloud(new pcl::PointCloud<PointType>());
-                    pcl::fromROSMsg(tempMsgs, *tempCloud);
-                    *topoMapAllNodeCloud += *tempCloud;
-                    tempCloud->clear();
-                }
-                pcl::toROSMsg(*topoMapAllNodeCloud, topoMapAllNodeCloudMsg);
-                topoMapAllNodeCloudMsg.header.frame_id = "camera_init";
-
-                topoMapAllNodeCloudPub.publish(topoMapAllNodeCloudMsg);
-                topoMapGlobalPub.publish(topoMapGlobal);
+                //topoMapAllNodeCloudPub.publish(topoMapAllNodeCloudMsg);
+                //topoMapGlobalPub.publish(topoMapGlobal);
+                //cloudLocalMapPub.publish(cloud_local_map);
+            //}else if(isAllCreateNode){
+                bool createFlag = false;
+                TopoMapAllNode.run(OBS_remove_obstacle_cloud, OBS_remove_odom, odomStatueList[posesCount], cloud_local_map, createFlag);
                 cloudLocalMapPub.publish(cloud_local_map);
+
+            
+            if(createFlag){
+                static int pcdCount = 0;
+                pcl::PointCloud<pcl::PointXYZI> tempSaveCloud;
+                pcl::fromROSMsg(cloud_local_map, tempSaveCloud);
+                stringstream ss;
+                ss << pcdCount++;
+                string path = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/" + ss.str() + ".pcd";
+                if(!tempSaveCloud.empty())pcl::io::savePCDFileASCII(path, tempSaveCloud);
             }
+            //}
             //t2 = chrono::steady_clock::now();//耗时统计
             //time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);//耗时统计
             //show answers here
             //getchar();
-            //cout << frameCunt << " TOPOMAP frame succeed : " << (time_used.count() * 1000) << " ms" << endl;
             posesCount++;
         }
     }
 
-    spinner.start();
+    //if(!isRecall && !isAllCreateNode) pcl::io::savePCDFileASCII(pathNow+"nodeAll.pcd",*topoMapAllNodeCloud);
+    //spinner.stop();
     reviceCloud->clear();
     lsCloud->clear();
     bag.close();

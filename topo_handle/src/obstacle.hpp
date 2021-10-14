@@ -399,8 +399,8 @@ private:
                                                  odomMsgIn.front().pose.pose.position.z));
 
         Eigen::Matrix4d transMatrix = nowPoseTemp.matrix();
-        pcl::transformPointCloud(*pubCloud, *pubCloud, transMatrix);
 
+        pcl::transformPointCloud(*pubCloud, *pubCloud, transMatrix);
         sensor_msgs::PointCloud2 laserCloudTemp;
         pcl::toROSMsg(*pubCloud, laserCloudTemp);
         laserCloudTemp.header.stamp = lidarPointCloudsQueue.front().header.stamp;
@@ -455,6 +455,9 @@ public:
              sensor_msgs::PointCloud2& remove_obstacle_cloud,
              nav_msgs::Odometry& OBS_remove_odom)
     {
+
+
+
         //
         sensor_msgs::PointCloud2 tmpMsgA = ground_cloud;
         groundMsg.push_back(tmpMsgA);
@@ -486,6 +489,31 @@ public:
         }
         newLaserOdometry = true;
         //
+//        OBS_remove_odom = odomMsgIn.front();
+//        pcl::PointCloud<PointType>::Ptr pubCloud(new pcl::PointCloud<PointType>());
+//        pcl::fromROSMsg(lidarPointCloudsQueue.back(), *pubCloud);//qh add for debug
+//        pcl::PointCloud<PointType>::Ptr tempGround(new pcl::PointCloud<PointType>());
+//        pcl::fromROSMsg(groundMsg.front(), *tempGround);
+//        Eigen::Isometry3d nowPoseTemp = Eigen::Isometry3d::Identity();
+//        nowPoseTemp.rotate(Eigen::Quaterniond(odomMsgIn.front().pose.pose.orientation.w,
+//                                              odomMsgIn.front().pose.pose.orientation.x,
+//                                              odomMsgIn.front().pose.pose.orientation.y,
+//                                              odomMsgIn.front().pose.pose.orientation.z));
+//        nowPoseTemp.pretranslate(Eigen::Vector3d(odomMsgIn.front().pose.pose.position.x,
+//                                                 odomMsgIn.front().pose.pose.position.y,
+//                                                 odomMsgIn.front().pose.pose.position.z));
+//        Eigen::Matrix4d transMatrix = nowPoseTemp.matrix();
+//        pcl::transformPointCloud(*pubCloud, *pubCloud, transMatrix);
+//        sensor_msgs::PointCloud2 laserCloudTemp;
+//        pcl::toROSMsg(*pubCloud, laserCloudTemp);
+//        laserCloudTemp.header.stamp = lidarPointCloudsQueue.front().header.stamp;
+//        laserCloudTemp.header.frame_id = lidarPointCloudsQueue.front().header.frame_id;
+//        remove_obstacle_cloud = laserCloudTemp;
+//        return;
+        //
+
+
+
         if(newLaserPointCloud && newLaserOdometry && poseQueue.size() == queLength && lidarPointCloudsQueue.size() == queLength)
         {
             newLaserOdometry = false;

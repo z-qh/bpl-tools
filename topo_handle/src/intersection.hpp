@@ -224,7 +224,7 @@ private:
         PointType thisPoint;
         int cloudSize = laserCloudIn->points.size();
 
-        //qh add for debug
+        //qh add for debug ouster
         for(int i=0; i < cloudSize; i++)
         {
             PointType TTTT = laserCloudIn->points[i];
@@ -233,6 +233,16 @@ private:
             laserCloudIn->points[i].z = TTTT.x;
             laserCloudIn->points[i].intensity = TTTT.intensity;
         }
+
+        //qh add for debug lslidar
+//        for(int i=0; i < cloudSize; i++)
+//        {
+//            pcl::PointXYZI TTTT = laserCloudIn->points[i];
+//            laserCloudIn->points[i].x = TTTT.x;
+//            laserCloudIn->points[i].y = TTTT.z;
+//            laserCloudIn->points[i].z = -TTTT.y;
+//            laserCloudIn->points[i].intensity = TTTT.intensity;
+//        }
 
         //这里针对velodyne的雷达处理//qh comment for debug
         for(int i=0; i<cloudSize; ++i){

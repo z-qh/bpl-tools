@@ -188,10 +188,217 @@ int mai2n(int argc, char** argv)
 //none
 //null
 
+using namespace std;
 
-int main(){
+#include "string"
+#include "../../bpl-tools/topo_handle/src/include/dbscan/node_context_localMap.h"
 
-    sleep(1);
-    cout << " 123" << endl;
+void create_node_from_file_B(std::vector<node>& nodes, std::string& path)
+{
+    std::vector<std::string>file_name;
+    std::vector<int>index;
+    DIR *d = opendir(path.c_str());
+    struct dirent *dp;
+    while((dp = readdir(d)) != NULL)
+    {
+        if(dp->d_name[0] == '.')    {continue;}
+        index.push_back(atoi(dp->d_name));
+    }
+    sort(index.begin(), index.end());
+    closedir(d);
+    int node_index = 0;
+    if(index.size() > 0)
+    {
+        int node_number = index.size();
+        nodes.resize(node_number);
+        for(int i=0; i<node_number;++i)
+        {
+            node tmp_node;
+            tmp_node.create_node_from_file_B(path, index[i]);
+            std::cout<<tmp_node.id_<<" ";
+            nodes[node_index] = tmp_node;
+            node_index++;
+        }
+    }
+    cout<<"number "<<nodes.size()<<endl;
+}
+
+void readTopomap(sensor_msgs::PointCloud2& msgs, string path){
+    ifstream file;
+    file.open(path);
+    pcl::PointCloud<pcl::PointXYZI> tempCloud;
+    while(!file.eof()){
+        pcl::PointXYZI temPoint;
+        file >> temPoint.x >> temPoint.y >> temPoint.z >> temPoint.intensity;
+        tempCloud.push_back(temPoint);
+    }
+    pcl::toROSMsg(tempCloud, msgs);
+    msgs.header.frame_id = "camera_init";
+    cout << "size " << tempCloud.points.size() << endl;
+}
+
+void readTopomapRecall(sensor_msgs::PointCloud2& msgs, string path){
+    ifstream file;
+    file.open(path);
+    pcl::PointCloud<pcl::PointXYZI> tempCloud;
+    while(!file.eof()){
+        pcl::PointXYZI temPoint;
+        int id;
+        file >> id >> temPoint.x >> temPoint.y >> temPoint.z >> temPoint.intensity;
+        tempCloud.push_back(temPoint);
+    }
+    pcl::toROSMsg(tempCloud, msgs);
+    msgs.header.frame_id = "camera_init";
+    cout << "size " << tempCloud.points.size() << endl;
+}
+
+void getNodeInfo(string pathin, string pathout){
+    vector<node> states;
+    vector<int> gnss;
+    vector<int> nognss;
+    std::vector<std::string>file_name;
+    std::vector<int>index;
+    DIR *d = opendir(pathin.c_str());
+    struct dirent *dp;
+    while((dp = readdir(d)) != NULL)
+    {
+        if(dp->d_name[0] == '.')    {continue;}
+        index.push_back(atoi(dp->d_name));
+    }
+    sort(index.begin(), index.end());
+    closedir(d);
+    int max_id_in_file = INT_MIN;
+    int success_number = 0;
+    int node_index = 0;
+    if(index.size() > 0)
+    {
+        int node_number = index.size();
+
+        for(int i=0; i<node_number;++i)
+        {
+            node tmp_node;
+            tmp_node.create_node_from_file_B(pathin, index[i]);
+            states.push_back(tmp_node);
+        }
+        cout<<endl;
+    }
+
+
+    bool isFirst{true};
+    bool mode{true};
+    int gnssSig = 0;
+    int gnssSigLast = 0;
+    bool waitFlag = false;
+    double nowTime = 0;
+    double startTime = 0;
+    for(int i = 0; i < states.size(); i++){
+        node& input_node = states[i];
+        nowTime = input_node.time_stamp_;
+        if(input_node.vertices_.Global_Pose_.intensity == -1){
+            gnssSigLast = gnssSig;
+            gnssSig = 1;
+            if(isFirst) {
+                mode = true;
+                gnssSigLast = gnssSig;
+            }
+        }else{
+            gnssSigLast = gnssSig;
+            gnssSig = 2;
+            if(isFirst) {
+                mode = false;
+                gnssSigLast = gnssSig;
+            }
+        }
+        if(input_node.vertices_.Global_Pose_.intensity == 5){
+            gnssSig = gnssSigLast;
+        }
+        if(gnssSig != gnssSigLast && !waitFlag){
+            waitFlag = true;
+            startTime = nowTime;
+            cout << "start time " << startTime << endl;
+        }
+
+        if(waitFlag){
+            cout << "now time " << nowTime << endl;
+            if(nowTime - startTime > 5.0){
+                waitFlag = false;
+                mode = gnssSig==2?false:true;
+            }
+        }else if(gnssSig==2){
+            mode = false;
+        }else if(gnssSig==1){
+            mode = true;
+        }
+        if(isFirst) isFirst = false;
+        if(mode){
+            nognss.push_back(i);
+        }else{
+            gnss.push_back(i);
+        }
+    }
+
+
+    ofstream fileOut;
+    fileOut.open(pathout);
+    fileOut << "gnss: " << gnss.size() <<endl;
+    for(auto i : gnss){
+        fileOut << i << " ";
+    }
+    fileOut << endl;
+    fileOut << "no gnss: " << nognss.size() << endl;
+    for(auto i : nognss){
+        fileOut << i << " ";
+    }
+    fileOut.close();
+}
+
+bool comMy(int a, int b){
+    return a < b;
+}
+
+int main (int argc, char ** argv){
+    ros::init(argc, argv, "topomap");
+    ros::NodeHandle nh;
+    ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("/toppomap", 1);
+    ros::Publisher pubrecall = nh.advertise<sensor_msgs::PointCloud2>("/toppomapRecall", 1);
+
+    sensor_msgs::PointCloud2 PubMsgs, PubMsgsRecall;
+    string fileName(argv[1]);
+    string topoNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/" + fileName + ".txt";
+    cout << topoNodePath << endl;
+    readTopomap(PubMsgs, topoNodePath);
+
+    //string topoNodePathRecall = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/0.15-8.0-Recall.txt";
+    //readTopomapRecall(PubMsgsRecall, topoNodePathRecall);
+
+
+
+//    vector<node> sourceNode;
+//
+//    string pathSourceNode = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/20-60-40/";
+//    create_node_from_file_B(sourceNode, pathSourceNode);
+//    pcl::PointCloud<pcl::PointXYZI> tempCloud;
+//    for(int i =0 ;i < sourceNode.size(); i++){
+//        if(i % 5 != 0) continue;
+//        pcl::PointXYZI tempPoint;
+//        cout <<i/5+1 << " " << sourceNode[i].id_ << endl;
+//        tempPoint.x = sourceNode[i].vertices_.Global_Pose_.x;
+//        tempPoint.y = sourceNode[i].vertices_.Global_Pose_.y;
+//        tempPoint.z = sourceNode[i].vertices_.Global_Pose_.z;
+//        tempPoint.intensity = sourceNode[i].vertices_.Global_Pose_.intensity;
+//        tempCloud.push_back(tempPoint);
+//    }
+//    pcl::toROSMsg(tempCloud, PubMsgs);
+    PubMsgs.header.frame_id = "camera_init";
+
+    ros::Rate loop(1);
+    while(ros::ok()){
+        pub.publish(PubMsgs);
+        pubrecall.publish(PubMsgsRecall);
+        loop.sleep();
+    }
+
     return 0;
 }
+
+

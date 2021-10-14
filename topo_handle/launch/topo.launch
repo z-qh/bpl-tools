@@ -3,12 +3,15 @@
     <arg name="rviz" default="true" />
 
     <node pkg="topo_handle" type="topo_handle" name="topo" output="screen">
-        <param name="valueNow" value="0.80" type="double"/>
-        <param name="isRecall" value="true" type="bool"/>
+        <param name="valueNow" value="0.25" type="double"/>
+        <param name="isRecall" value="false" type="bool"/>
+        <param name="isAllCreateNode" value="false" type="bool"/>
+        <param name="recallValue" value="0.20" type="double"/>
+
     </node>
 
     <group if="$(arg rviz)">
-        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find topo_handle)/launch/topo_rviz.rviz" />
+        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" output="log" args="-d $(find topo_handle)/launch/topo_rviz.rviz" />
     </group>
 
 </launch>

@@ -1,6 +1,12 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+
+QVector<double> cloudShift{-4.0, -1.0, 0, 1.0, 4.0};
+int lenSize = 20;
+int widthSize = 60;
+float mDis = 50;
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -12,17 +18,20 @@ MainWindow::MainWindow(QWidget *parent)
     int currentScreenHeight = QApplication::desktop()->height();
     qDebug() << currentScreenWidth  << currentScreenHeight;
     move((currentScreenWidth-appWidth)/2, (currentScreenHeight-appHeight)/2);
-    initSliderBar();
-    buttonControlInit();
+    //initSliderBar();
+    //buttonControlInit();
+    initButtonCloud();
 }
 
 MainWindow::~MainWindow()
 {
     delete nh;
-    deInitSliderBar();
-    buttonControlDeInit();
+    //deInitSliderBar();
+    //buttonControlDeInit();
+    deinitButtonCloud();
     delete ui;
 }
+////////////////////////////////////////////
 void MainWindow::deInitSliderBar(){
     delete rollSpinBox;         //free memory
     delete pitchSpinBox;
@@ -148,7 +157,6 @@ void MainWindow::initSliderBar(){
     qDebug() << QString("bar left") << rollSlider->geometry().topLeft().x();
     qDebug() << QString("spinBox left") << rollSpinBox->geometry().topLeft().x();
 }
-
 void MainWindow::buttonControlInit() {
     int buttonWidth = 100;
     int buttonHeigh = 60;
@@ -165,11 +173,43 @@ void MainWindow::buttonControlInit() {
     keyControlPub = new ros::Publisher();
     *keyControlPub = nh->advertise<std_msgs::String>("/keyboardControlCmd", pubQueueSize);
 }
-
 void MainWindow::buttonControlDeInit() {
     delete activeStopButton;
     delete keyControlPub;
 }
+
+////////////////////////////////////////////
+
+void MainWindow::initButtonCloud(){
+    openFileCloud = new QPushButton(this);
+    openFileCloud->resize(100, 50);
+    openFileCloud->move(100, 100);
+    openFileCloud->setText(QString("open cloud"));
+
+    updateSc = new QPushButton(this);
+    updateSc->resize(100, 50);
+    updateSc->move(100, 200);
+    updateSc->setText(QString("update"));
+
+    connect(openFileCloud, &QPushButton::clicked, this, &MainWindow::handleFileOpen);
+    connect(updateSc, &QPushButton::clicked, this, &MainWindow::handleUpdate);
+}
+void MainWindow::deinitButtonCloud(){
+    delete openFileCloud;
+}
+
+void MainWindow::handleFileOpen(){
+    QString fileName = QFileDialog::getOpenFileName(
+            this, tr("open pcd file"),
+            "./", tr("pcd files(*.pcd );;All files (*.*)"));
+    qDebug() << fileName;
+}
+
+void MainWindow::handleUpdate(){
+
+}
+
+////////////////////////////////////////////
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
@@ -221,4 +261,6 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     }
     return QObject::eventFilter(obj,event);
 }
+
+
 

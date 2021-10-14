@@ -543,13 +543,20 @@ int buildN(){
     string loadPath = "/home/qh/robot_ws/map/allNode/2/";
     read_nodes_from_files_B(nodeList, loadPath);
 
-    for(int i = 0; i < 11; i++){
-        double k = 0.20 + i * 0.01;
+    vector<double> simBuildTopoValue{
+        0.23,  0.25,  0.28,  0.30, 
+        0.33,  0.35,  0.38,  0.40,
+        0.43,  0.45,  0.48,  0.50,
+        0.53,  0.55,  0.58,  0.60,
+        0.63,  0.65,  0.68,  0.70
+        };
+
+    for(double k : simBuildTopoValue){
         double buildValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << buildValue;
         string savePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/N" + ss.str() + "/";
-        buildTopo buildTopoMap(savePath, buildValue, 15.0);
+        buildTopo buildTopoMap(savePath, buildValue);
         int nodesSize = nodeList.size();
         chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j++){
@@ -607,10 +614,17 @@ int buildS(){
     string loadPath = "/home/qh/robot_ws/map/allNode/2/";
     read_nodes_from_files_B(nodeList, loadPath);
 
-    for(int i = 0; i < 10; i++){
+    vector<double> simBuildTopoValue{
+        0.23,  0.25,  0.28,  0.30, 
+        0.33,  0.35,  0.38,  0.40,
+        0.43,  0.45,  0.48,  0.50,
+        0.53,  0.55,  0.58,  0.60,
+        0.63,  0.65,  0.68,  0.70
+        };
+
+    for(double k : simBuildTopoValue){
         //char key = getchar();
         //if(key == 'q') exit(0);
-        double k = 0.23 + i * 0.03;
         double buildValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << buildValue;
@@ -644,7 +658,7 @@ int buildS(){
         fileout.close();
         fileResult = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/S" + ss.str() + "Info.txt";
         fileout.open(fileResult);
-        fileout << "id: " << endl;
+        fileout << "id: " << resultNodeList.size() << endl;
         for(const auto& n : resultNodeList){
             fileout << n.id_ << " ";
         }
@@ -667,7 +681,7 @@ int buildD(){
         stringstream ss;
         ss << std::fixed << setprecision(1) << buildValue;
         string savePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + "/";
-        buildTopo buildTopoMap(savePath, 0.20, buildValue,15.0,0.23);
+        buildTopo buildTopoMap(savePath, 0, buildValue);
         int nodesSize = nodeList.size();
         chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j++){
@@ -695,7 +709,7 @@ int buildD(){
         fileout.close();
         fileResult = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + "Info.txt";
         fileout.open(fileResult);
-        fileout << "id: " << endl;
+        fileout << "id: " << resultNodeList.size() << endl;
         for(const auto& n : resultNodeList){
             fileout << n.id_ << " ";
         }

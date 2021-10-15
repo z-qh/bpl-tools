@@ -97,18 +97,6 @@ int main(int argc, char** argv){
     cout << file_name1.size() + file_name2.size() << " fps " << time_used << "s " << endl;
     getchar();
 
-    //knn search
-    t1 = chrono::steady_clock::now();
-
-    vector<pair<int,double>> KnnRes;
-    double minScore = node::getCandidateFromKeyRing(newNode, scanContextTree, newNode[0], KnnRes);
-    cout << "knn search result " << minScore << endl;
-    for(auto n : KnnRes){
-        cout << " knn id " << n.first << " knn score " << n.second << endl;
-    }
-    t2 = chrono::steady_clock::now();
-    time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-    cout << file_name1.size() + file_name2.size() << " knn " << time_used << "s " << endl;
 
     // std::vector<size_t> candidate_indexes(NUM_CANDIDATES_FROM_TREE);                  //存放索引值数组
     // std::vector<float> distance_sqrt(NUM_CANDIDATES_FROM_TREE);                       //存放距离值数组

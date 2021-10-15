@@ -17,7 +17,6 @@ using InvKeyTree = KDTreeVectorOfVectorsAdaptor< KeyMat, float >;;
 
 class recallTopo{
 private:
-
     //////////////////////////////////////
     double truthDisThres = 0;
     double sameThres;
@@ -70,7 +69,7 @@ private:
                 tmp_global_pose.z = tmp_node.Global_Pose_.z;
 
                 globalKeyPose3d->push_back(tmp_global_pose);        //存储全局地图
-                global_scanContext.push_back(nodes[node_index].scanContext_8.front()); //存储拓扑节点中的描述子
+                global_scanContext.push_back(nodes[node_index].scanContext_); //存储拓扑节点中的描述子
 
                 PointType node_position;
                 node_position = nodes[node_index].Global_Pose_;
@@ -81,8 +80,6 @@ private:
             }
         }
         kdtreeHistroyKeyPoses->setInputCloud(globalKeyPose3d);
-
-        cout << "load succeed \n";
     }
 
 
@@ -90,20 +87,20 @@ private:
         return a.z < b.z;
     }
 
-    void getCandidateSim(node& nowNode, vector<PointType>& tempSortKey){
+    void getCandidateSim(node& nowNode, vector<PointType>& tempSortKey, pcl::PointCloud<pcl::PointXYZI>& currCloud){
         std::vector<int>pointSearchIndLoop;
         std::vector<float>pointSearchSqDisLoop;
         pcl::PointXYZ tempPoint;
-        tempPoint.x = nowNode.vertices_.Global_Pose_.x;
-        tempPoint.y = nowNode.vertices_.Global_Pose_.y;
-        tempPoint.z = nowNode.vertices_.Global_Pose_.z;
+        tempPoint.x = nowNode.Global_Pose_.x;
+        tempPoint.y = nowNode.Global_Pose_.y;
+        tempPoint.z = nowNode.Global_Pose_.z;
         kdtreeHistroyKeyPoses->radiusSearch(tempPoint, findCandidateDis, pointSearchIndLoop, pointSearchSqDisLoop);
         tempSortKey.clear();
         tempSortKey.resize(pointSearchIndLoop.size());
         for(int n = 0; n < pointSearchIndLoop.size(); n++){
             tempSortKey[n].x = pointSearchIndLoop[n];
             tempSortKey[n].y = sqrt(pointSearchSqDisLoop[n]);
-            float score = getNowAndHisScore(nowNode, nodeKeyIndex[pointSearchIndLoop[n]]);
+            float score = node::getScore(oldNodes[pointSearchIndLoop[n]], nowNode, currCloud);
             tempSortKey[n].z = score;
         }
         sort(tempSortKey.begin(), tempSortKey.end(), comWithDistanceOldNode);
@@ -113,9 +110,9 @@ private:
         std::vector<int>pointSearchIndLoop;
         std::vector<float>pointSearchSqDisLoop;
         pcl::PointXYZ tempPoint;
-        tempPoint.x = nowNode.vertices_.Global_Pose_.x;
-        tempPoint.y = nowNode.vertices_.Global_Pose_.y;
-        tempPoint.z = nowNode.vertices_.Global_Pose_.z;
+        tempPoint.x = nowNode.Global_Pose_.x;
+        tempPoint.y = nowNode.Global_Pose_.y;
+        tempPoint.z = nowNode.Global_Pose_.z;
         kdtreeHistroyKeyPoses->radiusSearch(tempPoint, truthDisThres, pointSearchIndLoop, pointSearchSqDisLoop);
         tempSortKey.clear();
         tempSortKey.resize(pointSearchIndLoop.size());
@@ -135,7 +132,7 @@ public:
     int FN_1 = 0, FN_N = 0;
     recallTopo(std::string node_load_path_,
                double sameThres_,         //Similarity threshold
-               double truthDisThres_ = 8.0,               //Truth conditional distance
+               double truthDisThres_ = 5.0,               //Truth conditional distance
                double findCandidateDis_ = 50.0    //Candidate point distance
                )
     {
@@ -237,23 +234,16 @@ private:
 
 
 public:
-    void run(node& input_node){
-        cout << "input a new node \n";
-        PointType currentPose = input_node.vertices_.Global_Pose_;
+    void run(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud){
 
         //truth point search in truth distance
         vector<PointType> resultDis;//first index second dis
         getTruth(input_node, resultDis);
-        for(PointType& n : resultDis){
-            cout << std::fixed << setprecision(2) << "id " << n.x << " dis " << n.y << endl;
-        }
+
 
         //sim search for candidate Point to find Most similar TOP1/TOP10 for Accuracy and fast search 50m
         vector<PointType> resultSim;//first index second dis
-        getCandidateSim(input_node, resultSim);
-        for(PointType& n : resultSim){
-            cout << std::fixed << setprecision(2) << "id " << n.x << " score " << n.z << endl;
-        }
+        getCandidateSim(input_node, resultSim, input_cloud);
 
         top1Judge(resultDis,resultSim);
         topNJudge(resultDis,resultSim);
@@ -292,15 +282,77 @@ void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
             node_index++;
         }
     }
-    cout << "load succeed \n";
 }
 
+vector<node> nodeList1;
+vector<node> nodeList3;
+vector<pcl::PointCloud<pcl::PointXYZI>> cloudList1;
+vector<pcl::PointCloud<pcl::PointXYZI>> cloudList3;
+
+void init(){
+    string sourceNodePath1 = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/nodeSparse/";
+    string sourceNodePath3 = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/nodeSparse/";
+    read_nodes_from_files_B(nodeList1, sourceNodePath1);
+    read_nodes_from_files_B(nodeList3, sourceNodePath3);
+
+
+    string loadCloudPath1 = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/cloudSparse/";
+    std::vector<std::string>file_nameList1;
+    {
+        std::vector<int>index;
+        DIR *d = opendir(loadCloudPath1.c_str());
+        struct dirent *dp;
+        while((dp = readdir(d)) != NULL)
+        {
+            if(dp->d_name[0] == '.')    {continue;}
+            index.push_back(atoi(dp->d_name));
+        }
+        sort(index.begin(), index.end());
+        for(auto n : index){
+            stringstream ss;
+            ss << n;
+            file_nameList1.push_back(loadCloudPath1 + ss.str()+".pcd");
+        }
+    }
+
+    string loadCloudPath3 = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/cloudSparse/";
+    std::vector<std::string>file_nameList3;
+    {
+        std::vector<int>index;
+        DIR *d = opendir(loadCloudPath3.c_str());
+        struct dirent *dp;
+        while((dp = readdir(d)) != NULL)
+        {
+            if(dp->d_name[0] == '.')    {continue;}
+            index.push_back(atoi(dp->d_name));
+        }
+        sort(index.begin(), index.end());
+        for(auto n : index){
+            stringstream ss;
+            ss << n;
+            file_nameList3.push_back(loadCloudPath3 + ss.str()+".pcd");
+        }
+    }
+    for(const auto& s : file_nameList1){
+        pcl::PointCloud<pcl::PointXYZI>tempCloud;
+        pcl::io::loadPCDFile(s, tempCloud);
+        cloudList1.push_back(tempCloud);
+    }
+    for(const auto& s : file_nameList3){
+        pcl::PointCloud<pcl::PointXYZI>tempCloud;
+        pcl::io::loadPCDFile(s, tempCloud);
+        cloudList3.push_back(tempCloud);
+    }
+}
+
+bool D1State = false;
+bool D3State = false;
+bool S1State = false;
+bool S3State = false;
+bool N1State = false;
+bool N3State = false;
 
 void disCallBack1(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/1/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
     vector<double> tab{0.5, 1.0, 3.0, 10.0, 15.0, 30.0};
 
     for(double k : tab){
@@ -310,19 +362,19 @@ void disCallBack1(){
         stringstream ss;
         ss << std::fixed << setprecision(1) << buildValue;
         string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node2/D" + ss.str() + "/";
-        recallTopo recallTopoMap(loadPath, 0.25);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        recallTopo recallTopoMap(loadPath, 0.30);
+        int nodesSize = nodeList1.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList1[j], cloudList1[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node2/D" + ss.str() + "RecallInfo.txt";
@@ -334,13 +386,10 @@ void disCallBack1(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    D1State = true;
 }
 
 void disCallBack3(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/3/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
     vector<double> tab{0.5, 1.0, 3.0, 10.0, 15.0, 30.0};
 
     for(double k : tab){
@@ -350,19 +399,19 @@ void disCallBack3(){
         stringstream ss;
         ss << std::fixed << setprecision(1) << buildValue;
         string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + "/";
-        recallTopo recallTopoMap(loadPath, 0.25);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        recallTopo recallTopoMap(loadPath, 0.30);
+        int nodesSize = nodeList3.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList3[j], cloudList3[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/node/D" + ss.str() + "RecallInfo.txt";
@@ -374,34 +423,34 @@ void disCallBack3(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    D3State = true;
 }
 
 void normalCallBack1(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/1/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
     string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/N0.25/";
-    for(int i = 0; i < 11; i++){
+    vector<double> simRecallTopoValue{
+            0.23,  0.25,  0.28,  0.30,
+            0.33,  0.35,  0.38,  0.40
+    };
+    for(double k : simRecallTopoValue){
         //char key = getchar();
         //if(key == 'q') exit(0);
-        double k = 0.20 + i * 0.01;
         double recallValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << recallValue;
         recallTopo recallTopoMap(loadPath, recallValue);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        int nodesSize = nodeList1.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList1[j], cloudList1[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/F" + ss.str() + "RecallInfo.txt";
@@ -413,34 +462,34 @@ void normalCallBack1(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    N1State = true;
 }
 
 void normalCallBack3(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/3/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
     string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/N0.25/";
-    for(int i = 0; i < 11; i++){
+    vector<double> simRecallTopoValue{
+            0.23,  0.25,  0.28,  0.30,
+            0.33,  0.35,  0.38,  0.40
+    };
+    for(double k : simRecallTopoValue){
         //char key = getchar();
         //if(key == 'q') exit(0);
-        double k = 0.20 + i * 0.01;
         double recallValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << recallValue;
         recallTopo recallTopoMap(loadPath, recallValue);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        int nodesSize = nodeList3.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList3[j], cloudList3[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/node/F" + ss.str() + "RecallInfo.txt";
@@ -452,34 +501,40 @@ void normalCallBack3(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    N3State = true;
 }
 
 void simCallBack1(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/1/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
-    for(int i = 0; i < 11; i++){
+    vector<double> simBuildTopoValue{
+            0.23,  0.25,  0.28,  0.30,
+            0.33,  0.35,  0.38,  0.40,
+            0.43,  0.45,  0.48,  0.50,
+            0.53,  0.55,  0.58,  0.60,
+            0.63,  0.65,  0.68,  0.70,
+            0.73,  0.75,  0.78,  0.80,
+            0.83,  0.85,  0.88,  0.90,
+            0.93,  0.95,  0.98
+    };
+    for(double k : simBuildTopoValue){
         //char key = getchar();
         //if(key == 'q') exit(0);
-        double k = 0.20 + i * 0.01;
         double callBackValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << callBackValue;
         string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/S" + ss.str() + "/";
-        recallTopo recallTopoMap(loadPath, callBackValue);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        recallTopo recallTopoMap(loadPath, 0.30);
+        int nodesSize = nodeList1.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList1[j], cloudList1[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/S" + ss.str() + "RecallInfo.txt";
@@ -491,34 +546,40 @@ void simCallBack1(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    S1State = true;
 }
 
 void simCallBack3(){
-    string sourcePath = "/home/qh/robot_ws/map/allNode/3/";
-    vector<node> nodeList;
-    read_nodes_from_files_B(nodeList, sourcePath);
-
-    for(int i = 0; i < 11; i++){
+    vector<double> simBuildTopoValue{
+            0.23,  0.25,  0.28,  0.30,
+            0.33,  0.35,  0.38,  0.40,
+            0.43,  0.45,  0.48,  0.50,
+            0.53,  0.55,  0.58,  0.60,
+            0.63,  0.65,  0.68,  0.70,
+            0.73,  0.75,  0.78,  0.80,
+            0.83,  0.85,  0.88,  0.90,
+            0.93,  0.95,  0.98
+    };
+    for(double k : simBuildTopoValue){
         //char key = getchar();
         //if(key == 'q') exit(0);
-        double k = 0.20 + i * 0.01;
         double callBackValue = k;
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << callBackValue;
         string loadPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/S" + ss.str() + "/";
-        recallTopo recallTopoMap(loadPath, callBackValue);
-        int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        recallTopo recallTopoMap(loadPath, 0.30);
+        int nodesSize = nodeList3.size();
+        //chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=3){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            recallTopoMap.run(nodeList[j]);
+            //chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            //double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            //double nowPercent = j * 1.0 / nodesSize;
+            //double restPercent = 1.0 - nowPercent;
+            //double time_rest = time_used / nowPercent * restPercent;
+            //cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            recallTopoMap.run(nodeList3[j], cloudList3[j]);
         }
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/node/S" + ss.str() + "RecallInfo.txt";
@@ -530,4 +591,36 @@ void simCallBack3(){
         fileout << "FN1 : " << recallTopoMap.FN_1 << "FN10 : " << recallTopoMap.FN_N << endl;
         fileout.close();
     }
+    S3State = true;
+}
+
+int main(int argc, char** argv){
+    init();
+    thread recallD1(disCallBack1);
+    thread recallD3(disCallBack3);
+    thread recallN1(normalCallBack1);
+    thread recallN3(normalCallBack3);
+    thread recallS1(simCallBack1);
+    thread recallS3(simCallBack3);
+
+    recallD1.detach();
+    recallD3.detach();
+    recallN1.detach();
+    recallN3.detach();
+    recallS1.detach();
+    recallS3.detach();
+
+    char k = 0;
+    while(!N1State || !N3State || !S1State || !S3State || !D1State || !D3State){
+        k = getchar();
+        cout << k << endl;
+        cout << "N1 " << N1State << endl;
+        cout << "Ne " << N3State << endl;
+        cout << "D1 " << D1State << endl;
+        cout << "D3 " << D3State << endl;
+        cout << "S1 " << S1State << endl;
+        cout << "S3 " << S3State << endl;
+    }
+
+    return 0;
 }

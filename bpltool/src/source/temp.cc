@@ -225,6 +225,10 @@ void create_node_from_file_B(std::vector<node>& nodes, std::string& path)
 void readTopomap(sensor_msgs::PointCloud2& msgs, string path){
     ifstream file;
     file.open(path);
+    if(!file.is_open()){
+        cout << " file read error" << endl;
+        exit(0);
+    }
     pcl::PointCloud<pcl::PointXYZI> tempCloud;
     while(!file.eof()){
         pcl::PointXYZI temPoint;
@@ -452,23 +456,23 @@ int main (int argc, char ** argv){
     }
 
     sensor_msgs::PointCloud2 PubMsgs, PubMsgsRecall;
-    //string fileName(argv[1]);
-    //string topoNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/" + fileName + ".txt";
-    //cout << topoNodePath << endl;
-    //readTopomap(PubMsgs, topoNodePath);
+    string fileName(argv[1]);
+    string topoNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/" + fileName + ".txt";
+    cout << topoNodePath << endl;
+    readTopomap(PubMsgs, topoNodePath);
 
     //string topoNodePathRecall = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/0.15-8.0-Recall.txt";
     //readTopomapRecall(PubMsgsRecall, topoNodePathRecall);
-    auto truthPair = findATruthPair(stoi(argv[2]));
-    cout << " get answer " << endl;
-    string asdsad = "/home/qh/2loopSelf.txt";
-    ofstream file;
-    file.open(asdsad);
-    for(auto n : truthPair) {
-        file << n.first.first << " " << n.first.second << " " << n.second << endl;
-    }
-    file.close();
-    return 0;
+    // auto truthPair = findATruthPair(stoi(argv[2]));
+    // cout << " get answer " << endl;
+    // string asdsad = "/home/qh/2loopSelf.txt";
+    // ofstream file;
+    // file.open(asdsad);
+    // for(auto n : truthPair) {
+    //     file << n.first.first << " " << n.first.second << " " << n.second << endl;
+    // }
+    // file.close();
+    // return 0;
 
 
 //    vector<node> sourceNode;

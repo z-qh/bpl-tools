@@ -112,7 +112,7 @@ public:
         /////////////////////
 
     }
-    void run(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud)
+    void run(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
     {
         nowTime = input_node.time_stamp_;
         if(input_node.Global_Pose_.intensity == 1
@@ -287,7 +287,7 @@ public:
         }
     }
 
-    void runS(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud)
+    void runS(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
     {
         if(isFirst) {
             isFirst = false;
@@ -381,7 +381,7 @@ public:
         }
     }
 
-    void runD(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud){
+    void runD(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud){
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
@@ -499,6 +499,12 @@ void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
 vector<node> nodeList;
 vector<pcl::PointCloud<pcl::PointXYZI>> cloudList;
 
+
+bool NState = false;
+bool DState = false;
+bool SState = false;
+
+
 void init(){
 
     string loadCloudPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/";
@@ -551,7 +557,7 @@ int buildN(){
         buildTopo buildTopoMap(savePath, buildValue);
         int nodesSize = nodeList.size();
         chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
-        for(int j = 0; j < nodesSize; j++){
+        for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
             chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
@@ -599,6 +605,7 @@ int buildN(){
         cout << "nognss " << nognss.size() << endl;
         fileout.close();
     }
+    NState = true;
 }
 //只按照相似度建图
 int buildS(){
@@ -623,7 +630,7 @@ int buildS(){
         buildTopo buildTopoMap(savePath, buildValue);
         int nodesSize = nodeList.size();
         chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
-        for(int j = 0; j < nodesSize; j++){
+        for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
             chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
@@ -655,6 +662,8 @@ int buildS(){
         }
         fileout.close();
     }
+
+    SState = true;
 }
 
 //只按照固定距离建图
@@ -671,7 +680,7 @@ int buildD(){
         buildTopo buildTopoMap(savePath, 0, buildValue);
         int nodesSize = nodeList.size();
         chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
-        for(int j = 0; j < nodesSize; j++){
+        for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
             chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
@@ -702,6 +711,7 @@ int buildD(){
         }
         fileout.close();
     }
+    DState = true;
 }
 
 //daquan
@@ -760,4 +770,26 @@ int main4(){
         cout << "nognss " << nognss.size() << endl;
         fileout.close();
     }
+}
+
+int main(int argc, char** argv){
+    init();
+    thread buildNthread(buildN);
+    thread buildSthread(buildS);
+    thread buildDthread(buildD);
+
+    buildNthread.detach();
+    buildSthread.detach();
+    buildDthread.detach();
+
+    char k = 0;
+    while(!NState || !DState || !SState){
+        k = getchar();
+        cout << k << endl;
+        cout << "build N " << NState << endl;
+        cout << "build S " << SState << endl;
+        cout << "build D " << DState << endl;
+    }
+
+    return 0;
 }

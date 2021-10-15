@@ -147,6 +147,13 @@ target_link_libraries(topo_handle
 add_executable(TestSim src/showSim.cc)
 target_link_libraries(TestSim ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
+
+add_executable(buildTopo src/buildTopo.cpp)
+target_link_libraries(buildTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+#add_executable(buildD src/buildD.cc)
+#target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
 #add_executable(buildD src/buildD.cc)
 #target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 #add_executable(buildN src/buildN.cc)

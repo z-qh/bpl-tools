@@ -133,9 +133,10 @@ int main(int argc, char** argv)
         //sourceBagPath = "/media/qh/YES/2021-08-30-19-17-22L.bag";
     }
 
-    sourceBagPath = "/media/qh/YES/2021-08-30-18-06-30L.bag";
+    sourceBagPath = "/media/qh/YES/2021-08-30-19-17-22L.bag";
     allNodeSavePath = "/home/qh/robot_ws/map/allNode/2/";
-    string OdomPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt";
+    allNodeSavePath = "";
+    string OdomPath = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/gtFittingA.txt";
 
     readFileOdom(OdomPath);
 //    ros::Subscriber keyControlSub = nh.subscribe<std_msgs::String>("/keyboardControlCmd", 1, keyControlSubHandle);
@@ -358,8 +359,8 @@ int main(int argc, char** argv)
                 pcl::fromROSMsg(cloud_local_map, tempSaveCloud);
                 stringstream ss;
                 ss << nodeTemp.id_;
-                string nodeSavePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/";
-                string path = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/" + ss.str() + ".pcd";
+                string nodeSavePath = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/nodeSparse/";
+                string path = "/home/qh/robot_ws/map/2021-08-30-19-17-22L/cloudSparse/" + ss.str() + ".pcd";
                 nodeTemp.cloudPath_ = path;
                 if(!tempSaveCloud.empty()){
                     pcl::io::savePCDFileASCII(path, tempSaveCloud);

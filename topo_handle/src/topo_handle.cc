@@ -346,8 +346,9 @@ int main(int argc, char** argv)
                 //topoMapGlobalPub.publish(topoMapGlobal);
                 //cloudLocalMapPub.publish(cloud_local_map);
             //}else if(isAllCreateNode){
+            node nodeTemp;
                 bool createFlag = false;
-                TopoMapAllNode.run(OBS_remove_obstacle_cloud, OBS_remove_odom, odomStatueList[posesCount], cloud_local_map, createFlag);
+                TopoMapAllNode.run(nodeTemp, OBS_remove_obstacle_cloud, OBS_remove_odom, odomStatueList[posesCount], cloud_local_map, createFlag);
                 cloudLocalMapPub.publish(cloud_local_map);
 
             
@@ -356,9 +357,14 @@ int main(int argc, char** argv)
                 pcl::PointCloud<pcl::PointXYZI> tempSaveCloud;
                 pcl::fromROSMsg(cloud_local_map, tempSaveCloud);
                 stringstream ss;
-                ss << pcdCount++;
+                ss << nodeTemp.id_;
+                string nodeSavePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/";
                 string path = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/" + ss.str() + ".pcd";
-                if(!tempSaveCloud.empty())pcl::io::savePCDFileASCII(path, tempSaveCloud);
+                nodeTemp.cloudPath_ = path;
+                if(!tempSaveCloud.empty()){
+                    pcl::io::savePCDFileASCII(path, tempSaveCloud);
+                    nodeTemp.nodes_save_B(nodeSavePath);
+                }
             }
             //}
             //t2 = chrono::steady_clock::now();//耗时统计

@@ -65,15 +65,15 @@ private:
                 max_id_in_file = std::max(max_id_in_file, (int)tmp_node.id_);
                 pcl::PointXYZ tmp_global_pose;
 
-                tmp_global_pose.x = tmp_node.vertices_.Global_Pose_.x;
-                tmp_global_pose.y = tmp_node.vertices_.Global_Pose_.y;
-                tmp_global_pose.z = tmp_node.vertices_.Global_Pose_.z;
+                tmp_global_pose.x = tmp_node.Global_Pose_.x;
+                tmp_global_pose.y = tmp_node.Global_Pose_.y;
+                tmp_global_pose.z = tmp_node.Global_Pose_.z;
 
                 globalKeyPose3d->push_back(tmp_global_pose);        //存储全局地图
-                global_scanContext.push_back(nodes[node_index].vertices_.scanContext_8.front()); //存储拓扑节点中的描述子
+                global_scanContext.push_back(nodes[node_index].scanContext_8.front()); //存储拓扑节点中的描述子
 
                 PointType node_position;
-                node_position = nodes[node_index].vertices_.Global_Pose_;
+                node_position = nodes[node_index].Global_Pose_;
                 node_position.intensity = nodes[node_index].id_;
 
                 success_number++;
@@ -85,24 +85,6 @@ private:
         cout << "load succeed \n";
     }
 
-    float getNowAndHisScore(node& nowNode, int hisIndex){
-        float min_dist = 10000000;
-        int nn_align = 0, nn_idx = 0;   //nn_align为描述子旋转的角度值， nn_idx为匹配成功的索引值
-        int loop_index = -1;
-
-        for(int i = 0; i < SHIFTSIZE; i++){
-            Eigen::MatrixXd currentContextShift = nowNode.vertices_.scanContext_8[i];
-            Eigen::MatrixXd scanContextCandidate = global_scanContext[hisIndex];
-            std::pair<double, int> sc_dist_result = distanceBtnScanContext(currentContextShift, scanContextCandidate);
-            float candidate_dist = sc_dist_result.first;       //余弦距离
-
-            if(candidate_dist < min_dist)
-            {
-                min_dist = candidate_dist;                      //两个描述子之间的余弦距离
-            }
-        }
-        return min_dist;
-    }
 
     static bool comWithDistanceOldNode(PointType a, PointType&  b){
         return a.z < b.z;

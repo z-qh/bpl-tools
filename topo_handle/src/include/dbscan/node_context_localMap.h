@@ -20,92 +20,244 @@ using std::sin;
 using KeyMat = std::vector<std::vector<float> >;
 using InvKeyTree = KDTreeVectorOfVectorsAdaptor< KeyMat, float >;;
 
-const float  LIDAR_HEIGHT = 20.0;             //雷达安装高度保证点云z轴数据大于0
-const int    PC_NUM_RING = 20;              // 20 in the original paper (IROS 18) 40， 80
-const int    PC_NUM_SECTOR = 60;            // 60 in the original paper (IROS 18)
-const double PC_MAX_RADIUS = 50.0;          // 80 meter 激光点最远距离
-const double PC_UNIT_SECTORANGLE = 360.0 / double(PC_NUM_SECTOR);
-const double PC_UNIT_RINGGAP = PC_MAX_RADIUS / double(PC_NUM_RING);
+float  LIDAR_HEIGHT = 20.0;             //雷达安装高度保证点云z轴数据大于0
+int    PC_NUM_RING = 20;              // 20 in the original paper (IROS 18) 40， 80
+int    PC_NUM_SECTOR = 60;            // 60 in the original paper (IROS 18)
+double PC_MAX_RADIUS = 50.0;          // 80 meter 激光点最远距离
+double PC_UNIT_SECTORANGLE = 360.0 / double(PC_NUM_SECTOR);
+double PC_UNIT_RINGGAP = PC_MAX_RADIUS / double(PC_NUM_RING);
 
 // loop thres
-const double SEARCH_RATIO = 0.1; // for fast comparison, no Brute-force, but search 10 % is okay. // not was in the original conf paper, but improved ver.
+double SEARCH_RATIO = 0.1; // for fast comparison, no Brute-force, but search 10 % is okay. // not was in the original conf paper, but improved ver.
 template<typename T>
 MatrixXd makeScancontext(T &_scan);
 std::pair<double,int>distanceBtnScanContext(MatrixXd &sc_1, MatrixXd &sc_2);
+MatrixXd makeRingkeyFromScancontext(Eigen::MatrixXd &_desc );
+std::vector<float> eig2stdvec(MatrixXd _inputMat);
 
-std::vector<float>dataNeibor{0,-0.3,0.3,-1,1,-4,4};
-int SHIFTSIZE = dataNeibor.size();
-// config
-// 重新构建kd树的频率
-const int    TREE_MAKING_PERIOD_ = 50; // i.e., remaking tree frequency, to avoid non-mandatory every remaking, to save time cost / if you want to find a very recent revisits use small value of it (it is enough fast ~ 5-50ms wrt N.).
-int          tree_making_period_conter = 0;
 
-class Vertice{
-public:
-    Vertice(){
-    };
-    size_t point_num_;       //该帧点云中点云的数目
-    pcl::PointXYZI Global_Pose_;     //每个定点的全局位姿
-    std::vector<Eigen::MatrixXd> scanContext_8;
+//利用点云动态搜索而不是存好描述子再搜索，如果后序加上方向信息和定位信息就好了，所以修改更好的搜索策略
+std::vector<float>shiftNeiborA{
+    0,  5,  1,  4,  2
 };
+std::vector<float>shiftNeiborInc{
+    0.2,  0.4,  0.6,  0.8
+    };
+double firstSearchThres = 0.45;
+double accSearchThres = 0.30;
+bool isSaveCloud = false;
+#define NAN_VALUE (-2)
 
 //创建节点
 class node{
-private:
-    void createNode(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud){
-        time_stamp_ = Time;
-        id_ = id;
-        vertices_.Global_Pose_ = Pose;
-        vertices_.point_num_ = Cloud.points.size();
-        for(int i = 0; i<dataNeibor.size(); ++i)
-        {
-            float shift = dataNeibor[i];
-            pcl::PointCloud<pcl::PointXYZI>::Ptr tmpCloud(new pcl::PointCloud<pcl::PointXYZI>());
-            tmpCloud->clear();
-            for(auto point:Cloud.points)
-            {
-                point.z += shift;
-                tmpCloud->push_back(point);
-            }
-            vertices_.scanContext_8.push_back(makeScancontext(tmpCloud));
-        }
+public:
+    ///////////////////////////////////////////////////////////////////////////
+    size_t point_num_ = -1;                              //该帧点云中点云的数目
+    std::string cloudPath_ = "";                     //点云存放路径，动态加载不然内存顶不住
+    double id_ = -1;                                 //节点id，即节点在整体拓扑地图中的id
+    double time_stamp_ = -1;                         //记录当前节点创建时的时间
+    ///////////////////////////////////////////////////////////////////////////
+    pcl::PointXYZI Global_Pose_ = pcl::PointXYZI(NAN_VALUE);                    //每个定点的全局位姿
+    Eigen::MatrixXd scanContext_ = Eigen::MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);                   //原始描述子
+    pcl::PointCloud<pcl::PointXYZI> pointCloud_;     //点云，还是不存点云了顶不住
+    ///////////////////////////////////////////////////////////////////////////
+public:
+    static bool comPair(pair<double,double>A,pair<double,double>B){
+        return A.second < B.second;
     }
-public:
-    double id_ = 0;                          //节点id，即节点在整体拓扑地图中的id
-    double time_stamp_{};                     //记录当前节点创建时的时间
-    Vertice vertices_;                      //该节点中存储的点云及相对于全局的坐标
-public:
-    static double getScore(node& nowNodeOld, node& nowNodeNew){
+    static double getScore(node& nodeOld, node& nodeNew, pcl::PointCloud<pcl::PointXYZI>& cloudNew)
+    {
+        if(nodeNew.cloudPath_ == "" || nodeOld.Global_Pose_.intensity == NAN_VALUE){
+            cout << " run time error the pointcloud path does not exit \n";
+            exit(0);
+        }
+        //使用后面点的点云构建位置便宜搜索，使用层次搜索法减少时间
+        vector<pair<double,double>> firstRes;
+        vector<pair<double,double>> secondRes;
+        pcl::PointCloud<pcl::PointXYZI>& inputCloud = cloudNew;
         double min_dist = 10000;
-        for(int i = 0; i < SHIFTSIZE; i++){
-            Eigen::MatrixXd& scanContextCandidate = nowNodeNew.vertices_.scanContext_8[i];
-            Eigen::MatrixXd& currentContextShift = nowNodeOld.vertices_.scanContext_8[0];
-            std::pair<double, int> sc_dist_result = distanceBtnScanContext(currentContextShift, scanContextCandidate);
-            double candidate_dist = sc_dist_result.first;       //余弦距离
-            if(candidate_dist < min_dist)
-            {
-                min_dist = candidate_dist;                      //两个描述子之间的余弦距离
+        //first search
+        for(double shift : shiftNeiborA){
+            if(shift == 0){
+                Eigen::MatrixXd tempScShiftZero = makeScancontext(inputCloud);
+                auto tempScoreZero = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftZero);
+                if(tempScoreZero.first < accSearchThres){
+                    return tempScoreZero.first;
+                }else if(tempScoreZero.first < firstSearchThres){
+                    firstRes.push_back({shift, tempScoreZero.first});
+                }
+                min_dist = tempScoreZero.first;
+                continue;
+            }
+            pcl::PointCloud<pcl::PointXYZI> tmpCloudPositive;
+            pcl::PointCloud<pcl::PointXYZI> tmpCloudNegative;
+            tmpCloudPositive.resize(inputCloud.size());
+            tmpCloudNegative.resize(inputCloud.size());
+            for(int n = 0; n < inputCloud.size(); n++){
+                tmpCloudPositive.points[n] = inputCloud[n];
+                tmpCloudNegative.points[n] = inputCloud[n];
+                tmpCloudPositive.points[n].z += shift;
+                tmpCloudNegative.points[n].z += -shift;
+            }
+            Eigen::MatrixXd tempScShiftPositive = makeScancontext(tmpCloudPositive);
+            tmpCloudPositive.clear();
+            Eigen::MatrixXd tempScShiftNegative = makeScancontext(tmpCloudNegative);
+            tmpCloudNegative.clear();
+            auto tempScorePositive = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftPositive);
+            auto tempScoreNegative = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftNegative);
+            if(tempScorePositive.first < tempScoreNegative.first){
+                if(tempScorePositive.first < accSearchThres){
+                    return tempScorePositive.first;
+                }else if(tempScorePositive.first < firstSearchThres){
+                    firstRes.push_back({shift, tempScorePositive.first});
+                }
+            }else{
+                if(tempScoreNegative.first < accSearchThres){
+                    return tempScoreNegative.first;
+                }else if(tempScoreNegative.first < firstSearchThres){
+                    firstRes.push_back({-shift, tempScoreNegative.first});
+                }
             }
         }
+        sort(firstRes.begin(), firstRes.end(), comPair);
+        if(!firstRes.empty()) min_dist = firstRes.front().second;
+        //second search
+        for(auto candidate : firstRes ){
+            for(auto shiftInc : shiftNeiborInc){
+                double shift = candidate.first + (candidate.first<0?-1.0:1.0) * shiftInc;
+                pcl::PointCloud<pcl::PointXYZI> tmpCloud;
+                tmpCloud.resize(inputCloud.size());
+                for(int n = 0; n < inputCloud.size(); n++){
+                    tmpCloud.points[n] = inputCloud[n];
+                    tmpCloud.points[n].z += shift;
+                }
+                Eigen::MatrixXd tempScShift = makeScancontext(tmpCloud);
+                tmpCloud.clear();
+                auto tempScore = distanceBtnScanContext(nodeOld.scanContext_, tempScShift);
+                secondRes.push_back({shift, tempScore.first});
+                if(tempScore.first < accSearchThres)
+                    return tempScore.first;
+            }
+        }
+        sort(secondRes.begin(), secondRes.end(), comPair);
+        if(!secondRes.empty()) min_dist = secondRes.front().second;
+        return min_dist;
+    }
+    static double getScore(node& nodeOld, node& nodeNew){
+        if(nodeNew.cloudPath_ == "" || nodeOld.Global_Pose_.intensity == NAN_VALUE){
+            cout << " run time error the pointcloud path does not exit \n";
+            exit(0);
+        }
+        //使用后面点的点云构建位置便宜搜索，使用层次搜索法减少时间
+        vector<pair<double,double>> firstRes;
+        vector<pair<double,double>> secondRes;
+        pcl::PointCloud<pcl::PointXYZI> inputCloud;
+        if(nodeNew.pointCloud_.empty()){
+            pcl::io::loadPCDFile(nodeNew.cloudPath_, inputCloud);
+        }else{
+            inputCloud = nodeNew.pointCloud_;
+        }
+        //todo 
+        double min_dist = 10000;
+        //first search
+        for(double shift : shiftNeiborA){
+            if(shift == 0){
+                Eigen::MatrixXd tempScShiftZero = makeScancontext(inputCloud);
+                auto tempScoreZero = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftZero);
+                if(tempScoreZero.first < accSearchThres){
+                    return tempScoreZero.first;
+                }else if(tempScoreZero.first < firstSearchThres){
+                    firstRes.push_back({shift, tempScoreZero.first});
+                }
+                min_dist = tempScoreZero.first;
+                continue;
+            }
+            pcl::PointCloud<pcl::PointXYZI> tmpCloudPositive;
+            pcl::PointCloud<pcl::PointXYZI> tmpCloudNegative;
+            tmpCloudPositive.resize(inputCloud.size());
+            tmpCloudNegative.resize(inputCloud.size());
+            for(int n = 0; n < inputCloud.size(); n++){
+                tmpCloudPositive.points[n] = inputCloud[n];
+                tmpCloudNegative.points[n] = inputCloud[n];
+                tmpCloudPositive.points[n].z += shift;
+                tmpCloudNegative.points[n].z += -shift;
+            }
+            Eigen::MatrixXd tempScShiftPositive = makeScancontext(tmpCloudPositive);
+            tmpCloudPositive.clear();
+            Eigen::MatrixXd tempScShiftNegative = makeScancontext(tmpCloudNegative);
+            tmpCloudNegative.clear();
+            auto tempScorePositive = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftPositive);
+            auto tempScoreNegative = distanceBtnScanContext(nodeOld.scanContext_, tempScShiftNegative);
+            if(tempScorePositive.first < tempScoreNegative.first){
+                if(tempScorePositive.first < accSearchThres){
+                    return tempScorePositive.first;
+                }else if(tempScorePositive.first < firstSearchThres){
+                    firstRes.push_back({shift, tempScorePositive.first});
+                }
+            }else{
+                if(tempScoreNegative.first < accSearchThres){
+                    return tempScoreNegative.first;
+                }else if(tempScoreNegative.first < firstSearchThres){
+                    firstRes.push_back({-shift, tempScoreNegative.first});
+                }
+            }
+        }
+        sort(firstRes.begin(), firstRes.end(), comPair);
+        if(!firstRes.empty()) min_dist = firstRes.front().second;
+        //second search
+        for(auto candidate : firstRes ){
+            for(auto shiftInc : shiftNeiborInc){
+                double shift = candidate.first + (candidate.first<0?-1.0:1.0) * shiftInc;
+                pcl::PointCloud<pcl::PointXYZI> tmpCloud;
+                tmpCloud.resize(inputCloud.size());
+                for(int n = 0; n < inputCloud.size(); n++){
+                    tmpCloud.points[n] = inputCloud[n];
+                    tmpCloud.points[n].z += shift;
+                }
+                Eigen::MatrixXd tempScShift = makeScancontext(tmpCloud);
+                tmpCloud.clear();
+                auto tempScore = distanceBtnScanContext(nodeOld.scanContext_, tempScShift);
+                secondRes.push_back({shift, tempScore.first});
+                if(tempScore.first < accSearchThres)
+                    return tempScore.first;
+            }
+        }
+        sort(secondRes.begin(), secondRes.end(), comPair);
+        if(!secondRes.empty()) min_dist = secondRes.front().second;
         return min_dist;
     }
 public:
-    node(){
-        id_ = -1;
-        time_stamp_ = -1;
-        vertices_.Global_Pose_.x = -1;
-        vertices_.Global_Pose_.y = -1;
-        vertices_.Global_Pose_.z = -1;
-        vertices_.Global_Pose_.intensity = -1;
-        vertices_.scanContext_8.clear();
-        vertices_.point_num_ = -1;
+    node(std::string cloudPath__){
+        pcl::PointCloud<pcl::PointXYZI> tempCloud;
+        pcl::io::loadPCDFile(cloudPath__, tempCloud);
+        if(isSaveCloud) pointCloud_ = tempCloud;
+        cloudPath_ = cloudPath__;
+        point_num_ = tempCloud.points.size();
+        scanContext_ = makeScancontext(tempCloud);
+        Global_Pose_.intensity = -1;
     }
-    node(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud_){
-        createNode(id, Time, Pose, Cloud_);
+    node(pcl::PointCloud<pcl::PointXYZI>&Cloud){
+        if(isSaveCloud) pointCloud_ = Cloud;
+        point_num_ = Cloud.points.size();
+        scanContext_ = makeScancontext(Cloud);
+        Global_Pose_.intensity = -1;
+    }
+    node(){
+    }
+    node(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud_, std::string cloudPath__){
+        time_stamp_ = Time;
+        id_ = id;
+        Global_Pose_ = Pose;
+        point_num_ = Cloud_.points.size();
+        if(isSaveCloud) pointCloud_ = Cloud_;
+        scanContext_ = makeScancontext(Cloud_);
+        cloudPath_ = cloudPath__;
+        Global_Pose_.intensity = -1;
     };
 
     bool nodes_save_B(std::string& path);
     bool create_node_from_file_B(std::string path, int index);
+    bool create_node_from_file_pose_only(string path, int index);
 };
 ////////////////////////////////////////////////
 bool node::nodes_save_B(std::string &path){
@@ -113,16 +265,16 @@ bool node::nodes_save_B(std::string &path){
     fileName = path + std::to_string((int)id_) + ".txt";
     std::ofstream of(fileName);
     if(!of.is_open()){
-        std::cout<<"open file "<<fileName<<" error!"<<std::endl;
+        std::cout<<"open file  error \n";
         return false;
     }
     //存储以该点为父节点的边
     of<<id_<<std::endl;
-    of<<std::fixed<<std::setprecision(9)<<vertices_.Global_Pose_.x<<" "<<vertices_.Global_Pose_.y<<" "<<vertices_.Global_Pose_.z<<" "<<vertices_.Global_Pose_.intensity<<std::endl;
-    of<<vertices_.point_num_<<std::endl;
-    for(const auto& n : vertices_.scanContext_8){
-        of <<n<<"\n";
-    }
+    of<<std::fixed<<std::setprecision(9)<<Global_Pose_.x<<" "<<Global_Pose_.y<<" "<<Global_Pose_.z<<" "<<Global_Pose_.intensity<<std::endl;
+    of<<point_num_<<std::endl;
+    of<<cloudPath_<<std::endl;
+    of <<scanContext_<<"\n";
+
     of<<std::fixed<<std::setprecision(17)<<time_stamp_<<endl;
     of.close();
     return true;
@@ -132,36 +284,48 @@ bool node::create_node_from_file_B(std::string path, int index){
     fileName = path + std::to_string((int)index) + ".txt";
     std::ifstream read_file(fileName);
     if(!read_file.is_open()){
-        std::cout<<"open file "<<fileName<<" error!"<<std::endl;
+        std::cout<<"open file error\n";
         return false;
     }
     read_file>>id_;
     if(read_file.eof()){
-        std::cout<<"The "<<fileName<<" is empty, read file error!"<<std::endl;
+        std::cout<<"The file is empty, read file error!\n";
         return false;
     }
-
-    read_file>>vertices_.Global_Pose_.x>>vertices_.Global_Pose_.y>>vertices_.Global_Pose_.z>>vertices_.Global_Pose_.intensity;
-    read_file>>vertices_.point_num_;
-
-    vertices_.scanContext_8.clear();
-    for(int i = 0; i < SHIFTSIZE; i++){
-        Eigen::MatrixXd tempSc = Eigen::MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);
-        for(int row = 0; row<PC_NUM_RING; ++row){
-            for(int col = 0; col<PC_NUM_SECTOR; ++col){
-                read_file>>tempSc(row,col);
-            }
+    read_file>>Global_Pose_.x>>Global_Pose_.y>>Global_Pose_.z>>Global_Pose_.intensity;
+    read_file>>point_num_;
+    scanContext_ = Eigen::MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);
+    for(int row = 0; row<PC_NUM_RING; ++row){
+        for(int col = 0; col<PC_NUM_SECTOR; ++col){
+            read_file>>scanContext_(row,col);
         }
-        vertices_.scanContext_8.push_back(tempSc);
     }
 
+    read_file>>cloudPath_;
     read_file>>time_stamp_;
+    if(isSaveCloud){
+        pcl::io::loadPCDFile(cloudPath_, pointCloud_);
+    }
     read_file.close();
     return true;
 }
+
+bool node::create_node_from_file_pose_only(std::string path, int index){
+    std::string fileName;
+    fileName = path + std::to_string((int)index) + ".txt";
+    std::ifstream read_file(fileName);
+    if(!read_file.is_open()){
+        std::cout<<"open file  error!\n";
+        return false;
+    }
+    read_file>>id_;
+    if(read_file.eof()){
+        std::cout<<"The flie is empty, read file error!\n";
+        return false;
+    }
+    read_file>>Global_Pose_.x>>Global_Pose_.y>>Global_Pose_.z>>Global_Pose_.intensity;
+}
 /////////////////////////////////////////////
-
-
 
 //创建关键节点
 float rad2deg(float radians){
@@ -192,16 +356,15 @@ float xy2theta(const float&_x, const float& _y){
 */
 template<typename T>
 MatrixXd makeScancontext(T &_scan){
-    int num_pts_scan_number = _scan->points.size();
+    int num_pts_scan_number = _scan.points.size();
     // main
     const int NO_POINT = -1000;
     //矩阵的维度为20*60
     MatrixXd desc = NO_POINT * MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);//PC_NUM_RING = 20, PC_NUM_SECTOR = 60 Ones为全1矩阵
     float value_angle,value_range;
     int ring_idx, sctor_idx;
-    // std::cout<<"points size is "<<_scan->points.size()<<std::endl;
 #pragma omp parallel for num_threads(3)
-    for(auto data:_scan->points){
+    for(auto data:_scan.points){
         auto point = data;
         point.y += LIDAR_HEIGHT;   //保证z值大于0
         // point.z += 0.4;             //让车在路中央？？？
@@ -274,7 +437,7 @@ MatrixXd circshift(MatrixXd &mat, int _shift){
         MatrixXd afterCircShift(mat);
         return afterCircShift;
     }
-    MatrixXd afterCircShift = MatrixXd::Zero(mat.rows(),mat.cols());
+    MatrixXd afterCircShift = MatrixXd::Ones(mat.rows(),mat.cols());
     for(int col_idx = 0; col_idx<mat.cols(); ++col_idx){
         int newLocation = (col_idx+_shift)%mat.cols();
         afterCircShift.col(newLocation) = mat.col(col_idx);

@@ -43,15 +43,13 @@ private:
     unordered_map<int, int>nodeKeyIndex;            //第一个为在nodes中的索引，第二个为节点的id
     unordered_map<int,int>allNodeIndexId;           //第一个为节点的id，第二个为在nodes中的索引
     //////////////////////////////////////////////////////////
-
-    int loopClosureFromKDTree(PointType currentPose, node& scNode)
+    int loopClosureFromKDTree(PointType currentPose, node& scNode, pcl::PointCloud<pcl::PointXYZI>& scCloud)
     {
-
         std::unordered_map<int, int>possibleNodeIndex;
         possibleNodeIndex.clear();
         if(global_scanContext.size() > 1)
         {
-            int result = (int)scanContextKnnSearch(currentPose,scNode);
+            int result = (int)scanContextKnnSearch(currentPose,scNode, scCloud);
             if(result == -1)
             {
                 return -1;
@@ -61,63 +59,32 @@ private:
         return -1;
     }
     //通过kd树搜索，返回闭环节点id
-    int scanContextKnnSearch(PointType currentPose, node& currNode)
+    int scanContextKnnSearch(PointType currentPose, node& currNode, pcl::PointCloud<pcl::PointXYZI>& currCloud)
     {
-
         double min_dist = 10000000;
         int nn_align = 0, nn_idx = 0;   //nn_align为描述子旋转的角度值， nn_idx为匹配成功的索引值
         int loop_index = -1;
-        // //knn search
-        // std::vector<size_t> candidate_indexes(NUM_CANDIDATES_FROM_TREE);                  //存放索引值数组
-        // std::vector<float> distance_sqrt(NUM_CANDIDATES_FROM_TREE);                       //存放距离值数组
-        // nanoflann::KNNResultSet<float>knnsearchResult(NUM_CANDIDATES_FROM_TREE);          //
-        // knnsearchResult.init(&candidate_indexes[0], &distance_sqrt[0]);
-        // scanContextTree->index->findNeighbors(knnsearchResult,&currRingKey[0],nanoflann::SearchParams(NUM_CANDIDATES_FROM_TREE));
         //使用位置进行KD树搜索
         std::vector<int>pointSearchIndLoop;
         std::vector<float>pointSearchSqDisLoop;
         kdtreeHistroyKeyPoses->setInputCloud(globalKeyPose3d);
         kdtreeHistroyKeyPoses->radiusSearch(currentPose, disForDetech, pointSearchIndLoop, pointSearchSqDisLoop, 0);
 
-        unordered_set<int>proposeIndex;
-        //可能存在闭环的拓扑节点
-        for(int i=0; i<pointSearchIndLoop.size(); ++i)
-        {
-            proposeIndex.insert(pointSearchIndLoop[i]);
-        }
-
-        for(int i = 0; i < SHIFTSIZE; i++){
-            Eigen::MatrixXd currentContextShift = currNode.vertices_.scanContext_8[i];
-            for(const auto& index:proposeIndex)
-            {
-                if(nodeKeyIndex[index] == last_node_id)
-                    continue;
-                Eigen::MatrixXd scanContextCandidate = global_scanContext[index];
-                std::pair<double, int> sc_dist_result = distanceBtnScanContext(currentContextShift, scanContextCandidate);
-                double candidate_dist = sc_dist_result.first;       //余弦距离
-                int candidate_align = sc_dist_result.second;        //偏移量
-                if(candidate_dist < min_dist)
-                {
-                    min_dist = candidate_dist;                      //两个描述子之间的余弦距离
-                    nn_align = candidate_align;
-                    nn_idx = index;    //搜索到的描述子的索引值
+        for(auto n : pointSearchIndLoop){
+            if(currNode.time_stamp_ - nodes[n].time_stamp_ < 60.0){
+                continue;
+            }else{
+                double scoreNow = node::getScore(nodes[n], currNode, currCloud);
+                if(scoreNow < min_dist){
+                    min_dist == scoreNow;
+                    loop_index = n;
                 }
             }
+            if(min_dist < judgeLoopScore){
+                return loop_index;
+            }
         }
-        cout<<"KnnSearch min_dist "<<min_dist<<" index is "<<nn_idx<<" node id "<<(int)nodeKeyIndex[nn_idx]<<" last_node_id "<<last_node_id<<" rotation "<<nn_align<<std::endl;
-        //设定余弦距离最小值
-        if ( min_dist < judgeLoopScore)
-        {
-            loop_index = nodeKeyIndex[nn_idx];
-        }
-
-        if(loop_index!=-1 )
-        {
-            cout<<"min_dist "<<min_dist<<endl;
-            return nn_idx;
-        }else
-            return -1;
-
+        return -1;
     }
 
 
@@ -128,7 +95,7 @@ private:
     }
 
 public:
-    buildTopo(std::string node_save_path_, double buildMapSimScore_, double buildMapDisThres_ = 15.0, double disForDetech_ = 50.0, double gnssSimThres = 0.35 )
+    buildTopo(std::string node_save_path_, double buildMapSimScore_, double buildMapDisThres_ = 15.0, double disForDetech_ = 20.0, double gnssSimThres = 0.30 )
     {
         ////////////////////
         kdtreeHistroyKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
@@ -141,17 +108,16 @@ public:
         buildMapDisThres = buildMapDisThres_;
         /////////////////////
         node_save_path = node_save_path_;
-        save_data_to_files = true;//是否保存文件
+        save_data_to_files = false;//是否保存文件
         /////////////////////
 
     }
-    void run(node& input_node)
+    void run(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud)
     {
         nowTime = input_node.time_stamp_;
-        cout << "input sig state" << input_node.vertices_.Global_Pose_.intensity << endl;
-        if(input_node.vertices_.Global_Pose_.intensity == 1
-         ||input_node.vertices_.Global_Pose_.intensity == 0
-         ||input_node.vertices_.Global_Pose_.intensity == -1){
+        if(input_node.Global_Pose_.intensity == 1
+         ||input_node.Global_Pose_.intensity == 0
+         ||input_node.Global_Pose_.intensity == -1){
             gnssSigLast = gnssSig;
             gnssSig = 1;
             if(isFirst) {
@@ -166,17 +132,15 @@ public:
                 gnssSigLast = gnssSig;
             }
         }
-        if(input_node.vertices_.Global_Pose_.intensity == 5){
+        if(input_node.Global_Pose_.intensity == 5){
             gnssSig = gnssSigLast;
         }
         if(gnssSig != gnssSigLast && !waitFlag){
             waitFlag = true;
             startTime = nowTime;
-            cout << "start time " << startTime << endl;
         }
 
         if(waitFlag){
-            cout << "now time " << nowTime << endl;
             if(nowTime - startTime > 5.0){
                 waitFlag = false;
                 mode = gnssSig==2?false:true;
@@ -188,21 +152,20 @@ public:
         }
 
         if(isFirst) {
-            cout << "mode " << mode << endl;
             isFirst = false;
             ////////////////////////////////////////////
             node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.vertices_.Global_Pose_.intensity = mode;
+            tmp_node.Global_Pose_.intensity = mode;
             nodes.push_back(tmp_node);
 
-            sc_current = tmp_node.vertices_.scanContext_8.front();
+            sc_current = tmp_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-            thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-            thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+            thisPose.x = tmp_node.Global_Pose_.x;
+            thisPose.y = tmp_node.Global_Pose_.y;
+            thisPose.z = tmp_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -210,9 +173,8 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.vertices_.scanContext_8.front());
+            global_scanContext.push_back(tmp_node.scanContext_);
 
-            cout << "build new node" << current_node_id << endl;
             if(save_data_to_files)
             {
                 string file_path = node_save_path;
@@ -225,43 +187,43 @@ public:
             ///////////////////////////////////////////////
         }else {
 
-            cout << "mode " << mode << endl;
-
             Eigen::Vector3d currentNodePosition;
-            currentNodePosition(0) = input_node.vertices_.Global_Pose_.x;
-            currentNodePosition(1) = input_node.vertices_.Global_Pose_.y;
-            currentNodePosition(2) = input_node.vertices_.Global_Pose_.z;
+            currentNodePosition(0) = input_node.Global_Pose_.x;
+            currentNodePosition(1) = input_node.Global_Pose_.y;
+            currentNodePosition(2) = input_node.Global_Pose_.z;
             distanceFromPreNode = std::sqrt((currentNodePosition(0) - PreviousNodePosition(0)) * (currentNodePosition(0) - PreviousNodePosition(0))
                                             + (currentNodePosition(1) - PreviousNodePosition(1)) * (currentNodePosition(1) - PreviousNodePosition(1))
                                             + (currentNodePosition(2) - PreviousNodePosition(2)) * (currentNodePosition(2) - PreviousNodePosition(2)));
 
-            sc_current = input_node.vertices_.scanContext_8.front();
+            sc_current = input_node.scanContext_;
             double similarityScore = getScoreFromLastNode(sc_current, sc_last);
 
-            cout << "distance " << distanceFromPreNode << " score " << similarityScore << endl;
-            PointType currentPose = input_node.vertices_.Global_Pose_;
+            PointType currentPose = input_node.Global_Pose_;
 
             if(!mode) {//GNSS good
                 if(distanceFromPreNode>=buildMapDisThres) {
-                    int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node);//返回值为在nodes中的索引
+                    int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                     //relocal succeed!
-                    if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) && nodeKeyIndex[loopClosureIndex] != last_node_id) {
+                    if(loopClosureIndex != -1 && 
+                        nodeKeyIndex.count(loopClosureIndex) && 
+                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
+                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
                         return;
                     }else {//relocalization failed!
-                        Eigen::MatrixXd ringkey = makeRingkeyFromScancontext(input_node.vertices_.scanContext_8.front());
+                        Eigen::MatrixXd ringkey = makeRingkeyFromScancontext(input_node.scanContext_);
                         std::vector<float>polarcontext_vkeys_vec = eig2stdvec(ringkey);
-                        global_scanContext.push_back(input_node.vertices_.scanContext_8.front());
+                        global_scanContext.push_back(input_node.scanContext_);
 
                         node tmp_node = input_node;
-                        tmp_node.vertices_.Global_Pose_.intensity = mode;
+                        tmp_node.Global_Pose_.intensity = mode;
                         nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
                         nodes.push_back(tmp_node);
-                        sc_last = tmp_node.vertices_.scanContext_8.front();
+                        sc_last = tmp_node.scanContext_;
 
                         PointType thisPose;
-                        thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-                        thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-                        thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                        thisPose.x = tmp_node.Global_Pose_.x;
+                        thisPose.y = tmp_node.Global_Pose_.y;
+                        thisPose.z = tmp_node.Global_Pose_.z;
                         globalKeyPose3d->push_back(thisPose);
 
                         PreviousNodePosition(0) = thisPose.x;
@@ -269,7 +231,6 @@ public:
                         PreviousNodePosition(2) = thisPose.z;
 
                         sc_last = sc_current;
-                        cout << "build new node" << current_node_id << endl;
                         if(save_data_to_files)
                         {
                             string file_path = node_save_path;
@@ -284,23 +245,26 @@ public:
             }else {
                 double score = similarityScore;
                 if(score>=buildMapSimScore) {
-                    int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node);//返回值为在nodes中的索引
+                    int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                     //relocal succeed!
-                    if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) && nodeKeyIndex[loopClosureIndex] != last_node_id) {
+                    if(loopClosureIndex != -1 && 
+                        nodeKeyIndex.count(loopClosureIndex) && 
+                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
+                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
                         return;
                     }else {//relocalization failed!
-                        global_scanContext.push_back(input_node.vertices_.scanContext_8.front());
+                        global_scanContext.push_back(input_node.scanContext_);
 
                         node tmp_node = input_node;
                         nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                        tmp_node.vertices_.Global_Pose_.intensity = mode;
+                        tmp_node.Global_Pose_.intensity = mode;
                         nodes.push_back(tmp_node);
-                        sc_last = tmp_node.vertices_.scanContext_8.front();
+                        sc_last = tmp_node.scanContext_;
 
                         PointType thisPose;
-                        thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-                        thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-                        thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                        thisPose.x = tmp_node.Global_Pose_.x;
+                        thisPose.y = tmp_node.Global_Pose_.y;
+                        thisPose.z = tmp_node.Global_Pose_.z;
                         globalKeyPose3d->push_back(thisPose);
 
                         PreviousNodePosition(0) = thisPose.x;
@@ -308,7 +272,6 @@ public:
                         PreviousNodePosition(2) = thisPose.z;
 
                         sc_last = sc_current;
-                        cout << "build new node" << current_node_id << endl;
                         if(save_data_to_files)
                         {
                             string file_path = node_save_path;
@@ -324,23 +287,23 @@ public:
         }
     }
 
-    void runS(node& input_node)
+    void runS(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud)
     {
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
             node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.vertices_.Global_Pose_.intensity = mode;
+            tmp_node.Global_Pose_.intensity = mode;
             nodes.push_back(tmp_node);
 
-            sc_current = tmp_node.vertices_.scanContext_8.front();
+            sc_current = tmp_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-            thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-            thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+            thisPose.x = tmp_node.Global_Pose_.x;
+            thisPose.y = tmp_node.Global_Pose_.y;
+            thisPose.z = tmp_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -348,9 +311,8 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.vertices_.scanContext_8.front());
+            global_scanContext.push_back(tmp_node.scanContext_);
 
-            cout << "build new node" << current_node_id << endl;
             if(save_data_to_files)
             {
                 string file_path = node_save_path;
@@ -364,38 +326,40 @@ public:
         }
         else {
             Eigen::Vector3d currentNodePosition;
-            currentNodePosition(0) = input_node.vertices_.Global_Pose_.x;
-            currentNodePosition(1) = input_node.vertices_.Global_Pose_.y;
-            currentNodePosition(2) = input_node.vertices_.Global_Pose_.z;
+            currentNodePosition(0) = input_node.Global_Pose_.x;
+            currentNodePosition(1) = input_node.Global_Pose_.y;
+            currentNodePosition(2) = input_node.Global_Pose_.z;
             distanceFromPreNode = std::sqrt((currentNodePosition(0) - PreviousNodePosition(0)) * (currentNodePosition(0) - PreviousNodePosition(0))
                                             + (currentNodePosition(1) - PreviousNodePosition(1)) * (currentNodePosition(1) - PreviousNodePosition(1))
                                             + (currentNodePosition(2) - PreviousNodePosition(2)) * (currentNodePosition(2) - PreviousNodePosition(2)));
 
-            sc_current = input_node.vertices_.scanContext_8.front();
+            sc_current = input_node.scanContext_;
             double similarityScore = getScoreFromLastNode(sc_current, sc_last);
 
-            cout << "distance " << distanceFromPreNode << " score " << similarityScore << endl;
-            PointType currentPose = input_node.vertices_.Global_Pose_;
+            PointType currentPose = input_node.Global_Pose_;
 
             double score = similarityScore;
             if(score>=buildMapSimScore) {
-                int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node);//返回值为在nodes中的索引
+                int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                 //relocal succeed!
-                if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) && nodeKeyIndex[loopClosureIndex] != last_node_id) {
+                    if(loopClosureIndex != -1 && 
+                        nodeKeyIndex.count(loopClosureIndex) && 
+                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
+                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
                     return;
                 }else {//relocalization failed!
-                    global_scanContext.push_back(input_node.vertices_.scanContext_8.front());
+                    global_scanContext.push_back(input_node.scanContext_);
 
                     node tmp_node = input_node;
                     nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                    tmp_node.vertices_.Global_Pose_.intensity = mode;
+                    tmp_node.Global_Pose_.intensity = mode;
                     nodes.push_back(tmp_node);
-                    sc_last = tmp_node.vertices_.scanContext_8.front();
+                    sc_last = tmp_node.scanContext_;
 
                     PointType thisPose;
-                    thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-                    thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-                    thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                    thisPose.x = tmp_node.Global_Pose_.x;
+                    thisPose.y = tmp_node.Global_Pose_.y;
+                    thisPose.z = tmp_node.Global_Pose_.z;
                     globalKeyPose3d->push_back(thisPose);
 
                     PreviousNodePosition(0) = thisPose.x;
@@ -403,7 +367,6 @@ public:
                     PreviousNodePosition(2) = thisPose.z;
 
                     sc_last = sc_current;
-                    cout << "build new node" << current_node_id << endl;
                     if(save_data_to_files)
                     {
                         string file_path = node_save_path;
@@ -418,22 +381,22 @@ public:
         }
     }
 
-    void runD(node& input_node){
+    void runD(node& input_node, pcl::PointCloud<pcl::PointXYZI>& input_cloud){
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
             node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.vertices_.Global_Pose_.intensity = mode;
+            tmp_node.Global_Pose_.intensity = mode;
             nodes.push_back(tmp_node);
 
-            sc_current = tmp_node.vertices_.scanContext_8.front();
+            sc_current = tmp_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-            thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-            thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+            thisPose.x = tmp_node.Global_Pose_.x;
+            thisPose.y = tmp_node.Global_Pose_.y;
+            thisPose.z = tmp_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -441,9 +404,8 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.vertices_.scanContext_8.front());
+            global_scanContext.push_back(tmp_node.scanContext_);
 
-            cout << "build new node" << current_node_id << endl;
             if(save_data_to_files)
             {
                 string file_path = node_save_path;
@@ -456,37 +418,36 @@ public:
             ///////////////////////////////////////////////
         }else {
             Eigen::Vector3d currentNodePosition;
-            currentNodePosition(0) = input_node.vertices_.Global_Pose_.x;
-            currentNodePosition(1) = input_node.vertices_.Global_Pose_.y;
-            currentNodePosition(2) = input_node.vertices_.Global_Pose_.z;
+            currentNodePosition(0) = input_node.Global_Pose_.x;
+            currentNodePosition(1) = input_node.Global_Pose_.y;
+            currentNodePosition(2) = input_node.Global_Pose_.z;
             distanceFromPreNode = std::sqrt((currentNodePosition(0) - PreviousNodePosition(0)) * (currentNodePosition(0) - PreviousNodePosition(0))
                                             + (currentNodePosition(1) - PreviousNodePosition(1)) * (currentNodePosition(1) - PreviousNodePosition(1))
                                             + (currentNodePosition(2) - PreviousNodePosition(2)) * (currentNodePosition(2) - PreviousNodePosition(2)));
 
-            sc_current = input_node.vertices_.scanContext_8.front();
+            sc_current = input_node.scanContext_;
             double similarityScore = node::getScore(nodes.back(), input_node);
 
-            cout << "distance " << distanceFromPreNode << " score " << similarityScore << endl;
-            PointType currentPose = input_node.vertices_.Global_Pose_;
+            PointType currentPose = input_node.Global_Pose_;
 
             if(distanceFromPreNode>=buildMapDisThres) {
-                int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node);//返回值为在nodes中的索引
+                int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                 //relocal succeed!
                 if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) && nodeKeyIndex[loopClosureIndex] != last_node_id) {
                     return;
                 }else {//relocalization failed!
-                    global_scanContext.push_back(input_node.vertices_.scanContext_8.front());
+                    global_scanContext.push_back(input_node.scanContext_);
 
                     node tmp_node = input_node;
-                    tmp_node.vertices_.Global_Pose_.intensity = mode;
+                    tmp_node.Global_Pose_.intensity = mode;
                     nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
                     nodes.push_back(tmp_node);
-                    sc_last = tmp_node.vertices_.scanContext_8.front();
+                    sc_last = tmp_node.scanContext_;
 
                     PointType thisPose;
-                    thisPose.x = tmp_node.vertices_.Global_Pose_.x;
-                    thisPose.y = tmp_node.vertices_.Global_Pose_.y;
-                    thisPose.z = tmp_node.vertices_.Global_Pose_.z;
+                    thisPose.x = tmp_node.Global_Pose_.x;
+                    thisPose.y = tmp_node.Global_Pose_.y;
+                    thisPose.z = tmp_node.Global_Pose_.z;
                     globalKeyPose3d->push_back(thisPose);
 
                     PreviousNodePosition(0) = thisPose.x;
@@ -494,7 +455,6 @@ public:
                     PreviousNodePosition(2) = thisPose.z;
 
                     sc_last = sc_current;
-                    cout << "build new node" << current_node_id << endl;
                     if(save_data_to_files)
                     {
                         string file_path = node_save_path;
@@ -534,21 +494,53 @@ void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
             nodes[i] = tmp_node;
         }
     }
-    cout<<"number "<<nodes.size()<<" "<<index.size();
+}
+
+vector<node> nodeList;
+vector<pcl::PointCloud<pcl::PointXYZI>> cloudList;
+
+void init(){
+
+    string loadCloudPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/";
+    std::vector<std::string>file_nameList;
+    {
+        std::vector<int>index;
+        DIR *d = opendir(loadCloudPath.c_str());
+        struct dirent *dp;
+        while((dp = readdir(d)) != NULL)
+        {
+            if(dp->d_name[0] == '.')    {continue;}
+            index.push_back(atoi(dp->d_name));
+        }
+        sort(index.begin(), index.end());
+        for(auto n : index){
+            stringstream ss;
+            ss << n;
+            file_nameList.push_back(loadCloudPath + ss.str()+".pcd");
+        }
+    }
+
+    for(const auto& s : file_nameList){
+        pcl::PointCloud<pcl::PointXYZI>tempCloud;
+        pcl::io::loadPCDFile(s, tempCloud);
+        cloudList.push_back(tempCloud);
+    }
+
+    string loadNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/";
+    read_nodes_from_files_B(nodeList, loadNodePath);
 }
 
 //normal
 int buildN(){
-    vector<node> nodeList;
-    string loadPath = "/home/qh/robot_ws/map/allNode/2/";
-    read_nodes_from_files_B(nodeList, loadPath);
-
     vector<double> simBuildTopoValue{
         0.23,  0.25,  0.28,  0.30, 
         0.33,  0.35,  0.38,  0.40,
         0.43,  0.45,  0.48,  0.50,
         0.53,  0.55,  0.58,  0.60,
-        0.63,  0.65,  0.68,  0.70
+        0.63,  0.65,  0.68,  0.70,
+        0.73,  0.75,  0.78,  0.80,
+        0.83,  0.85,  0.88,  0.90,
+        0.93,  0.95,  0.98
         };
 
     for(double k : simBuildTopoValue){
@@ -568,7 +560,7 @@ int buildN(){
             double restPercent = 1.0 - nowPercent;
             double time_rest = time_used / nowPercent * restPercent;
             cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            buildTopoMap.run(nodeList[j]);
+            buildTopoMap.run(nodeList[j], cloudList[j]);
         }
         vector<node>& resultNodeList = buildTopoMap.nodes;
 
@@ -578,16 +570,16 @@ int buildN(){
         ofstream fileout;
         fileout.open(fileResult);
         for(const node& n : resultNodeList){
-            if(n.vertices_.Global_Pose_.intensity == 1){
+            if(n.Global_Pose_.intensity == 1){
                 nognss.push_back(n.id_);
-                fileout << n.vertices_.Global_Pose_.x << " "
-                     << n.vertices_.Global_Pose_.y << " "
-                     << n.vertices_.Global_Pose_.z << " " << 0 << endl;
+                fileout << n.Global_Pose_.x << " "
+                     << n.Global_Pose_.y << " "
+                     << n.Global_Pose_.z << " " << 0 << endl;
             }else{
                 gnss.push_back(n.id_);
-                fileout << n.vertices_.Global_Pose_.x << " "
-                     << n.vertices_.Global_Pose_.y << " "
-                     << n.vertices_.Global_Pose_.z << " " << 1 << endl;
+                fileout << n.Global_Pose_.x << " "
+                     << n.Global_Pose_.y << " "
+                     << n.Global_Pose_.z << " " << 1 << endl;
             }
         }
         fileout.close();
@@ -610,16 +602,15 @@ int buildN(){
 }
 //只按照相似度建图
 int buildS(){
-    vector<node> nodeList;
-    string loadPath = "/home/qh/robot_ws/map/allNode/2/";
-    read_nodes_from_files_B(nodeList, loadPath);
-
     vector<double> simBuildTopoValue{
         0.23,  0.25,  0.28,  0.30, 
         0.33,  0.35,  0.38,  0.40,
         0.43,  0.45,  0.48,  0.50,
         0.53,  0.55,  0.58,  0.60,
-        0.63,  0.65,  0.68,  0.70
+        0.63,  0.65,  0.68,  0.70,
+        0.73,  0.75,  0.78,  0.80,
+        0.83,  0.85,  0.88,  0.90,
+        0.93,  0.95,  0.98
         };
 
     for(double k : simBuildTopoValue){
@@ -641,7 +632,7 @@ int buildS(){
             double restPercent = 1.0 - nowPercent;
             double time_rest = time_used / nowPercent * restPercent;
             cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            buildTopoMap.runS(nodeList[j]);
+            buildTopoMap.runS(nodeList[j], cloudList[j]);
         }
         vector<node>& resultNodeList = buildTopoMap.nodes;
 
@@ -651,9 +642,9 @@ int buildS(){
         ofstream fileout;
         fileout.open(fileResult);
         for(const node& n : resultNodeList){
-            fileout << n.vertices_.Global_Pose_.x << " "
-                    << n.vertices_.Global_Pose_.y << " "
-                    << n.vertices_.Global_Pose_.z << " " << 0 << endl;
+            fileout << n.Global_Pose_.x << " "
+                    << n.Global_Pose_.y << " "
+                    << n.Global_Pose_.z << " " << 0 << endl;
         }
         fileout.close();
         fileResult = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/S" + ss.str() + "Info.txt";
@@ -668,10 +659,6 @@ int buildS(){
 
 //只按照固定距离建图
 int buildD(){
-    vector<node> nodeList;
-    string loadPath = "/home/qh/robot_ws/map/allNode/2/";
-    read_nodes_from_files_B(nodeList, loadPath);
-
     vector<double> tab{0.5, 1.0, 3.0, 10.0, 15.0, 30.0};
 
     for(double k : tab){
@@ -693,7 +680,7 @@ int buildD(){
             double restPercent = 1.0 - nowPercent;
             double time_rest = time_used / nowPercent * restPercent;
             cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
-            buildTopoMap.runD(nodeList[j]);
+            buildTopoMap.runD(nodeList[j], cloudList[j]);
         }
         cout << savePath << endl;
         vector<node>& resultNodeList = buildTopoMap.nodes;
@@ -702,9 +689,9 @@ int buildD(){
         ofstream fileout;
         fileout.open(fileResult);
         for(const auto& n : resultNodeList){
-            fileout << n.vertices_.Global_Pose_.x << " "
-                    << n.vertices_.Global_Pose_.y << " "
-                    << n.vertices_.Global_Pose_.z << " " << 0 << endl;
+            fileout << n.Global_Pose_.x << " "
+                    << n.Global_Pose_.y << " "
+                    << n.Global_Pose_.z << " " << 0 << endl;
         }
         fileout.close();
         fileResult = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + "Info.txt";
@@ -719,9 +706,6 @@ int buildD(){
 
 //daquan
 int main4(){
-    vector<node> nodeList;
-    string loadPath = "/home/qh/robot_ws/map/allNode/4/";
-    read_nodes_from_files_B(nodeList, loadPath);
 
     for(int i = 0; i < 1; i++){
         //char key = getchar();
@@ -735,8 +719,8 @@ int main4(){
         for(int j = 0; j < nodeList.size(); j++){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            if(nodeList[j].vertices_.Global_Pose_.intensity==0) nodeList[j].vertices_.Global_Pose_.intensity = 2;
-            buildTopoMap.runS(nodeList[j]);
+            if(nodeList[j].Global_Pose_.intensity==0) nodeList[j].Global_Pose_.intensity = 2;
+            buildTopoMap.run(nodeList[j], cloudList[j]);
         }
         vector<node>& resultNodeList = buildTopoMap.nodes;
 
@@ -747,16 +731,16 @@ int main4(){
         fileout.open(fileResult);
         for(int i = 0; i < resultNodeList.size(); i++){
             node n = resultNodeList[i];
-            if(n.vertices_.Global_Pose_.intensity == 1){
+            if(n.Global_Pose_.intensity == 1){
                 nognss.push_back(n.id_);
-                fileout << n.vertices_.Global_Pose_.x << " "
-                        << n.vertices_.Global_Pose_.y << " "
-                        << n.vertices_.Global_Pose_.z << " " << 0 << endl;
+                fileout << n.Global_Pose_.x << " "
+                        << n.Global_Pose_.y << " "
+                        << n.Global_Pose_.z << " " << 0 << endl;
             }else{
                 gnss.push_back(n.id_);
-                fileout << n.vertices_.Global_Pose_.x << " "
-                        << n.vertices_.Global_Pose_.y << " "
-                        << n.vertices_.Global_Pose_.z << " " << 1 << endl;
+                fileout << n.Global_Pose_.x << " "
+                        << n.Global_Pose_.y << " "
+                        << n.Global_Pose_.z << " " << 1 << endl;
             }
         }
         fileout.close();

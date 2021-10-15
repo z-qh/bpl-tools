@@ -35,7 +35,7 @@ private:
         nowPose.z = keyPose.translation().z();
         nowPose.intensity = sim;
         double timeNow = lidarTimeStampQue.at(lidarTimeStampQue.size()/2);
-        node topologicalNode(id, timeNow, nowPose, cloud);
+        node topologicalNode(id, timeNow, nowPose, cloud, "");
         cout<<"create node id ===> "<<id<<std::endl;
         return topologicalNode;
     }
@@ -85,7 +85,7 @@ public:
 
         /////////////////////
     }
-    void run(sensor_msgs::PointCloud2 remove_obstacle_cloud,
+    void run(node& nodeTemp, sensor_msgs::PointCloud2 remove_obstacle_cloud,
              nav_msgs::Odometry remove_obstacle_odom,
              int isSim,
              sensor_msgs::PointCloud2& localMsgs,
@@ -134,10 +134,11 @@ public:
                 //////////////////////create node
                 if(true)
                 {
-                    node tmp_node = create_new_node(current_node_id, isSim, *localMap);
+                    nodeTemp = create_new_node(current_node_id, isSim, *localMap);
+                    //node tmp_node = create_new_node(current_node_id, isSim, *localMap);
                     if(save_data_to_files)
                     {
-                        tmp_node.nodes_save_B(node_save_path);
+                        //tmp_node.nodes_save_B(node_save_path);
                         createFlag = true;
                     }
                     last_node_id = current_node_id;

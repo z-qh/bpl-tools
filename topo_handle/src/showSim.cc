@@ -106,7 +106,7 @@ int main(int argc, char** argv){
 
     t1 = chrono::steady_clock::now();
     for(int i = 0; i < newNode.size();i++){
-        double scoreNow = node::getScore(newNode[0], newNode[i]);
+        double scoreNow = node::getScoreFile(newNode[0], newNode[i]);
         auto scoreDirect = distanceBtnScanContext(newNode[0].scanContext_, newNode[i].scanContext_);
         cout  << newNode[0].id_ << " " <<newNode[i].id_ << " score is " <<  scoreNow << " " << scoreDirect.first << endl;
     }
@@ -117,6 +117,6 @@ int main(int argc, char** argv){
     cout << endl;
     cout << endl;
     for(int i = 0; i < newNode2.size();i+=5){
-        cout  << newNode[0].id_ << " " <<newNode2[i].id_ << " score is " << node::getScore(newNode[0], newNode2[i]) << endl;
+        cout  << newNode[0].id_ << " " <<newNode2[i].id_ << " score is " << node::getScoreFile(newNode[0], newNode2[i]) << endl;
     }
 }

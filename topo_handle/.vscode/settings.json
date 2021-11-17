@@ -1,0 +1,31 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/qh/robot_ws/devel/lib/python3/dist-packages",
+        "/home/qh/qh_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/usr/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/qh/robot_ws/devel/lib/python3/dist-packages",
+        "/home/qh/qh_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/usr/lib/python3/dist-packages"
+    ],
+    "files.associations": {
+        "*.ipp": "cpp",
+        "array": "cpp",
+        "bitset": "cpp",
+        "string_view": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "initializer_list": "cpp",
+        "utility": "cpp",
+        "valarray": "cpp",
+        "chrono": "cpp",
+        "iosfwd": "cpp",
+        "iostream": "cpp",
+        "thread": "cpp",
+        "ostream": "cpp",
+        "memory": "cpp"
+    }
+}

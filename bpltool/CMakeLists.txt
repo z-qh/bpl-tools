@@ -164,6 +164,12 @@ include_directories(
 #        )
 ##
 #
+# add_executable(lidar2image src/source/lidar2image.cc)
+# target_link_libraries(lidar2image
+#         ${catkin_LIBRARIES}
+#         ${OpenCV_LIBS}
+#         ${PCL_LIBRARIES}
+#         )
 #
 add_executable(qParam
         src/qParam/main.cpp

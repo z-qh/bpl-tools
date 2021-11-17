@@ -6,6 +6,10 @@
 #include "unordered_map"
 #include "deque"
 
+#include "unistd.h"
+#include "sys/types.h"
+#include "sys/stat.h"
+
 class buildTopo{
 private:
     bool isFirst{true};
@@ -40,16 +44,23 @@ private:
     //////////////////////////////////////////////////////////
     pcl::PointCloud<PointType>::Ptr pubGlobalNodePosition;  //存储每个节点的全局位置
     //////////////////////////////////////////////////////////
-    unordered_map<int, int>nodeKeyIndex;            //第一个为在nodes中的索引，第二个为节点的id
+    unordered_map<int,int>nodeKeyIndex;            //第一个为在nodes中的索引，第二个为节点的id
     unordered_map<int,int>allNodeIndexId;           //第一个为节点的id，第二个为在nodes中的索引
+    //////////////////////////////////////////////////////////
+    int loopClosureFromKDTreeDis(PointType currentPose, node& scNode, pcl::PointCloud<pcl::PointXYZI>& scCloud){
+        std::vector<int>pointSearchIndLoop;
+        std::vector<float>pointSearchSqDisLoop;
+        kdtreeHistroyKeyPoses->setInputCloud(globalKeyPose3d);
+        kdtreeHistroyKeyPoses->radiusSearch(currentPose, buildMapDisThres, pointSearchIndLoop, pointSearchSqDisLoop, 0);
+        if(pointSearchIndLoop.empty()) return -1;
+        else return pointSearchIndLoop.front();
+    }
     //////////////////////////////////////////////////////////
     int loopClosureFromKDTree(PointType currentPose, node& scNode, pcl::PointCloud<pcl::PointXYZI>& scCloud)
     {
-        std::unordered_map<int, int>possibleNodeIndex;
-        possibleNodeIndex.clear();
         if(global_scanContext.size() > 1)
         {
-            int result = (int)scanContextKnnSearch(currentPose,scNode, scCloud);
+            int result = (int)scanContextKnnSearch(currentPose, scNode, scCloud);
             if(result == -1)
             {
                 return -1;
@@ -62,7 +73,6 @@ private:
     int scanContextKnnSearch(PointType currentPose, node& currNode, pcl::PointCloud<pcl::PointXYZI>& currCloud)
     {
         double min_dist = 10000000;
-        int nn_align = 0, nn_idx = 0;   //nn_align为描述子旋转的角度值， nn_idx为匹配成功的索引值
         int loop_index = -1;
         //使用位置进行KD树搜索
         std::vector<int>pointSearchIndLoop;
@@ -70,18 +80,29 @@ private:
         kdtreeHistroyKeyPoses->setInputCloud(globalKeyPose3d);
         kdtreeHistroyKeyPoses->radiusSearch(currentPose, disForDetech, pointSearchIndLoop, pointSearchSqDisLoop, 0);
 
-        for(auto n : pointSearchIndLoop){
+        // cout << " ----now id------ " << currNode.id_ << endl;
+        // cout << " ----search------ " << pointSearchIndLoop.size() << " points ";
+        // for(auto n : pointSearchIndLoop){
+        //     cout << nodes[n].id_ << " ";
+        // }
+        // cout << endl;
+        // cout << " ----time now---- " << currNode.time_stamp_  << endl;
+
+        for(int j  = 0; j < pointSearchIndLoop.size(); j++){
+            int n = pointSearchIndLoop[j];
+            //cout << "id " << nodes[n].id_ << endl;
+            //cout << "time  " << nodes[n].time_stamp_  << endl;
+            //cout << "time diff " << currNode.time_stamp_ - nodes[n].time_stamp_ << endl;
             if(currNode.time_stamp_ - nodes[n].time_stamp_ < 60.0){
                 continue;
             }else{
                 double scoreNow = node::getScore(nodes[n], currNode, currCloud);
-                if(scoreNow < min_dist){
-                    min_dist == scoreNow;
-                    loop_index = n;
+                //cout << "---->time ok get id " << nodes[n].id_ << " score " << scoreNow << " dis " << sqrt(pointSearchSqDisLoop[j]) << endl;
+                if(scoreNow < judgeLoopScore){
+                    //cout << " get loop ! " << endl;
+                    //getchar();
+                    return n;
                 }
-            }
-            if(min_dist < judgeLoopScore){
-                return loop_index;
             }
         }
         return -1;
@@ -95,7 +116,7 @@ private:
     }
 
 public:
-    buildTopo(std::string node_save_path_, double buildMapSimScore_, double buildMapDisThres_ = 15.0, double disForDetech_ = 20.0, double gnssSimThres = 0.30 )
+    buildTopo(std::string node_save_path_, double buildMapSimScore_, double buildMapDisThres_ = 15.0, double disForDetech_ = 20.0, double gnssSimThres = 0.35 )
     {
         ////////////////////
         kdtreeHistroyKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
@@ -108,11 +129,11 @@ public:
         buildMapDisThres = buildMapDisThres_;
         /////////////////////
         node_save_path = node_save_path_;
-        save_data_to_files = false;//是否保存文件
+        save_data_to_files = true;//是否保存文件
         /////////////////////
 
     }
-    void run(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
+    void run(node input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
     {
         nowTime = input_node.time_stamp_;
         if(input_node.Global_Pose_.intensity == 1
@@ -154,18 +175,17 @@ public:
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
-            node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.Global_Pose_.intensity = mode;
-            nodes.push_back(tmp_node);
+            input_node.Global_Pose_.intensity = mode;
+            nodes.push_back(input_node);
 
-            sc_current = tmp_node.scanContext_;
+            sc_current = input_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.Global_Pose_.x;
-            thisPose.y = tmp_node.Global_Pose_.y;
-            thisPose.z = tmp_node.Global_Pose_.z;
+            thisPose.x = input_node.Global_Pose_.x;
+            thisPose.y = input_node.Global_Pose_.y;
+            thisPose.z = input_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -173,7 +193,7 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.scanContext_);
+            global_scanContext.push_back(input_node.scanContext_);
 
             if(save_data_to_files)
             {
@@ -202,28 +222,35 @@ public:
 
             if(!mode) {//GNSS good
                 if(distanceFromPreNode>=buildMapDisThres) {
-                    int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
+                    int loopClosureIndex = loopClosureFromKDTreeDis(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                     //relocal succeed!
-                    if(loopClosureIndex != -1 && 
-                        nodeKeyIndex.count(loopClosureIndex) && 
-                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
-                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
+                    if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) ) {
+                        PreviousNodePosition(0) = currentPose.x;
+                        PreviousNodePosition(1) = currentPose.y;
+                        PreviousNodePosition(2) = currentPose.z;
                         return;
                     }else {//relocalization failed!
+                        //search sim node
+                        int loopClosureIndexSim = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
+                        if(loopClosureIndexSim != -1 && nodeKeyIndex.count(loopClosureIndexSim) ) {
+                            PreviousNodePosition(0) = currentPose.x;
+                            PreviousNodePosition(1) = currentPose.y;
+                            PreviousNodePosition(2) = currentPose.z;
+                            return;
+                        }
                         Eigen::MatrixXd ringkey = makeRingkeyFromScancontext(input_node.scanContext_);
                         std::vector<float>polarcontext_vkeys_vec = eig2stdvec(ringkey);
                         global_scanContext.push_back(input_node.scanContext_);
 
-                        node tmp_node = input_node;
-                        tmp_node.Global_Pose_.intensity = mode;
+                        input_node.Global_Pose_.intensity = mode;
                         nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                        nodes.push_back(tmp_node);
-                        sc_last = tmp_node.scanContext_;
+                        nodes.push_back(input_node);
+                        sc_last = input_node.scanContext_;
 
                         PointType thisPose;
-                        thisPose.x = tmp_node.Global_Pose_.x;
-                        thisPose.y = tmp_node.Global_Pose_.y;
-                        thisPose.z = tmp_node.Global_Pose_.z;
+                        thisPose.x = input_node.Global_Pose_.x;
+                        thisPose.y = input_node.Global_Pose_.y;
+                        thisPose.z = input_node.Global_Pose_.z;
                         globalKeyPose3d->push_back(thisPose);
 
                         PreviousNodePosition(0) = thisPose.x;
@@ -247,24 +274,21 @@ public:
                 if(score>=buildMapSimScore) {
                     int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                     //relocal succeed!
-                    if(loopClosureIndex != -1 && 
-                        nodeKeyIndex.count(loopClosureIndex) && 
-                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
-                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
+                    if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) ) {
+                        sc_last = sc_current;
                         return;
                     }else {//relocalization failed!
                         global_scanContext.push_back(input_node.scanContext_);
 
-                        node tmp_node = input_node;
                         nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                        tmp_node.Global_Pose_.intensity = mode;
-                        nodes.push_back(tmp_node);
-                        sc_last = tmp_node.scanContext_;
+                        input_node.Global_Pose_.intensity = mode;
+                        nodes.push_back(input_node);
+                        sc_last = input_node.scanContext_;
 
                         PointType thisPose;
-                        thisPose.x = tmp_node.Global_Pose_.x;
-                        thisPose.y = tmp_node.Global_Pose_.y;
-                        thisPose.z = tmp_node.Global_Pose_.z;
+                        thisPose.x = input_node.Global_Pose_.x;
+                        thisPose.y = input_node.Global_Pose_.y;
+                        thisPose.z = input_node.Global_Pose_.z;
                         globalKeyPose3d->push_back(thisPose);
 
                         PreviousNodePosition(0) = thisPose.x;
@@ -287,23 +311,22 @@ public:
         }
     }
 
-    void runS(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
+    void runS(node input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud)
     {
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
-            node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.Global_Pose_.intensity = mode;
-            nodes.push_back(tmp_node);
+            input_node.Global_Pose_.intensity = mode;
+            nodes.push_back(input_node);
 
-            sc_current = tmp_node.scanContext_;
+            sc_current = input_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.Global_Pose_.x;
-            thisPose.y = tmp_node.Global_Pose_.y;
-            thisPose.z = tmp_node.Global_Pose_.z;
+            thisPose.x = input_node.Global_Pose_.x;
+            thisPose.y = input_node.Global_Pose_.y;
+            thisPose.z = input_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -311,7 +334,7 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.scanContext_);
+            global_scanContext.push_back(input_node.scanContext_);
 
             if(save_data_to_files)
             {
@@ -342,24 +365,21 @@ public:
             if(score>=buildMapSimScore) {
                 int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                 //relocal succeed!
-                    if(loopClosureIndex != -1 && 
-                        nodeKeyIndex.count(loopClosureIndex) && 
-                        nodeKeyIndex[loopClosureIndex] != last_node_id && 
-                        input_node.time_stamp_ - nodes[loopClosureIndex].time_stamp_ > 60.0) {
+                if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex)) {    
+                    sc_last = sc_current;
                     return;
                 }else {//relocalization failed!
                     global_scanContext.push_back(input_node.scanContext_);
 
-                    node tmp_node = input_node;
                     nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                    tmp_node.Global_Pose_.intensity = mode;
-                    nodes.push_back(tmp_node);
-                    sc_last = tmp_node.scanContext_;
+                    input_node.Global_Pose_.intensity = mode;
+                    nodes.push_back(input_node);
+                    sc_last = input_node.scanContext_;
 
                     PointType thisPose;
-                    thisPose.x = tmp_node.Global_Pose_.x;
-                    thisPose.y = tmp_node.Global_Pose_.y;
-                    thisPose.z = tmp_node.Global_Pose_.z;
+                    thisPose.x = input_node.Global_Pose_.x;
+                    thisPose.y = input_node.Global_Pose_.y;
+                    thisPose.z = input_node.Global_Pose_.z;
                     globalKeyPose3d->push_back(thisPose);
 
                     PreviousNodePosition(0) = thisPose.x;
@@ -381,22 +401,21 @@ public:
         }
     }
 
-    void runD(node& input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud){
+    void runD(node input_node, pcl::PointCloud<pcl::PointXYZI> input_cloud){
         if(isFirst) {
             isFirst = false;
             ////////////////////////////////////////////
-            node tmp_node = input_node;
             nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-            tmp_node.Global_Pose_.intensity = mode;
-            nodes.push_back(tmp_node);
+            input_node.Global_Pose_.intensity = mode;
+            nodes.push_back(input_node);
 
-            sc_current = tmp_node.scanContext_;
+            sc_current = input_node.scanContext_;
             sc_last = sc_current;
 
             PointType thisPose;
-            thisPose.x = tmp_node.Global_Pose_.x;
-            thisPose.y = tmp_node.Global_Pose_.y;
-            thisPose.z = tmp_node.Global_Pose_.z;
+            thisPose.x = input_node.Global_Pose_.x;
+            thisPose.y = input_node.Global_Pose_.y;
+            thisPose.z = input_node.Global_Pose_.z;
             thisPose.intensity = current_node_id;
             globalKeyPose3d->push_back(thisPose);
 
@@ -404,7 +423,7 @@ public:
             PreviousNodePosition(1) = thisPose.y;
             PreviousNodePosition(2) = thisPose.z;
 
-            global_scanContext.push_back(tmp_node.scanContext_);
+            global_scanContext.push_back(input_node.scanContext_);
 
             if(save_data_to_files)
             {
@@ -426,28 +445,38 @@ public:
                                             + (currentNodePosition(2) - PreviousNodePosition(2)) * (currentNodePosition(2) - PreviousNodePosition(2)));
 
             sc_current = input_node.scanContext_;
-            double similarityScore = node::getScore(nodes.back(), input_node);
 
             PointType currentPose = input_node.Global_Pose_;
 
             if(distanceFromPreNode>=buildMapDisThres) {
-                int loopClosureIndex = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
+                int loopClosureIndex = loopClosureFromKDTreeDis(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
                 //relocal succeed!
-                if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) && nodeKeyIndex[loopClosureIndex] != last_node_id) {
+                if(loopClosureIndex != -1 && nodeKeyIndex.count(loopClosureIndex) ) {
+                    PreviousNodePosition(0) = currentPose.x;
+                    PreviousNodePosition(1) = currentPose.y;
+                    PreviousNodePosition(2) = currentPose.z;
                     return;
                 }else {//relocalization failed!
+                    //search sim node
+                    int loopClosureIndexSim = loopClosureFromKDTree(currentPose, input_node, input_cloud);//返回值为在nodes中的索引
+                    if(loopClosureIndexSim != -1 && nodeKeyIndex.count(loopClosureIndexSim) ) {
+                        PreviousNodePosition(0) = currentPose.x;
+                        PreviousNodePosition(1) = currentPose.y;
+                        PreviousNodePosition(2) = currentPose.z;
+                        return;
+                    }
+
                     global_scanContext.push_back(input_node.scanContext_);
 
-                    node tmp_node = input_node;
-                    tmp_node.Global_Pose_.intensity = mode;
+                    input_node.Global_Pose_.intensity = mode;
                     nodeKeyIndex.insert({(int)nodes.size(), current_node_id});
-                    nodes.push_back(tmp_node);
-                    sc_last = tmp_node.scanContext_;
+                    nodes.push_back(input_node);
+                    sc_last = input_node.scanContext_;
 
                     PointType thisPose;
-                    thisPose.x = tmp_node.Global_Pose_.x;
-                    thisPose.y = tmp_node.Global_Pose_.y;
-                    thisPose.z = tmp_node.Global_Pose_.z;
+                    thisPose.x = input_node.Global_Pose_.x;
+                    thisPose.y = input_node.Global_Pose_.y;
+                    thisPose.z = input_node.Global_Pose_.z;
                     globalKeyPose3d->push_back(thisPose);
 
                     PreviousNodePosition(0) = thisPose.x;
@@ -470,7 +499,7 @@ public:
     }
 };
 
-void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
+void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path, int preLoadSize = -1)
 {
     std::vector<std::string>file_name;
     std::vector<int>index;
@@ -486,12 +515,13 @@ void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
     if(index.size() > 0)
     {
         int node_number = index.size();
+        if(preLoadSize != -1){
+            node_number = preLoadSize;
+        }
         nodes.resize(node_number);
         for(int i=0; i<node_number;++i)
         {
-            node tmp_node;
-            tmp_node.create_node_from_file_B(path, index[i]);
-            nodes[i] = tmp_node;
+            nodes[i].create_node_from_file_B(path, index[i]);
         }
     }
 }
@@ -499,14 +529,12 @@ void read_nodes_from_files_B(std::vector<node>& nodes, std::string& path)
 vector<node> nodeList;
 vector<pcl::PointCloud<pcl::PointXYZI>> cloudList;
 
-
 bool NState = false;
 bool DState = false;
 bool SState = false;
 
 
-void init(){
-
+void init(int preLoadCtrl = -1){
     string loadCloudPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/cloudSparse/";
     std::vector<std::string>file_nameList;
     {
@@ -526,14 +554,22 @@ void init(){
         }
     }
 
-    for(const auto& s : file_nameList){
-        pcl::PointCloud<pcl::PointXYZI>tempCloud;
-        pcl::io::loadPCDFile(s, tempCloud);
-        cloudList.push_back(tempCloud);
-    }
-
     string loadNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/";
-    read_nodes_from_files_B(nodeList, loadNodePath);
+    read_nodes_from_files_B(nodeList, loadNodePath, preLoadCtrl);
+    
+    int cloudSizePre = file_nameList.size();
+    if(preLoadCtrl != -1){
+        cloudSizePre = preLoadCtrl;
+        cout << "--------------pre load-------------------" << endl;
+        cout << " pre load " << cloudSizePre * 100.0 / file_nameList.size() << "%" << endl; 
+    } 
+    cloudList.resize(cloudSizePre);
+    //for(int i = 0; i < cloudSizePre; i++){
+    //    if(i%10==0) cout << std::fixed << setprecision(1) << "load " << i * 100.0 / cloudSizePre << "% " << endl;
+    //    pcl::io::loadPCDFile(file_nameList[i], cloudList[i]);
+    //}
+    cout << "all node " << nodeList.size() << " cloud size " << cloudList.size() << endl;
+    cout << " get all node and cloud push any key to continue" << endl;
 }
 
 //normal
@@ -554,18 +590,24 @@ int buildN(){
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << buildValue;
         string savePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/N" + ss.str() + "/";
-        buildTopo buildTopoMap(savePath, buildValue);
+        if(0 == access(savePath.c_str(), 0)){
+            rmdir(savePath.c_str());
+            mkdir(savePath.c_str(), 0777);
+        }else if( 0 != access(savePath.c_str(), 0)){
+            mkdir(savePath.c_str(), 0777);
+        }
+        buildTopo buildTopoMap(savePath, buildValue, 15.0, 15.0);
         int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        // chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
             chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            // double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            // double nowPercent = j * 1.0 / nodesSize;
+            // double restPercent = 1.0 - nowPercent;
+            // double time_rest = time_used / nowPercent * restPercent;
+            // cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
             buildTopoMap.run(nodeList[j], cloudList[j]);
         }
         vector<node>& resultNodeList = buildTopoMap.nodes;
@@ -600,9 +642,6 @@ int buildN(){
         for(const auto& n : nognss){
             fileout << n << " ";
         }
-        fileout << endl;
-        cout << "gnss " << gnss.size() << endl;
-        cout << "nognss " << nognss.size() << endl;
         fileout.close();
     }
     NState = true;
@@ -627,18 +666,24 @@ int buildS(){
         stringstream ss;
         ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << buildValue;
         string savePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/S" + ss.str() + "/";
-        buildTopo buildTopoMap(savePath, buildValue);
+        if(0 == access(savePath.c_str(), 0)){
+            rmdir(savePath.c_str());
+            mkdir(savePath.c_str(), 0777);
+        }else if( 0 != access(savePath.c_str(), 0)){
+            mkdir(savePath.c_str(), 0777);
+        }
+        buildTopo buildTopoMap(savePath, buildValue, 0, 20.0, 0.35);
         int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        // chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            // chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            // double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            // double nowPercent = j * 1.0 / nodesSize;
+            // double restPercent = 1.0 - nowPercent;
+            // double time_rest = time_used / nowPercent * restPercent;
+            // cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
             buildTopoMap.runS(nodeList[j], cloudList[j]);
         }
         vector<node>& resultNodeList = buildTopoMap.nodes;
@@ -662,13 +707,18 @@ int buildS(){
         }
         fileout.close();
     }
-
     SState = true;
 }
 
 //只按照固定距离建图
 int buildD(){
-    vector<double> tab{0.5, 1.0, 3.0, 10.0, 15.0, 30.0};
+    vector<double> tab{ 
+        // 30.0,  25.0,  20.0,  15.0,  10.0,  5.0,
+        // 27.5,  22.5,  17.5,  12.5,  7.50,  2.5,
+        // 3.0,  1.0,  0.5
+        1.5,  2.0,  3.5,  4.0,  4.5,  5.5,  6.0,  6.5,  7.0,  8.0,  8.5,  9.0
+        };
+    // vector<double> tab{ 30.0};
 
     for(double k : tab){
         //char key = getchar();
@@ -677,21 +727,26 @@ int buildD(){
         stringstream ss;
         ss << std::fixed << setprecision(1) << buildValue;
         string savePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + "/";
-        buildTopo buildTopoMap(savePath, 0, buildValue);
+        if(0 == access(savePath.c_str(), 0)){
+            rmdir(savePath.c_str());
+            mkdir(savePath.c_str(), 0777);
+        }else if( 0 != access(savePath.c_str(), 0)){
+            mkdir(savePath.c_str(), 0777);
+        }
+        buildTopo buildTopoMap(savePath, 0, buildValue, 20.0, 0.35);
         int nodesSize = nodeList.size();
-        chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+        // chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
         for(int j = 0; j < nodesSize; j+=2){
             //char key = getchar();
             //if(key == 'q') exit(0);
-            chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
-            double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
-            double nowPercent = j * 1.0 / nodesSize;
-            double restPercent = 1.0 - nowPercent;
-            double time_rest = time_used / nowPercent * restPercent;
-            cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
+            // chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+            // double time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+            // double nowPercent = j * 1.0 / nodesSize;
+            // double restPercent = 1.0 - nowPercent;
+            // double time_rest = time_used / nowPercent * restPercent;
+            // cout << nowPercent * 100  << "% "  << " rest:" << time_rest << "s ";
             buildTopoMap.runD(nodeList[j], cloudList[j]);
         }
-        cout << savePath << endl;
         vector<node>& resultNodeList = buildTopoMap.nodes;
 
         string fileResult = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/D" + ss.str() + ".txt";
@@ -716,7 +771,6 @@ int buildD(){
 
 //daquan
 int main4(){
-
     for(int i = 0; i < 1; i++){
         //char key = getchar();
         //if(key == 'q') exit(0);
@@ -765,31 +819,15 @@ int main4(){
         for(const auto& n : nognss){
             fileout << n << " ";
         }
-        fileout << endl;
-        cout << "gnss " << gnss.size() << endl;
-        cout << "nognss " << nognss.size() << endl;
         fileout.close();
     }
 }
 
 int main(int argc, char** argv){
-    init();
-    thread buildNthread(buildN);
-    thread buildSthread(buildS);
-    thread buildDthread(buildD);
+    if(argv[1] == nullptr)  init(-1);
+    else                    init(stoi(argv[1]));
 
-    buildNthread.detach();
-    buildSthread.detach();
-    buildDthread.detach();
 
-    char k = 0;
-    while(!NState || !DState || !SState){
-        k = getchar();
-        cout << k << endl;
-        cout << "build N " << NState << endl;
-        cout << "build S " << SState << endl;
-        cout << "build D " << DState << endl;
-    }
-
+    cout << " end " << endl;
     return 0;
 }

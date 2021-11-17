@@ -25,21 +25,6 @@ private:
     bool save_data_to_files;
     std::string node_save_path;
 
-    node create_new_node(int& id, int sim, pcl::PointCloud<pcl::PointXYZI>& cloud)
-    {
-        int keyFrameIndex = bufferQueLength/2;
-        Eigen::Isometry3d keyPose = odometryQue.at(keyFrameIndex);
-        PointType nowPose;
-        nowPose.x = keyPose.translation().x();
-        nowPose.y = keyPose.translation().y();
-        nowPose.z = keyPose.translation().z();
-        nowPose.intensity = sim;
-        double timeNow = lidarTimeStampQue.at(lidarTimeStampQue.size()/2);
-        node topologicalNode(id, timeNow, nowPose, cloud, "");
-        cout<<"create node id ===> "<<id<<std::endl;
-        return topologicalNode;
-    }
-
 
     bool createLocalMap()
     {
@@ -134,8 +119,17 @@ public:
                 //////////////////////create node
                 if(true)
                 {
-                    nodeTemp = create_new_node(current_node_id, isSim, *localMap);
-                    //node tmp_node = create_new_node(current_node_id, isSim, *localMap);
+                    int keyFrameIndex = bufferQueLength/2;
+                    Eigen::Isometry3d keyPose = odometryQue.at(keyFrameIndex);
+                    PointType nowPose;
+                    nowPose.x = keyPose.translation().x();
+                    nowPose.y = keyPose.translation().y();
+                    nowPose.z = keyPose.translation().z();
+                    nowPose.intensity = isSim;
+                    double timeNow = lidarTimeStampQue.at(lidarTimeStampQue.size()/2);
+                    nodeTemp.reBuild(current_node_id, timeNow, nowPose, *localMap, "");
+                    cout<<"create node id ===> "<<current_node_id<<std::endl;
+                    createFlag = true;
                     if(save_data_to_files)
                     {
                         //tmp_node.nodes_save_B(node_save_path);

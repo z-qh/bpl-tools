@@ -38,13 +38,13 @@ std::vector<float> eig2stdvec(MatrixXd _inputMat);
 
 //利用点云动态搜索而不是存好描述子再搜索，如果后序加上方向信息和定位信息就好了，所以修改更好的搜索策略
 std::vector<float>shiftNeiborA{
-    0,  5,  1,  4,  2
+    0,  3,  2,  1
 };
 std::vector<float>shiftNeiborInc{
     0.2,  0.4,  0.6,  0.8
     };
-double firstSearchThres = 0.45;
-double accSearchThres = 0.30;
+double firstSearchThres = 0.50;
+double accSearchThres = 0.35;
 bool isSaveCloud = false;
 #define NAN_VALUE (-2)
 
@@ -57,7 +57,7 @@ public:
     double id_ = -1;                                 //节点id，即节点在整体拓扑地图中的id
     double time_stamp_ = -1;                         //记录当前节点创建时的时间
     ///////////////////////////////////////////////////////////////////////////
-    pcl::PointXYZI Global_Pose_ = pcl::PointXYZI(NAN_VALUE);                    //每个定点的全局位姿
+    pcl::PointXYZI Global_Pose_;                    //每个定点的全局位姿
     Eigen::MatrixXd scanContext_ = Eigen::MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);                   //原始描述子
     pcl::PointCloud<pcl::PointXYZI> pointCloud_;     //点云，还是不存点云了顶不住
     ///////////////////////////////////////////////////////////////////////////
@@ -67,9 +67,10 @@ public:
     }
     static double getScore(node& nodeOld, node& nodeNew, pcl::PointCloud<pcl::PointXYZI>& cloudNew)
     {
-        if(nodeNew.cloudPath_ == "" || nodeOld.Global_Pose_.intensity == NAN_VALUE){
-            cout << " run time error the pointcloud path does not exit \n";
-            exit(0);
+        if(cloudNew.empty()){
+            // std::cerr << " invaild cloud input ";
+            // exit(0);
+            pcl::io::loadPCDFile(nodeNew.cloudPath_, cloudNew);
         }
         //使用后面点的点云构建位置便宜搜索，使用层次搜索法减少时间
         vector<pair<double,double>> firstRes;
@@ -143,11 +144,7 @@ public:
         if(!secondRes.empty()) min_dist = secondRes.front().second;
         return min_dist;
     }
-    static double getScore(node& nodeOld, node& nodeNew){
-        if(nodeNew.cloudPath_ == "" || nodeOld.Global_Pose_.intensity == NAN_VALUE){
-            cout << " run time error the pointcloud path does not exit \n";
-            exit(0);
-        }
+    static double getScoreFile(node& nodeOld, node& nodeNew){
         //使用后面点的点云构建位置便宜搜索，使用层次搜索法减少时间
         vector<pair<double,double>> firstRes;
         vector<pair<double,double>> secondRes;
@@ -234,26 +231,32 @@ public:
         cloudPath_ = cloudPath__;
         point_num_ = tempCloud.points.size();
         scanContext_ = makeScancontext(tempCloud);
-        Global_Pose_.intensity = -1;
     }
     node(pcl::PointCloud<pcl::PointXYZI>&Cloud){
         if(isSaveCloud) pointCloud_ = Cloud;
         point_num_ = Cloud.points.size();
         scanContext_ = makeScancontext(Cloud);
-        Global_Pose_.intensity = -1;
     }
     node(){
     }
-    node(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud_, std::string cloudPath__){
+    node(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud_, std::string cloudPath_i){
         time_stamp_ = Time;
         id_ = id;
         Global_Pose_ = Pose;
         point_num_ = Cloud_.points.size();
         if(isSaveCloud) pointCloud_ = Cloud_;
         scanContext_ = makeScancontext(Cloud_);
-        cloudPath_ = cloudPath__;
-        Global_Pose_.intensity = -1;
+        cloudPath_ = cloudPath_i;
     };
+    void reBuild(int& id, double& Time, pcl::PointXYZI& Pose, pcl::PointCloud<pcl::PointXYZI>&Cloud_, std::string cloudPath_i){
+        time_stamp_ = Time;
+        id_ = id;
+        Global_Pose_ = Pose;
+        point_num_ = Cloud_.points.size();
+        if(isSaveCloud) pointCloud_ = Cloud_;
+        scanContext_ = makeScancontext(Cloud_);
+        cloudPath_ = cloudPath_i;
+    }
 
     bool nodes_save_B(std::string& path);
     bool create_node_from_file_B(std::string path, int index);
@@ -294,6 +297,8 @@ bool node::create_node_from_file_B(std::string path, int index){
     }
     read_file>>Global_Pose_.x>>Global_Pose_.y>>Global_Pose_.z>>Global_Pose_.intensity;
     read_file>>point_num_;
+
+    read_file>>cloudPath_;
     scanContext_ = Eigen::MatrixXd::Ones(PC_NUM_RING, PC_NUM_SECTOR);
     for(int row = 0; row<PC_NUM_RING; ++row){
         for(int col = 0; col<PC_NUM_SECTOR; ++col){
@@ -301,7 +306,6 @@ bool node::create_node_from_file_B(std::string path, int index){
         }
     }
 
-    read_file>>cloudPath_;
     read_file>>time_stamp_;
     if(isSaveCloud){
         pcl::io::loadPCDFile(cloudPath_, pointCloud_);

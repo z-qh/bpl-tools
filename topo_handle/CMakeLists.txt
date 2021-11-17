@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(topo_handle)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++17)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -144,26 +144,45 @@ target_link_libraries(topo_handle
 #add_executable(AS3 src/recallTopoAS3.cc)
 #target_link_libraries(AS3 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
-add_executable(TestSim src/showSim.cc)
-target_link_libraries(TestSim ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+# add_executable(TestSim src/showSim.cc)
+# target_link_libraries(TestSim ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
 
 add_executable(buildTopo src/buildTopo.cpp)
 target_link_libraries(buildTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
-#add_executable(buildD src/buildD.cc)
-#target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+# add_executable(recallTopo src/recallTopo.cpp)
+# target_link_libraries(recallTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+# add_executable(recallD src/recallD.cc)
+# target_link_libraries(recallD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+# add_executable(recallN src/recallN.cc)
+# target_link_libraries(recallN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+
+
+# add_executable(recallS src/recallS.cc)
+# target_link_libraries(recallS ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+# add_executable(recallN src/recallN.cc)
+# target_link_libraries(recallN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
 
 #add_executable(buildD src/buildD.cc)
 #target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
-#add_executable(buildN src/buildN.cc)
-#target_link_libraries(buildN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
-#add_executable(buildS src/buildS.cc)
-#target_link_libraries(buildS ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+# add_executable(buildD src/buildD.cc)
+# target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(buildN src/buildN.cc)
+target_link_libraries(buildN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+# add_executable(buildS src/buildS.cc)
+# target_link_libraries(buildS ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
 
-#add_executable(AD1 src/recallTopoAD1.cc)
-#target_link_libraries(AD1 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(DSN src/recallTopoDSN.cc)
+target_link_libraries(DSN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 #add_executable(AD3 src/recallTopoAD3.cc)
 #target_link_libraries(AD3 ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 

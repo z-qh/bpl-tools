@@ -193,7 +193,7 @@ using namespace std;
 #include "string"
 #include "../../bpl-tools/topo_handle/src/include/dbscan/node_context_localMap.h"
 
-void create_node_from_file_B(std::vector<node>& nodes, std::string& path)
+void create_node_from_file_B(std::vector<node>& nodes, std::string& path, pcl::PointCloud<pcl::PointXYZ>& cloud)
 {
     std::vector<std::string>file_name;
     std::vector<int>index;
@@ -211,11 +211,15 @@ void create_node_from_file_B(std::vector<node>& nodes, std::string& path)
     {
         int node_number = index.size();
         nodes.resize(node_number);
+        cloud.resize(node_number);
         for(int i=0; i<node_number;++i)
         {
             node tmp_node;
             tmp_node.create_node_from_file_pose_only(path, index[i]);
             nodes[node_index] = tmp_node;
+            cloud.points[i].x = tmp_node.Global_Pose_.x;
+            cloud.points[i].y = tmp_node.Global_Pose_.y;
+            cloud.points[i].z = tmp_node.Global_Pose_.z;
             node_index++;
         }
     }
@@ -223,6 +227,8 @@ void create_node_from_file_B(std::vector<node>& nodes, std::string& path)
 }
 
 void readTopomap(sensor_msgs::PointCloud2& msgs, string path){
+    if( access(path.c_str(), 0) != 0 )
+        return;
     ifstream file;
     file.open(path);
     if(!file.is_open()){
@@ -238,6 +244,9 @@ void readTopomap(sensor_msgs::PointCloud2& msgs, string path){
     pcl::toROSMsg(tempCloud, msgs);
     msgs.header.frame_id = "camera_init";
     cout << "size " << tempCloud.points.size() << endl;
+    string pathSave = path.substr(0, path.length() - 4);
+    if( access((pathSave+".pcd").c_str(), 0) != 0 )
+        pcl::io::savePCDFile(pathSave+".pcd", tempCloud);
 }
 
 void readTopomapRecall(sensor_msgs::PointCloud2& msgs, string path){
@@ -371,109 +380,169 @@ double dis(node&A,node&B){
 
 bool comPair(pair<int,double>A, pair<int,double>B)
 {
-    return A.second < B.second;
+    return A.second > B.second;
 }
 
 #include "pcl/kdtree/kdtree_flann.h"
 
-vector<pair<pair<int,int>,double>> findATruthPair(int n){
-    vector<pair<pair<int,int>,double>> result;
-    pcl::KdTreeFLANN<pcl::PointXYZ> KDTree;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZ>());
-    ifstream fileIn;
-    fileIn.open("/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt");
-    int odomSize = 0;
-    double tempNone;
-    fileIn >> tempNone >> tempNone >> tempNone;
-    fileIn >> odomSize;
-    for(int i = 0; i < odomSize; i++){
-        pcl::PointXYZ tempPoint;
-        int flag(0);
-        fileIn >> tempNone;
-        fileIn >>
-               tempPoint.x >>
-               tempPoint.y >>
-               tempPoint.z;
-        fileIn >> tempNone >> tempNone >> tempNone;
-        fileIn >> tempNone;
-        fileIn >> tempNone >> tempNone >> tempNone >> tempNone;
-        if(i>40)cloudTemp->push_back(tempPoint);
-    }
-    fileIn.close();
-    cout << "odom size open succeed : " << odomSize << " poses!" << endl;
-    KDTree.setInputCloud(cloudTemp);
+bool comFirst(pair<int,double>A,pair<int,double>B){
+    return A.first < B.first;
+}
 
-    if(n == -1){
-        for(int i = 0; i < cloudTemp->size(); i+=10){
-            pcl::PointXYZ tempPoint;
-            tempPoint.x = cloudTemp->points[i].x;
-            tempPoint.y = cloudTemp->points[i].y;
-            tempPoint.z = cloudTemp->points[i].z;
-            vector<int> index;
-            vector<float> indexDis;
-            KDTree.radiusSearch(tempPoint, 5.0, index, indexDis);
-            int countTemp = 0;
-            for(int j = 0; j < index.size(); j++){
-                if(index[j] - i > 1000) {
-                    result.push_back( { {i, index[j]}, sqrt(indexDis[j]) });
-                    cout << " " << i << " " << index[j] << " " << sqrt(indexDis[j]) << endl;
-                    if(countTemp++>3) break;
-                }
-            }
-        }
-    }else{
-        pcl::PointXYZ tempPoint;
-        tempPoint.x = cloudTemp->points[n].x;
-        tempPoint.y = cloudTemp->points[n].y;
-        tempPoint.z = cloudTemp->points[n].z;
-        vector<int> index;
-        vector<float> indexDis;
-        KDTree.radiusSearch(tempPoint, 5.0, index, indexDis);
-        int countTemp = 0;
-        for(int j = 0; j < index.size(); j++){
-            if(index[j] - n > 500) {
-                result.push_back({{n, index[j]}, sqrt(indexDis[j])});
-                cout << " " << n << " " << index[j] << " " << sqrt(indexDis[j]) << endl;
-                if(countTemp++>3)break;
-            }
-        }
-    }
+vector<pair<int, double>> findATruthPair(int n){
+    vector<pair<int, double>> result;
+    vector<node> nodeList;
+    string nodeFilePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/nodeSparse/";
+    pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>());
+    pcl::KdTreeFLANN<pcl::PointXYZ> kdTree1;
+    create_node_from_file_B(nodeList, nodeFilePath, *tempCloud);
+    kdTree1.setInputCloud(tempCloud);
 
+    pcl::PointXYZ tempPoint;
+    tempPoint.x = nodeList[n].Global_Pose_.x;
+    tempPoint.y = nodeList[n].Global_Pose_.y;
+    tempPoint.z = nodeList[n].Global_Pose_.z;
+    vector<int> index;
+    vector<float> indexDis;
+
+    kdTree1.radiusSearch(tempPoint,8,index,indexDis);
+
+    for(int i = 0; i < index.size(); i++){
+        if(index[i]-n>1000) result.push_back({index[i], sqrt(indexDis[i])});
+    }
+    sort(result.begin(), result.end(), comFirst);
     return result;
 }
 
 
-int main (int argc, char ** argv){
+void readFileOdom(string filePathIn, pcl::PointCloud<pcl::PointXYZ>& cloud){
+    ifstream fileIn;
+    fileIn.open(filePathIn);
+
+    int odomSize = 0;
+    double tempNone;
+    fileIn >> tempNone >> tempNone >> tempNone;
+    fileIn >> odomSize;
+    cloud.resize(odomSize);
+    for(int i = 0; i < odomSize; i++){
+        double R(0), P(0), Y(0);
+        double time(0);
+        int flag(0);
+        fileIn >> time;
+        fileIn >>
+               cloud.points[i].x >>
+               tempNone >>
+               cloud.points[i].y;
+        fileIn >> R >> P >> Y;
+        fileIn >> flag;
+        fileIn >> tempNone >> tempNone >> tempNone >> tempNone;
+        tf::Quaternion tempQ = tf::createQuaternionFromRPY(R, P, Y);
+    }
+    fileIn.close();
+    cout << "odom size open succeed : " << odomSize << " poses!" << endl;
+}
+
+
+
+int main456(int argc, char ** argv){
     ros::init(argc, argv, "topomap");
     ros::NodeHandle nh;
     ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("/toppomap", 1);
     ros::Publisher pubrecall = nh.advertise<sensor_msgs::PointCloud2>("/toppomapRecall", 1);
-
-    if(argv[1] == nullptr || argv[2] == nullptr){
-        cout << " param 1 : build topo file name like N0.23 " << endl;
-        cout << " param 2 : id to find to turth pair " << endl;
-        exit(0);
-    }
+    ros::Publisher traj1 = nh.advertise<sensor_msgs::PointCloud2>("/traj1", 1);
+    ros::Publisher traj2 = nh.advertise<sensor_msgs::PointCloud2>("/traj2", 1);
+    ros::Publisher traj1Dis = nh.advertise<sensor_msgs::PointCloud2>("/traj1Dis", 1);
 
     sensor_msgs::PointCloud2 PubMsgs, PubMsgsRecall;
-    string fileName(argv[1]);
-    string topoNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/node/" + fileName + ".txt";
-    cout << topoNodePath << endl;
-    readTopomap(PubMsgs, topoNodePath);
+    
+    if( argv[1] != nullptr)
+    {
+        vector<double> buidNValue = {};
+        for(auto n : buidNValue){
+            string tempBase(argv[1]);
+            tempBase = tempBase.substr(0, tempBase.length()-4);
+            stringstream ss;
+            ss << fixed << setprecision(2) << n;
+            string tempPath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/" + tempBase + ss.str() + ".txt";
+            cout << tempPath << endl;
+            sensor_msgs::PointCloud2 msgsT;
+            readTopomap(msgsT, tempPath);
+        }
+
+        string fileName(argv[1]);
+        string topoNodePath = "/home/qh/robot_ws/map/2021-08-30-18-06-30L/" + fileName + ".txt";
+        cout << topoNodePath << endl;
+        readTopomap(PubMsgs, topoNodePath);
+    }
 
     //string topoNodePathRecall = "/home/qh/robot_ws/map/2021-08-30-16-12-25L/node/0.15-8.0-Recall.txt";
     //readTopomapRecall(PubMsgsRecall, topoNodePathRecall);
-    // auto truthPair = findATruthPair(stoi(argv[2]));
-    // cout << " get answer " << endl;
-    // string asdsad = "/home/qh/2loopSelf.txt";
-    // ofstream file;
-    // file.open(asdsad);
-    // for(auto n : truthPair) {
-    //     file << n.first.first << " " << n.first.second << " " << n.second << endl;
-    // }
-    // file.close();
-    // return 0;
+    if(argv[2] != nullptr){
+        auto truthPair = findATruthPair(stoi(argv[2]));
+        for(auto n : truthPair) {
+            cout << n.first << " " << n.second << endl;
+        }
+    }
 
+
+
+
+    // pcl::PointCloud<pcl::PointXYZ> cloud1,cloud2;
+    // pcl::PointCloud<pcl::PointXYZI> showCloud1;
+    // readFileOdom("/home/qh/robot_ws/map/2021-08-30-16-12-25L/gtFittingA.txt", cloud1);
+    // readFileOdom("/home/qh/robot_ws/map/2021-08-30-18-06-30L/gtFittingA.txt", cloud2);
+    // sensor_msgs::PointCloud2 msgs1, msgs2, msgs1ShowDis;
+    // pcl::toROSMsg(cloud1, msgs1);
+    // pcl::toROSMsg(cloud2, msgs2);
+    // msgs1.header.frame_id  ="camera_init";
+    // msgs2.header.frame_id  ="camera_init";
+    // {
+
+    //     pcl::PointCloud<pcl::PointXY>::Ptr cloudPtr(new pcl::PointCloud<pcl::PointXY>());
+    //     cloudPtr->resize(cloud2.size());
+    //     for(int j = 0 ;j < cloud2.size(); j++){
+    //         cloudPtr->points[j].x = cloud2.points[j].x;
+    //         cloudPtr->points[j].y = cloud2.points[j].y;
+    //     }
+    //     pcl::KdTreeFLANN<pcl::PointXY> kdtree;
+    //     kdtree.setInputCloud(cloudPtr);
+    //     vector<float> disList1;
+    //     disList1.resize(cloud1.size());
+    //     vector<int> maxList1Index;
+    //     vector<pair<int, double>> maxList;
+    //     for(int j = 0; j < cloud1.size(); j++){
+    //         const pcl::PointXYZ& currentP = cloud1.points[j];
+    //         pcl::PointXY p;
+    //         p.x = currentP.x;
+    //         p.y = currentP.y;
+    //         vector<int> indexClosets(1);
+    //         vector<float> indexClosetsDisSquare(1);
+    //         kdtree.nearestKSearch(p, 1, indexClosets, indexClosetsDisSquare);
+    //         disList1[j] = indexClosetsDisSquare.front();
+    //         maxList1Index.push_back(j);
+    //         maxList.push_back({indexClosets.front(), sqrt(indexClosetsDisSquare.front())});
+    //     }
+    //     sort(maxList.begin(), maxList.end(), comPair);
+    //     for(int j = 0; j < maxList.size(); j++){
+    //         const auto& n  = maxList[j];
+    //         cout << " 2 id " << maxList1Index[j];
+    //         cout << " max id " << n.first;
+    //         cout << " the dis " << n.second << endl;
+    //         if(n.second < 3.5){
+    //             cout << " more than 3.5m total " << j << endl;
+    //             break;
+    //         }
+    //     }
+    //     showCloud1.resize(disList1.size());
+    //     for(int j = 0; j < disList1.size(); j++){
+    //         showCloud1.points[j].x = cloud1.points[j].x;
+    //         showCloud1.points[j].y = cloud1.points[j].y;
+    //         showCloud1.points[j].z = 0;
+    //         showCloud1.points[j].intensity = disList1[j];
+    //     }
+    //     pcl::toROSMsg(showCloud1, msgs1ShowDis);
+    //     msgs1ShowDis.header.frame_id = "camera_init";
+    // }
 
 //    vector<node> sourceNode;
 //
@@ -495,6 +564,9 @@ int main (int argc, char ** argv){
 
     ros::Rate loop(1);
     while(ros::ok()){
+        // traj1Dis.publish(msgs1ShowDis);
+        // traj1.publish(msgs1);
+        // traj2.publish(msgs2);
         pub.publish(PubMsgs);
         pubrecall.publish(PubMsgsRecall);
         loop.sleep();
@@ -503,4 +575,100 @@ int main (int argc, char ** argv){
     return 0;
 }
 
+#include "sensor_msgs/LaserScan.h"
 
+
+void readFileOdomDQ(string filePathIn, pcl::PointCloud<pcl::PointXYZI>& cloud){
+    ifstream fileIn;
+    fileIn.open(filePathIn);
+
+    int odomSize = 0;
+    double tempNone;
+    fileIn >> odomSize;
+    cloud.resize(odomSize);
+    for(int i = 0; i < odomSize; i++){
+        double R(0), P(0), Y(0);
+        double time(0);
+        int flag(0);
+        fileIn >> time;
+        fileIn >>
+               cloud.points[i].x >>
+               cloud.points[i].y >>
+               cloud.points[i].z;
+        fileIn >> R >> P >> Y;
+        fileIn >> flag;
+        cloud.points[i].intensity = flag;
+        tf::Quaternion tempQ = tf::createQuaternionFromRPY(R, P, Y);
+    }
+    fileIn.close();
+    cout << "odom size open succeed : " << odomSize << " poses!" << endl;
+}
+
+
+int main123(int argc, char** argv){
+    ros::init(argc, argv, "dqea");
+    ros::NodeHandle nh;
+
+    ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("/DQ", 1);
+
+    pcl::PointCloud<pcl::PointXYZI> tempCloud;
+    readFileOdomDQ("/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanL/odomRealSematic.txt", tempCloud);
+    sensor_msgs::PointCloud2 tempCloudMsgs;
+    pcl::toROSMsg(tempCloud, tempCloudMsgs);
+    tempCloudMsgs.header.frame_id = "camera_init";
+
+    ros::Rate loop(1);
+    while(ros::ok()){
+        pub.publish(tempCloudMsgs);
+        loop.sleep();
+    }
+
+    return 0;
+}
+
+// int main(int argc, char** argv){
+//     ros::init(argc, argv, "bagConvert");
+//     ros::NodeHandle nh;
+
+//     rosbag::Bag allFile;
+//     allFile.open("/media/qh/YES/JGXY.bag", rosbag::bagmode::Read);
+//     rosbag::Bag outFile;
+//     outFile.open("/media/qh/YES/JGXYCalibration.bag", rosbag::bagmode::Write);
+//     vector<string> topics{"/gps_navi", "/os_cloud_node/points", "/imu/data"};
+//     rosbag::View view(allFile, rosbag::TopicQuery(topics));
+//     rosbag::View::iterator it;
+//     ros::Time nowTime(0);
+//     int cloudCount = 0;
+//     for(it = view.begin(); it != view.end() && ros::ok(); it++){
+//         if(it->getTopic() == "/gps_navi"){
+//             gnss_driver::gps_navi_msg::Ptr tempPtrA = (*it).instantiate<gnss_driver::gps_navi_msg>();
+//             if(nowTime.toSec() != 0){
+//                 outFile.write("/gps_navi", nowTime, tempPtrA);
+//             }
+//         }else if(it->getTopic() == "/os_cloud_node/points"){
+//             cloudCount++;
+//             sensor_msgs::PointCloud2::Ptr tempPtrA = (*it).instantiate<sensor_msgs::PointCloud2>();
+//             nowTime = tempPtrA->header.stamp;
+//             outFile.write("/os_cloud_node/points", tempPtrA->header.stamp, tempPtrA);
+//         }else if(it->getTopic() == "/imu/data"){
+//             sensor_msgs::Imu::Ptr tempPtrA = (*it).instantiate<sensor_msgs::Imu>();
+//             outFile.write("/imu/data", tempPtrA->header.stamp, tempPtrA);
+//         }
+//         if(cloudCount > 300){
+//             break;
+//         }
+//     }
+//     allFile.close();
+//     outFile.close();
+//     return 0;
+// }
+
+int main(int argc, char** argv){
+
+    cout << "123" << endl;
+    // #pragma omp parallel for num_threads(3)
+    for(int i = 0; i < 20; i++){
+        cout << i;
+    }
+    return 1;
+}

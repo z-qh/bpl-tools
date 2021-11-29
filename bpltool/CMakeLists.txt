@@ -27,39 +27,74 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV)
-find_package(PCL REQUIRED)
-find_package(Ceres REQUIRED)
-find_package(LIBSUB)
-find_package(GTSAM REQUIRED QUIET)
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
-################################################
-## Declare ROS messages, services and actions ##
-################################################
 
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a exec_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a exec_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
+# opencv
+find_package(OpenCV)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+# pcl
+find_package(PCL REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
+
+# ceres
+find_package(Ceres REQUIRED)
+include_directories(${Ceres_INCLUDE_DIRS})
+
+# g2o
+find_package(g2o REQUIRED)
+find_package(Eigen3 REQUIRED)
+#find_package(csparse REQUIRED)
+#include_directories(${CSPARSE_INCLUDE_DIR})
+include_directories(${EIGEN3_INCLUDE_DIR})
+include_directories(${G2O_INCLUDE_DIR})
+include_directories("/usr/include/suitesparse")
+SET(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal
+        g2o_simulator g2o_solver_slam2d_linear
+        g2o_types_icp g2o_types_slam2d g2o_core
+        g2o_interface g2o_solver_csparse
+        g2o_solver_structure_only
+        g2o_types_sba g2o_types_slam3d
+        g2o_csparse_extension g2o_opengl_helper
+        g2o_solver_dense g2o_stuff
+        g2o_types_sclam2d g2o_parser
+        g2o_solver_pcg g2o_types_data
+        g2o_types_sim3 cxsparse )
+
+# libusb
+find_package(libusb-1.0)
+
+# GTSAM
+find_package(GTSAM REQUIRED) # Uses installed package
+include_directories(${GTSAM_INCLUDE_DIR})
+set(GTSAM_LIBRARIES gtsam)
+find_package(GTSAMCMakeTools)
+include(GtsamMakeConfigFile)
+include(GtsamBuildTypes)
+include(GtsamTesting)
+
+# Qt
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
+
+## Boost
+find_package(Boost COMPONENTS  REQUIRED) 
+include_directories(${Boost_INCLUDE_DIRS})
+include_directories("/usr/include/boost")
+
+## glog
+find_package(Gflags)
+find_package(Glog)
+include_directories(${GFLAGS_INCLUDE_DIRS} ${GLOG_INCLUDE_DIRS})
+
+set(bpl_LIBS
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBRARIES}
+        ${GFLAGS_LIBRARIES}
+        ${GLOG_LIBRARIES}
+        ${catkin_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${G2O_LIBS}
+        gtsam
+        )
 
 ## Generate messages in the 'msg' folder
 # add_message_files(
@@ -88,35 +123,6 @@ find_package(Qt5 COMPONENTS Widgets REQUIRED)
 #   std_msgs  # Or other packages containing msgs
 # )
 
-################################################
-## Declare ROS dynamic reconfigure parameters ##
-################################################
-
-## To declare and build dynamic reconfigure parameters within this
-## package, follow these steps:
-## * In the file package.xml:
-##   * add a build_depend and a exec_depend tag for "dynamic_reconfigure"
-## * In this file (CMakeLists.txt):
-##   * add "dynamic_reconfigure" to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * uncomment the "generate_dynamic_reconfigure_options" section below
-##     and list every .cfg file to be processed
-
-## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
-
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
         CATKIN_DEPENDS
         rosserial_msgs
@@ -134,28 +140,9 @@ catkin_package(
 include_directories(
         include
         ${catkin_INCLUDE_DIRS}
-        ${PCL_INCLUDE_DIRS}
-        ${OpenCV_INCLUDE_DIRS}
-        ${Ceres_INCLUDE_DIRS}
-        ${GTSAM_INCLUDE_DIR}
 )
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/bpltool.cpp
-# )
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-## USING
-#
-##
-##
 #add_executable(relocateTIM src/source/relocateTIM.cc)
 #target_link_libraries(relocateTIM
 #        ${catkin_LIBRARIES}
@@ -171,207 +158,70 @@ include_directories(
 #         ${PCL_LIBRARIES}
 #         )
 #
-add_executable(qParam
-        src/qParam/main.cpp
-        src/qParam/mainwindow.cpp
-        src/qParam/mainwindow.h
-        src/qParam/mainwindow.ui
-        )
-target_link_libraries(qParam
-        PRIVATE Qt5::Widgets
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-#
-add_executable(imuIntegral src/source/imuIntegral.cc)
-target_link_libraries(imuIntegral
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-#
-add_executable(visSematic src/source/visSematic.cc)
-target_link_libraries(visSematic
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
+
+##
+add_executable(kitti2bag src/source/kitti2bag.cc)
+target_link_libraries(kitti2bag ${bpl_LIBS})
+
 #
 add_executable(temp src/source/temp.cc)
-target_link_libraries(temp
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        usb-1.0
-        )
+target_link_libraries(temp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBS} usb-1.0)
+
+#
+add_executable(g2oexample src/source/g2oexample.cc)
+target_link_libraries(g2oexample ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBS} ${G2O_LIBS})
+
 ##
-add_executable(rand_map src/source/rand_map.cpp)
-target_link_libraries(rand_map
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        )
+add_executable(qParam src/qParam/main.cpp src/qParam/mainwindow.cpp src/qParam/mainwindow.h src/qParam/mainwindow.ui)
+target_link_libraries(qParam PRIVATE Qt5::Widgets ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 ##
-add_executable(ceresExample src/source/ceresExample.cpp)
-target_link_libraries(ceresExample
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        )
+add_executable(imuIntegral src/source/imuIntegral.cc)
+target_link_libraries(imuIntegral ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 ##
-add_executable(netCamera src/source/netCamera.cc)
-target_link_libraries(netCamera
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(binToBag src/source/binToBag.cc)
-target_link_libraries(binToBag
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(gtsamExample src/source/gtsamExample.cc)
-target_link_libraries(gtsamExample
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${GTSAM_LIBRARY_DIRS}
-        ${CHOLMOD_LIBRARIES}
-        gtsam
-        )
-##
-add_executable(pca src/source/pca.cc)
-target_link_libraries(pca
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(plumb src/source/plumb.cc)
-target_link_libraries(plumb
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(xyziAndPC src/source/xyziAndPC.cc)
-target_link_libraries(xyziAndPC
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(seg_ground src/source/seg_ground.cc)
-target_link_libraries(seg_ground
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(clusterCloud src/source/clusterCloud.cc)
-target_link_libraries(clusterCloud
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-##
-add_executable(featureExtract src/source/featureExtract.cc)
-target_link_libraries(featureExtract
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${CERES_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-##
-add_executable(getPCD src/source/getPCD.cc)
-target_link_libraries(getPCD
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        )
-## OLD
-add_executable(gnss_get_posi src/example/gnss_get_posi.cpp)
-target_link_libraries(gnss_get_posi
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
+add_executable(visSematic src/source/visSematic.cc)
+target_link_libraries(visSematic ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 ##
 add_executable(elerealy src/example/elerealy.cc)
-target_link_libraries(elerealy
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        usb-1.0
-        )
+target_link_libraries(elerealy ${catkin_LIBRARIES} ${PCL_LIBRARIES}  usb-1.0)
+##
+add_executable(rand_map src/source/rand_map.cpp)
+target_link_libraries(rand_map ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+##
+add_executable(ceresExample src/source/ceresExample.cpp)
+target_link_libraries(ceresExample ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
+##
+add_executable(netCamera src/source/netCamera.cc)
+target_link_libraries(netCamera ${catkin_LIBRARIES} ${OpenCV_LIBS})
+##
+add_executable(binToBag src/source/binToBag.cc)
+target_link_libraries(binToBag ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+##
+add_executable(gtsamExample src/source/gtsamExample.cc)
+target_link_libraries(gtsamExample ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} gtsam)
+##
+add_executable(pca src/source/pca.cc)
+target_link_libraries(pca ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+##
+add_executable(plumb src/source/plumb.cc)
+target_link_libraries(plumb ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+##
+add_executable(xyziAndPC src/source/xyziAndPC.cc)
+target_link_libraries(xyziAndPC ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+##
+add_executable(seg_ground src/source/seg_ground.cc)
+target_link_libraries(seg_ground ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+##
+add_executable(clusterCloud src/source/clusterCloud.cc)
+target_link_libraries(clusterCloud ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+##
+add_executable(featureExtract src/source/featureExtract.cc)
+target_link_libraries(featureExtract ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBS})
+##
+add_executable(getPCD src/source/getPCD.cc)
+target_link_libraries(getPCD ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+## OLD
+add_executable(gnss_get_posi src/example/gnss_get_posi.cpp)
+target_link_libraries(gnss_get_posi ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+##
 add_executable(steer_test src/example/steer_test.cpp)
-target_link_libraries(steer_test
-        ${catkin_LIBRARIES}
-        ${PCL_LIBRARIES}
-        ${OpenCV_LIBS}
-        )
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-#############
-## Install ##
-#############
-
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-# install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark libraries for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
-
-## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-# )
-
-#############
-## Testing ##
-#############
-
-## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_bpltool.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
-
-## Add folders to be run by python nosetests
-# catkin_add_nosetests(test)
+target_link_libraries(steer_test ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})

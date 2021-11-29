@@ -21,7 +21,7 @@ public:
     double W_sc = 0.6, W_dis = 0.4, alpha = 0.05;
     double finalThres = 0;
     //////////////////////////////////////
-    bool save_data_to_files = false;
+    bool save_data_to_files = true;
     std::string node_save_path;;
     //////////////////////////////////////
 public:

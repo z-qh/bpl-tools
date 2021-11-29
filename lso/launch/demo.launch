@@ -1,0 +1,9 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="lso" type="node" name="node" output="screen">
+        <!-- online mode need input topic name and output topic name -->
+        <param name="param" value="param"/>
+        <param name="param" value="param"/>
+        <param name="param" value="param"/>
+    </node>
+</launch>

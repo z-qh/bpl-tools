@@ -662,13 +662,24 @@ int main123(int argc, char** argv){
 //     outFile.close();
 //     return 0;
 // }
+ros::Publisher pub;
+void handle(sensor_msgs::Imu msg){
+    sensor_msgs::Imu out = msg;
+    out.header.frame_id = "laser";
+    pub.publish(out);
+    double R=0,P=0,Y=0;
+    tf::Quaternion tempQ(out.orientation.x,out.orientation.y,out.orientation.z,out.orientation.w);
+    tf::Matrix3x3(tempQ).getRPY(R,P,Y);
+    cout << "roll:" << R << " picth:" << P << " yaw:" << Y << endl;
+}
 
 int main(int argc, char** argv){
 
-    cout << "123" << endl;
-    // #pragma omp parallel for num_threads(3)
-    for(int i = 0; i < 20; i++){
-        cout << i;
-    }
+
+    ros::init(argc, argv, "qewwqe");
+    ros::NodeHandle nh;
+    pub = nh.advertise<sensor_msgs::Imu>("/imu/data1", 100);
+    ros::Subscriber sub = nh.subscribe<sensor_msgs::Imu>("/imu/data", 100, handle);
+    ros::spin();
     return 1;
 }

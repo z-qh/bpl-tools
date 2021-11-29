@@ -822,10 +822,422 @@ int main4(){
         fileout.close();
     }
 }
+#include "unistd.h"
+#include "sys/types.h"
+#include "sys/stat.h"
+#include "opencv2/opencv.hpp"
+#include "pcl/io/io.h"
+
+using namespace std;
+
+
+class oxford2Pcd{
+public:
+    static void transformPointCloud(pcl::PointCloud<pcl::PointXYZI>& cloud, Eigen::Isometry3d& trans){
+        for(pcl::PointXYZI &point : cloud.points){
+            Eigen::Vector3d tmpP(point.x, point.y, point.z);
+            Eigen::Vector3d AP = trans * tmpP;
+            point.x = AP(0);
+            point.y = AP(1);
+            point.z = AP(2);
+        }
+    }
+    static pcl::PointCloud<pcl::PointXYZI>::Ptr removeGroundAndAdjAxis(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud){
+        int cloudSize = cloud->size();
+        vector<int> mark(cloudSize, 0);
+        for( int i = 0; i < cloudSize; i++){
+            auto& thisPoint = cloud->points[i];
+            if(mark[i] == 1) continue;
+            if(thisPoint.z > 0.6){
+                mark[i] = 1;
+            }
+        }
+
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZI>());
+        for( int i = 0; i < cloudSize; i++){
+            auto point = cloud->points[i];
+            if( mark[i] == 1){
+            }else{
+                float z_ = point.z;
+                point.z = point.y;
+                point.y = -z_;
+                cloudOut->push_back(point);
+            }
+        }
+        return cloudOut;
+    }
+    static double getTime(string& timeStamp){
+        double thisTime = 0;
+        if(timeStamp.size() != 16){
+            cerr << timeStamp << " time stamp error " << endl;
+            getchar();
+            exit(0);
+        }
+        string secStr(timeStamp.begin(),timeStamp.end()-6);
+        string msecStr(timeStamp.end()-6, timeStamp.end());
+        thisTime = stod(secStr) + stod(msecStr) / 1000000.0;
+        return thisTime;
+    }
+
+    static string getTimeStamp(double time){
+        long long sec = int(time);
+        long long msec = int((time - sec) * 1000000.0);
+        stringstream ss;
+        ss << fixed << sec;
+        ss << fixed << setw(6) << setfill('0') << msec;
+        return ss.str();
+    }
+
+private:
+    string lidarTimesPath;
+    string leftLidarPath;
+    string lidarPosesPath;
+
+    vector<string> lidarTimes;
+    vector<string> posesTimes;
+
+    vector<pair<int,int>> lidar2Pose;
+
+    void getLidarTimes(){
+        ifstream lidarTimesFile(lidarTimesPath);
+        while(lidarTimesFile.good()){
+            string timeStamp;
+            int noneValue;
+            lidarTimesFile >> timeStamp >> noneValue;
+            if(lidarTimesFile.eof()) break;
+            lidarTimes.push_back(timeStamp);
+            stringstream ss;
+            ss << leftLidarPath << "/" << fixed << timeStamp << ".png";
+            if( 0 != access(ss.str().c_str(), 0)){
+                cerr << " file not exist " << ss.str() << endl;
+                getchar();
+                lidarTimesFile.close();
+                exit(0);
+            }
+        }
+        lidarTimesFile.close();
+        cout << "get lidar Times " << lidarTimes.size() << endl;
+    }
+
+    vector<Eigen::Isometry3d> transPoses;
+    Eigen::Vector3d it;
+    Eigen::Quaterniond iQ;
+    Eigen::Isometry3d rader_to_lidar = Eigen::Isometry3d::Identity();
+    void getLidarPose(){
+        ifstream lidarPosesFile(lidarPosesPath);
+        string head;
+        getline(lidarPosesFile, head);
+        Eigen::Isometry3d nowPose = Eigen::Isometry3d::Identity();
+        nowPose.rotate(iQ);
+        nowPose.pretranslate(it);
+        while(lidarPosesFile.good()){
+            string poseStr;
+            getline(lidarPosesFile, poseStr);
+            string time, noneTime;
+            string dX,dY,dZ,dR,dP,dYaw;
+            istringstream iss(poseStr);
+            getline(iss, time, ',');
+            getline(iss, noneTime, ',');
+            getline(iss, dX, ',');
+            getline(iss, dY, ',');
+            getline(iss, dZ, ',');
+            getline(iss, dR, ',');
+            getline(iss, dP, ',');
+            getline(iss, dYaw, ',');
+            if(lidarPosesFile.eof()) break;
+            Eigen::Vector3d dt(stod(dX),stod(dY),stod(dZ));
+            auto temQ = tf::createQuaternionFromRPY(stod(dR), stod(dP), stod(dYaw));
+            Eigen::Quaterniond dQ(temQ.w(), temQ.x(), temQ.y(), temQ.z());
+            Eigen::Isometry3d dT = Eigen::Isometry3d::Identity();
+            dT.rotate(dQ);
+            dT.pretranslate(dt);
+            dT = rader_to_lidar.inverse() * dT * rader_to_lidar;
+            nowPose = nowPose * dT;
+            transPoses.push_back(nowPose);
+            posesTimes.push_back(time);
+        }
+
+        lidarPosesFile.close();
+        cout << "get gt " << transPoses.size() << endl;
+    }
+
+    string pairSavePath;
+    void getPair(){
+        int lidarIndex = 0;
+        int poseIndex = 0;
+        for(poseIndex = 0; poseIndex < posesTimes.size(); poseIndex++){
+            for( int j = lidarIndex; j < lidarTimes.size(); j++){
+                if( abs(getTime(posesTimes[poseIndex]) - getTime(lidarTimes[j])) < 0.05 )
+                {
+                    lidar2Pose.push_back(make_pair(j, poseIndex));
+                    lidarIndex = j;
+                    break;
+                }
+                if( getTime(lidarTimes[j]) - getTime(posesTimes[poseIndex]) > 1.0 )
+                {
+                    break;
+                }
+            }
+        }
+        //ofstream pairSaveFile(pairSavePath);
+        //for(auto & p : lidar2Pose){
+        //    pairSaveFile << lidarTimes[p.first] << endl;
+        //}
+        //pairSaveFile.close();
+        cout << "get valid pair " << lidar2Pose.size() << endl;
+    }
+
+    oxford2Pcd() = delete;
+
+    string saveSCPath;
+    string savePCDPath;
+    string leftPCDPathBase;
+    pcl::VoxelGrid<pcl::PointXYZI> filter;
+
+
+    void saveSC(){
+        for(int i = 6; i < lidar2Pose.size() - 7; i++){
+            pair<int,int>& thisPair = lidar2Pose[i];
+            string& thisTimeStamp = lidarTimes[thisPair.first];
+            Eigen::Isometry3d& thisPose = transPoses[thisPair.second];
+            pcl::PointXYZI thisP;
+            thisP.x = thisPose(0, 3);
+            thisP.y = thisPose(1, 3);
+            thisP.z = thisPose(2, 3);
+            pcl::PointCloud<pcl::PointXYZI>::Ptr thisCloud(new pcl::PointCloud<pcl::PointXYZI>());
+            pcl::PointCloud<pcl::PointXYZI>::Ptr thisCloudA;
+            stringstream ss2;
+            int nowInd = i-6;
+            ss2 << savePCDPath << fixed << nowInd << ".pcd";
+            if( 0 == access(ss2.str().c_str(), 0)){
+                cout << "detect id " << nowInd << endl;
+                continue;
+            }
+
+            for(int j = i - 6; j < i + 7; j++){
+                pair<int,int>& tmpPair = lidar2Pose[j];
+                stringstream ss;
+                string& tempTimeStamp = lidarTimes[tmpPair.first];
+                Eigen::Isometry3d& tempTrans = transPoses[tmpPair.second];
+                ss << leftPCDPathBase << "/" << fixed << tempTimeStamp << ".pcd";
+                string cloudPathTemp = ss.str();
+                if( 0 != access(cloudPathTemp.c_str(), 0)){
+                    cerr << "pcd file not exist " << cloudPathTemp << endl;
+                    getchar();
+                    exit(0);
+                }
+                pcl::PointCloud<pcl::PointXYZI> cloudTemp;
+                pcl::io::loadPCDFile(cloudPathTemp, cloudTemp);
+                transformPointCloud(cloudTemp, tempTrans);
+                *thisCloud += cloudTemp;
+            }
+            Eigen::Isometry3d invTrans = thisPose.inverse();
+            transformPointCloud(*thisCloud, invTrans);
+            filter.setInputCloud(thisCloud);
+            filter.filter(*thisCloud);
+            thisCloudA = removeGroundAndAdjAxis(thisCloud);
+
+            double SCtime = getTime(thisTimeStamp);
+            node thisNode(nowInd, SCtime, thisP, *thisCloudA, ss2.str());
+            thisNode.nodes_save_B(saveSCPath);
+            pcl::io::savePCDFileASCII(ss2.str(), *thisCloudA);
+            cout << "get id " << nowInd << " size " << thisCloudA->size() << endl;
+            thisCloudA->clear();
+            thisCloud->clear();
+            // char key = getchar();
+            // if(key == 'q') return;
+        }
+
+    }
+
+public:
+    oxford2Pcd(string base, string save,
+               Eigen::Vector3d it_=Eigen::Vector3d::Zero(),
+               Eigen::Quaterniond iQ_=Eigen::Quaterniond(1,0,0,0)){
+        it = it_;
+        iQ = iQ_;
+        rader_to_lidar(0,0) = -1;
+        rader_to_lidar(1,1) = -1;
+        filter.setLeafSize(0.5, 0.5, 0.5);
+        leftPCDPathBase = base + "/velodyne_left_pcd";
+        pairSavePath = base + "/pair.txt";
+        leftLidarPath = base + "/velodyne_left";
+        lidarTimesPath = base + "/velodyne_left.timestamps";
+        lidarPosesPath = base + "/radar_odometry.csv";
+        cout << "------------ get  " << base << endl;
+        getLidarTimes();
+        getLidarPose();
+        getPair();
+        savePCDPath = save + "/cloudSparse/";
+        saveSCPath = save + "/nodeSparse/";
+        cout << "------------ save " << save << endl;
+        saveSC();
+    }
+};
+
+
+
+pcl::PointCloud<pcl::PointXYZ> cloud1;
+void test01(){
+    string lidarPosesPath = "/home/qh/YES/oxford/2019-01-10-11-46-21-radar-oxford-10k/radar_odometry.csv";
+    ifstream lidarPosesFile(lidarPosesPath);
+    string head;
+    getline(lidarPosesFile, head);
+    Eigen::Isometry3d nowPose = Eigen::Isometry3d::Identity();
+    //o1 X 5736002.726355 Y 619888.767784 Taw 2.645384
+    auto temQ = tf::createQuaternionFromRPY(0, 0, 2.645384);
+    Eigen::Quaterniond iQ(temQ.w(), temQ.x(), temQ.y(), temQ.z());
+    nowPose.rotate(iQ);
+    Eigen::Vector3d it(2.726355, 8.767784, 0);
+    nowPose.pretranslate(it);
+    while(lidarPosesFile.good()){
+        string poseStr;
+        getline(lidarPosesFile, poseStr);
+        string time, noneTime;
+        string dX,dY,dZ,dR,dP,dYaw;
+        istringstream iss(poseStr);
+        getline(iss, time, ',');
+        getline(iss, noneTime, ',');
+        getline(iss, dX, ',');
+        getline(iss, dY, ',');
+        getline(iss, dZ, ',');
+        getline(iss, dR, ',');
+        getline(iss, dP, ',');
+        getline(iss, dYaw, ',');
+        if(lidarPosesFile.eof()) break;
+        Eigen::Vector3d dt(stod(dX),stod(dY),stod(dZ));
+        auto temQ = tf::createQuaternionFromRPY(stod(dR), stod(dP), stod(dYaw));
+        Eigen::Quaterniond dQ(temQ.w(), temQ.x(), temQ.y(), temQ.z());
+        //Eigen::Quaterniond dQ(1, 0, 0, 0);
+        Eigen::Isometry3d dT = Eigen::Isometry3d::Identity();
+        dT.rotate(dQ);
+        dT.pretranslate(dt);
+        static Eigen::Isometry3d rader_to_lidar = Eigen::Isometry3d::Identity();
+        rader_to_lidar(0, 0) = -1;
+        rader_to_lidar(1, 1) = -1;
+        dT = rader_to_lidar.inverse() * dT * rader_to_lidar;
+        nowPose = nowPose * dT;
+        pcl::PointXYZ tempPoint;
+        tempPoint.x = nowPose(0,3);
+        tempPoint.y = nowPose(1,3);
+        tempPoint.z = nowPose(2,3);
+        cloud1.push_back(tempPoint);
+    }
+    lidarPosesFile.close();
+}
+
+pcl::PointCloud<pcl::PointXYZ> cloud2;
+pcl::PointCloud<pcl::PointXYZ> cloud3;
+void test02(){
+    string lidarPosesPath = "/home/qh/YES/oxford/2019-01-10-12-32-52-radar-oxford-10k/radar_odometry.csv";
+    ifstream lidarPosesFile(lidarPosesPath);
+    string head;
+    getline(lidarPosesFile, head);
+    Eigen::Isometry3d nowPose = Eigen::Isometry3d::Identity();
+    //o2 X 5736002.235094 Y 619889.100871 Yaw 2.701815
+    auto temQ = tf::createQuaternionFromRPY(0, 0, 2.701816);
+    Eigen::Quaterniond iQ(temQ.w(), temQ.x(), temQ.y(), temQ.z());
+    Eigen::Vector3d it(2.235094, 9.100871, 0);
+    nowPose.rotate(iQ);
+    nowPose.pretranslate(it);
+    while(lidarPosesFile.good()){
+        string poseStr;
+        getline(lidarPosesFile, poseStr);
+        string time, noneTime;
+        string dX,dY,dZ,dR,dP,dYaw;
+        istringstream iss(poseStr);
+        getline(iss, time, ',');
+        getline(iss, noneTime, ',');
+        getline(iss, dX, ',');
+        getline(iss, dY, ',');
+        getline(iss, dZ, ',');
+        getline(iss, dR, ',');
+        getline(iss, dP, ',');
+        getline(iss, dYaw, ',');
+        if(lidarPosesFile.eof()) break;
+        Eigen::Vector3d dt(stod(dX),stod(dY),stod(dZ));
+        auto temQ = tf::createQuaternionFromRPY(stod(dR), stod(dP), stod(dYaw));
+        Eigen::Quaterniond dQ(temQ.w(), temQ.x(), temQ.y(), temQ.z());
+        //Eigen::Quaterniond dQ(1, 0, 0, 0);
+        Eigen::Isometry3d dT = Eigen::Isometry3d::Identity();
+        dT.rotate(dQ);
+        dT.pretranslate(dt);
+        static Eigen::Isometry3d rader_to_lidar = Eigen::Isometry3d::Identity();
+        rader_to_lidar(0, 0) = -1;
+        rader_to_lidar(1, 1) = -1;
+        dT = rader_to_lidar.inverse() * dT * rader_to_lidar;
+        nowPose = nowPose * dT;
+        pcl::PointXYZ tempPoint;
+        tempPoint.x = nowPose(0,3);
+        tempPoint.y = nowPose(1,3);
+        tempPoint.z = nowPose(2,3);
+        cloud2.push_back(tempPoint);
+    }
+    lidarPosesFile.close();
+}
+
+void testOxfordData(int argc, char** argv){
+    ros::init(argc, argv, "tesst");
+    ros::NodeHandle nh("~");
+    test01();
+    test02();
+
+    pcl::io::loadPCDFile("/home/qh/robot_ws/map/o1/cloudSparse/0.pcd", cloud1);
+    pcl::io::loadPCDFile("/home/qh/robot_ws/map/o1/cloudSparse/0.pcd", cloud2);
+    pcl::io::loadPCDFile("/home/qh/robot_ws/map/o1/cloudSparse/0.pcd", cloud3);
+
+    for(auto& point : cloud2){
+        point.z += 5.0;
+    }
+    for(auto& point : cloud3){
+        point.y += 20.0;
+    }
+
+    sensor_msgs::PointCloud2 msg1,msg2,msg3;
+    pcl::toROSMsg(cloud1, msg1);
+    msg1.header.frame_id = "laser";
+    pcl::toROSMsg(cloud2, msg2);
+    msg2.header.frame_id = "laser";
+    pcl::toROSMsg(cloud3, msg3);
+    msg3.header.frame_id = "laser";
+
+    ros::Publisher pub1 = nh.advertise<sensor_msgs::PointCloud2>("/gto1", 1);
+    ros::Publisher pub2 = nh.advertise<sensor_msgs::PointCloud2>("/gto2", 1);
+    ros::Publisher pub3 = nh.advertise<sensor_msgs::PointCloud2>("/gto3", 1);
+    ros::Rate loop(1);
+    while(ros::ok()){
+        loop.sleep();
+        pub1.publish(msg1);
+        pub2.publish(msg2);
+        pub3.publish(msg3);
+    }
+
+}
+
+void getOxfordData(){
+    string o1Source = "/home/qh/YES/oxford/2019-01-10-11-46-21-radar-oxford-10k";
+    string o1Save = "/home/qh/robot_ws/map/o1";
+    // o1 X 5736002.726355 Y 619888.767784 Taw 2.645384
+    Eigen::Vector3d o1t(2.726355, 8.767784, 0);
+    auto o1tmpQ = tf::createQuaternionFromRPY(0,0,2.645384);
+    Eigen::Quaterniond o1Q(o1tmpQ.w(), o1tmpQ.x(), o1tmpQ.y(), o1tmpQ.z());
+    oxford2Pcd o1(o1Source, o1Save, o1t, o1Q);
+
+
+    string o2Source = "/home/qh/YES/oxford/2019-01-10-12-32-52-radar-oxford-10k";
+    string o2Save = "/home/qh/robot_ws/map/o2";
+    // o2 X 5736002.235094 Y 619889.100871 Yaw 2.701815
+    Eigen::Vector3d o2t(2.235094, 9.100871, 0);
+    auto o2tmpQ = tf::createQuaternionFromRPY(0,0,2.701815);
+    Eigen::Quaterniond o2Q(o2tmpQ.w(), o2tmpQ.x(), o2tmpQ.y(), o2tmpQ.z());
+    oxford2Pcd o2(o2Source, o2Save, o2t, o2Q);
+}
+
 
 int main(int argc, char** argv){
-    if(argv[1] == nullptr)  init(-1);
-    else                    init(stoi(argv[1]));
+    // if(argv[1] == nullptr)  init(-1);
+    // else                    init(stoi(argv[1]));
+    // cout << " start " << endl;
 
 
     cout << " end " << endl;

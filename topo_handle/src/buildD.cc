@@ -242,8 +242,7 @@ int main(int argc, char** argv){
     cout << " getstart " << endl;
 
     vector<double> disTable{
-        0.2, 0.5, 0.6, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9, 
-        10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30
+        0.2, 0.5, 0.6, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9
     };
 
     sort(disTable.begin(), disTable.end(), comB);
@@ -255,7 +254,7 @@ int main(int argc, char** argv){
 
     while(ros::ok()){
         if(nowThread<MaxThread&&nowIndex < disTable.size()){
-            cout << nowIndex << " add a new thread D " << fixed << setprecision(1) << disTable[nowIndex] << endl;
+            cout << nowIndex << " add a new thread D " << fixed << setprecision(2) << disTable[nowIndex] << endl;
             nowThread++;
             thread* tempT(new thread(buildD, disTable[nowIndex]));
             nowIndex++;

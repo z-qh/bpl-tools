@@ -435,10 +435,13 @@ public:
 
 int main(int argc, char** argv){
 
-     kitti seq01("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
+    //kitti seq01("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
 
     // 0 - 500 高度有点问题还是抛弃吧
-    kitti seq08("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
+    //kitti seq08("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
+
+    //
+    kitti seq00("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
 
     return 0;
 }

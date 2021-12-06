@@ -120,7 +120,7 @@ public:
         D_th = D_th_;
         /////////////////////
         node_save_path = node_save_path_;
-        save_data_to_files = false;//是否保存文件
+        save_data_to_files = true;//是否保存文件
         /////////////////////
 
     }
@@ -317,12 +317,12 @@ void buildN(double K_){
     stringstream ss;
     ss << setprecision(2) << std::left << setfill('0') <<  setw(4) << buildValue;
     string savePath = pathBase + "/buildN/N" + ss.str() + "/";
-    // if(0 == access(savePath.c_str(), 0)){
-    //     nowThread--;
-    //     return ;
-    // }else if( 0 != access(savePath.c_str(), 0)){
-    //     mkdir(savePath.c_str(), 0777);
-    // }
+     if(0 == access(savePath.c_str(), 0)){
+         nowThread--;
+         return ;
+     }else if( 0 != access(savePath.c_str(), 0)){
+         mkdir(savePath.c_str(), 0777);
+     }
     buildTopo buildTopoMap(savePath, buildValue, BestDis);
     int nodesSize = nodeList.size();
 
@@ -379,10 +379,10 @@ int main(int argc, char** argv){
         
         std::cout << " best dis " << BestDis << std::endl;
     }
-    if(argv[5] != nullptr){
-        buidlAValue = stof(argv[5]);
-        std::cout << " best value " << buidlAValue << std::endl;
-    }
+//    if(argv[5] != nullptr){
+//        buidlAValue = stof(argv[5]);
+//        std::cout << " best value " << buidlAValue << std::endl;
+//    }
 
     // pathBase = "/home/qh/robot_ws/map/2021-01-19-11-10-53DaQuanL";
     // pathBase = "/home/qh/robot_ws/map/2021-08-30-18-06-30L";
@@ -403,20 +403,16 @@ int main(int argc, char** argv){
     
     init();
 
-    vector<double> simBuildTopoValue;
-    // {
-    //     // 0.10,
-    //     // 0.20,
-    //     // 0.30,
-    //     // 0.40,
-    //     // 0.50,  0.53, 0.55, 0.58,
-    //     // 0.60,  0.63, 0.65, 0.68,
-    //     // 0.70,  0.73, 0.75, 0.78,
-    //     // 0.80,  0.83, 0.85, 0.88,
-    //     // 0.90
-    //     // 0.60
-    //     };
-    simBuildTopoValue.push_back(buidlAValue);
+    vector<double> simBuildTopoValue
+     {
+          0.10,  0.20, 0.30, 0.40,
+          0.50,  0.53, 0.55, 0.58,
+          0.60,  0.63, 0.65, 0.68,
+          0.70,  0.73, 0.75, 0.78,
+          0.80,  0.83, 0.85, 0.88,
+          0.90
+         };
+//    simBuildTopoValue.push_back(buidlAValue);
 
     double timeAll = 0;
     chrono::steady_clock::time_point t1 = chrono::steady_clock::now();

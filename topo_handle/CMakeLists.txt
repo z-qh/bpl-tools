@@ -151,6 +151,9 @@ target_link_libraries(topo_handle
 add_executable(buildTopo src/buildTopo.cpp)
 target_link_libraries(buildTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
+add_executable(myRecog src/myRecog.cc)
+target_link_libraries(myRecog ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
 
 # add_executable(recallTopo src/recallTopo.cpp)
 # target_link_libraries(recallTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
@@ -170,8 +173,8 @@ target_link_libraries(buildTopo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LI
 # target_link_libraries(recallN ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
 
-#add_executable(buildD src/buildD.cc)
-#target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+add_executable(buildD src/buildD.cc)
+target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
 # add_executable(buildD src/buildD.cc)
 # target_link_libraries(buildD ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})

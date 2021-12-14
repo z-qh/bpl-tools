@@ -19,7 +19,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <algorithm>
-#include<pcl/filters/voxel_grid.h> 
+#include<pcl/filters/voxel_grid.h>
 
 using namespace std;
 const float PI = 3.1415926;
@@ -104,7 +104,7 @@ void calculateAPR(const pcl::PointCloud<PointT>& cloud_IN, vector<PointAPR>& vap
   length = round((maxrange - minrange)/deltaR);
   width = 301;
   height = round((maxazimuth - minazimuth)/deltaA);
-  
+
 }
 
 
@@ -118,7 +118,7 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
            int range_index = round((vapr[i].range-minrange)/deltaR);
            int voxel_index = (polar_index*(length+1)+range_index)+azimuth_index*(length+1)*(width+1);
            ri.push_back(range_index);
-           pi.push_back(polar_index);           
+           pi.push_back(polar_index);
            ai.push_back(azimuth_index);
            unordered_map<int, Voxel>::iterator it_find;
            it_find = map_out.find(voxel_index);
@@ -128,7 +128,7 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
            }else{
                 Voxel vox;
                 vox.haspoint =true;
-                vox.index.push_back(i); 
+                vox.index.push_back(i);
                 vox.index.swap(vox.index);
                 map_out.insert(make_pair(voxel_index,vox));
            }
@@ -140,7 +140,7 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
     cout<<*maxPosition<<" "<<*maxPosition1<<" "<<*maxPosition2<<endl;
 
 }
-     
+
 
 void find_neighbors(int polar, int range, int azimuth, vector<int>& neighborindex){
 	for (int z = azimuth - 1; z <= azimuth + 1; z++){
@@ -215,7 +215,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
            int polar_index = round(vapr[i].polar_angle*180/PI/deltaP);
            int range_index = round((vapr[i].range-minrange)/deltaR);
            int voxel_index = (polar_index*(length+1)+range_index)+azimuth_index*(length+1)*(width+1);
-           
+
            unordered_map<int, Voxel>::iterator it_find;
            unordered_map<int, Voxel>::iterator it_find2;
 
@@ -227,7 +227,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
                vector<int> neighborid;
                find_neighbors(polar_index, range_index, azimuth_index, neighborid);
                for (int k =0; k<neighborid.size(); ++k){
-                     
+
                   it_find2 = map_in.find(neighborid[k]);
 
                   if (it_find2 != map_in.end()){
@@ -238,7 +238,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
                    }
                 }
             }
-       
+
             neightbors.swap(neightbors);
 
             if(neightbors.size()>0){
@@ -262,11 +262,11 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
 
                    }
                 }
-                          
+
  		if (cluster_indices[i] == -1) {
 			current_cluster++;
 			cluster_indices[i] = current_cluster;
-                   for(int s =0 ; s<neightbors.size(); ++s){             
+                   for(int s =0 ; s<neightbors.size(); ++s){
                         cluster_indices[neightbors[s]] = current_cluster;
 		   }
                }

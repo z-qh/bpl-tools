@@ -19,6 +19,17 @@ find_package(catkin REQUIRED COMPONENTS
         nav_msgs
 )
 
+##OpenMP
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
+##octomap
+#find_package(octomap REQUIRED)
+#include_directories(${ocotmap_INCLUDE_DIRS})
+
 ## opencv
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -65,7 +76,14 @@ include_directories(${GFLAGS_INCLUDE_DIRS} ${GLOG_INCLUDE_DIRS})
 ##
 
 ## LIBS
-set(lso_LIBS
+set(lso_EXTERN_INCLUDES
+        ${OpenCV_INCLUDE_DIRS}
+        ${PCL_INCLUDE_DIRS}
+        ${Ceres_INCLUDE_DIRS}
+        ${GTSAM_INCLUDE_DIR}
+        ${EIGEN3_INCLUDE_DIR}
+)
+set(lso_EXTERN_LIBS
         ${PCL_LIBRARIES}
         ${OpenCV_LIBRARIES}
         ${GFLAGS_LIBRARIES}
@@ -101,30 +119,41 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 
+##Optimizer
+add_library(Optimizer SHARED src/Optimizer.cpp)
+target_link_libraries(Optimizer ${lso_EXTERN_LIBS})
+target_include_directories(Optimizer PUBLIC include ${lso_EXTERN_INCLUDES} )
+##Base Pose
+##Frame
+add_library(Base SHARED src/Base.cpp src/Frame.cpp src/SemanticMark.cpp src/Map.cpp )
+target_link_libraries(Base ${lso_EXTERN_LIBS})
+target_include_directories(Base PUBLIC include ${lso_EXTERN_INCLUDES} )
+##Cluster CVC
+add_library(cvc SHARED src/ClusterCVC.cpp)
+target_link_libraries(cvc ${lso_EXTERN_LIBS})
+target_include_directories(cvc PUBLIC include ${lso_EXTERN_INCLUDES} )
+#
+set(lso_IN_LIBS
+        Base
+        cvc
+        Optimizer
+        )
 
-##
+##fast gicp
+#add_library(fast_gicp SHARED
+#        src/fast_gicp/gicp/lsq_registration.cpp
+#        src/fast_gicp/gicp/fast_gicp.cpp
+#        src/fast_gicp/gicp/fast_gicp_st.cpp
+#        src/fast_gicp/gicp/fast_vgicp.cpp)
+#target_link_libraries(fast_gicp ${PCL_LIBRARIES})
+#target_include_directories(fast_gicp PUBLIC include ${PCL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
+
+## Tracking
+add_executable(tracking src/Tracking.cpp)
+target_link_libraries(tracking ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
+
+## demo for test
 add_executable(demo src/demo.cc)
-target_link_libraries(demo ${lso_LIBS})
-
-## extract feature points -- feature
-add_executable(feature src/featureExtraction.cpp)
-target_link_libraries(feature ${lso_LIBS})
-
-## extract ground and non-ground points -- image
-add_executable(image src/imageProjection.cpp)
-target_link_libraries(image ${lso_LIBS})
-
-## mapping with struct info -- mapping
-add_executable(mapping src/mapOptmization.cpp)
-target_link_libraries(mapping ${lso_LIBS})
-
-## extract sematic points -- sematic
-add_executable(sematic src/sematicProjection.cpp)
-target_link_libraries(sematic ${lso_LIBS})
-
-## optimize the sematic landmark and poses -- lso
-#add_executable(demo src/demo.cc)
-#target_link_libraries(demo ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${G2O_LIBS} gtsam)
-
+target_link_libraries(demo ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
 ##
 

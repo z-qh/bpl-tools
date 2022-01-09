@@ -85,6 +85,8 @@ void Pose::SetWorldPose(const Eigen::Vector3d &pos_, double R, double P, double 
     RPY(0) = R;
     RPY(1) = P;
     RPY(2) = Y;
+    Transform.block<3,3>(0, 0) = Rotation;
+    Transform.block<3,1>(0, 3) = Position;
 }
 
 void Pose::SetWorldPose(const Eigen::Vector3d &pos_, const Eigen::Quaterniond &ori_) {
@@ -96,6 +98,8 @@ void Pose::SetWorldPose(const Eigen::Vector3d &pos_, const Eigen::Quaterniond &o
     Posture.rotate(tmpR);
     tf::Quaternion tmpTfQ(ori_.x(), ori_.y(), ori_.z(), ori_.w());
     tf::Matrix3x3(tmpTfQ).getRPY(RPY(0), RPY(1), RPY(2));
+    Transform.block<3,3>(0, 0) = Rotation;
+    Transform.block<3,1>(0, 3) = Position;
 }
 
 void Pose::SetWorldPose(const Eigen::Vector3d &pos_, const Eigen::Matrix3d &rotation_) {
@@ -107,6 +111,8 @@ void Pose::SetWorldPose(const Eigen::Vector3d &pos_, const Eigen::Matrix3d &rota
     tf::Matrix3x3(tmpTfQ).getRPY(RPY(0), RPY(1), RPY(2));
     Posture.pretranslate(pos_);
     Posture.rotate(rotation_);
+    Transform.block<3,3>(0, 0) = Rotation;
+    Transform.block<3,1>(0, 3) = Position;
 }
 
 void Pose::SetWorldPose(const Eigen::Isometry3d &pose_) {
@@ -117,6 +123,8 @@ void Pose::SetWorldPose(const Eigen::Isometry3d &pose_) {
     tf::Quaternion tmpTfQ(tmpQ.x(),tmpQ.y(),tmpQ.z(),tmpQ.w());
     tf::Matrix3x3(tmpTfQ).getRPY(RPY(0), RPY(1), RPY(2));
     Posture = pose_;
+    Transform.block<3,3>(0, 0) = Rotation;
+    Transform.block<3,1>(0, 3) = Position;
 }
 void Pose::SetWorldPose(const Eigen::Matrix4d &trans_) {
     Position = trans_.block<3, 1>(0, 3);
@@ -127,9 +135,16 @@ void Pose::SetWorldPose(const Eigen::Matrix4d &trans_) {
     tf::Matrix3x3(tmpTfQ).getRPY(RPY(0), RPY(1), RPY(2));
     Posture.pretranslate(Position);
     Posture.rotate(Rotation);
+    Transform.block<3,3>(0, 0) = Rotation;
+    Transform.block<3,1>(0, 3) = Position;
 }
 
-std::ostream &operator<<(std::ostream& os, Pose& p){
+Pose Pose::Between(const Pose &pose_) {
+    Pose res(Transform.inverse() * pose_.Transform);
+    return res;
+}
+
+std::ostream &operator<<(std::ostream& os, const Pose& p){
     os << std::fixed << std::setprecision(1)
        << p.Position(0) << " " << p.Position(1) << " " << p.Position(2) << " "
        << p.RPY(0) << " " << p.RPY(1) << " " << p.RPY(2);

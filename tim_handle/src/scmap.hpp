@@ -16,7 +16,10 @@
 using namespace gtsam;
 
 class SCmapOptimization{
-
+public:
+    void WTM(){
+        cout << " 123 " << endl;
+    }
 private:
     /////////////////////
     noiseModel::Base::shared_ptr robustNoiseModel;
@@ -584,14 +587,20 @@ public:
 
     }
 
-    void loopClosureThread(){
+    void loopClosureThread(//回环
+            bool& isLoop,
+            nav_msgs::Odometry& loop,
+            nav_msgs::Odometry& relative){
 
         if (loopClosureEnableFlag == false)
             return;
-        performLoopClosure();
+        performLoopClosure(//回环
+                isLoop,
+                loop,
+                relative);
     }
 
-    bool detectLoopClosure(){
+    bool detectLoopClosure(int& closestHistoryFrameID_){
 
         /*
          * SC
@@ -633,18 +642,23 @@ public:
         downSizeFilterHistoryKeyFrames.setInputCloud(nearHistorySurfKeyFrameCloud);
         downSizeFilterHistoryKeyFrames.filter(*nearHistorySurfKeyFrameCloudDS);
 
+        closestHistoryFrameID_ = closestHistoryFrameID;// qh add for debug
+
         return true;
     }
 
 
-    void performLoopClosure(){
-
+    void performLoopClosure(//回环
+            bool& isLoop,
+            nav_msgs::Odometry& loop,
+            nav_msgs::Odometry& relative){
+        int loopId = -1;// qh add
         if (cloudKeyPoses3D->points.empty() == true)
             return;
 
         if (potentialLoopFlag == false){
 
-            if (detectLoopClosure() == true){
+            if (detectLoopClosure(loopId) == true){
                 potentialLoopFlag = true;
                 timeSaveFirstCurrentScanForLoopClosure = timeLaserOdometry;
             }
@@ -693,10 +707,36 @@ public:
                 isam->update();
                 gtSAMgraph.resize(0);
 
+
+                // qh add for debug
                 cout << "SC loop OK!" << endl;
+                //回环
+                isLoop = true;
+                auto relativeQ = tf::createQuaternionFromRPY(roll, pitch, yaw);
+                auto loopQ = tf::createQuaternionFromRPY(cloudKeyPoses6D->points[loopId].roll,
+                                                         cloudKeyPoses6D->points[loopId].pitch,
+                                                         cloudKeyPoses6D->points[loopId].yaw);
+                // loop
+                loop.pose.pose.position.x = cloudKeyPoses6D->points[loopId].x;
+                loop.pose.pose.position.y = cloudKeyPoses6D->points[loopId].y;
+                loop.pose.pose.position.z = cloudKeyPoses6D->points[loopId].z;
+                loop.pose.pose.orientation.x = loopQ.x();
+                loop.pose.pose.orientation.y = loopQ.y();
+                loop.pose.pose.orientation.z = loopQ.z();
+                loop.pose.pose.orientation.w = loopQ.w();
+                // relative
+                relative.pose.pose.position.x = x;
+                relative.pose.pose.position.y = y;
+                relative.pose.pose.position.z = z;
+                relative.pose.pose.orientation.x = relativeQ.x();
+                relative.pose.pose.orientation.y = relativeQ.y();
+                relative.pose.pose.orientation.z = relativeQ.z();
+                relative.pose.pose.orientation.w = relativeQ.w();
+
             }
         }
         aLoopIsClosed = true;
+
     }
 
     Pose3 pclPointTogtsamPose3(PointTypePose thisPoint){
@@ -1285,8 +1325,13 @@ public:
              sensor_msgs::PointCloud2 outlier_cloud_last,
              nav_msgs::Odometry laser_odom_to_init,
              sensor_msgs::Imu::Ptr imuTopic,
-            //输出
-             nav_msgs::Odometry& aft_mapped_to_init)
+             //输出
+             nav_msgs::Odometry& aft_mapped_to_init,
+             //回环
+             bool& isLoop,
+             nav_msgs::Odometry& loop,
+             nav_msgs::Odometry& relative
+             )
     {
         timeLaserCloudCornerLast = laser_cloud_corner_last.header.stamp.toSec();
         laserCloudCornerLast->clear();
@@ -1357,7 +1402,10 @@ public:
                 clearCloud();
             }
             //回环检测
-            loopClosureThread();
+            loopClosureThread(//回环
+                    isLoop,
+                    loop,
+                    relative);
         }
     }
 };

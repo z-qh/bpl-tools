@@ -578,11 +578,17 @@ public:
 
     }
 
-    void loopClosureThread(){
+    void loopClosureThread(//回环
+            bool& isLoop,
+            nav_msgs::Odometry& loop,
+            nav_msgs::Odometry& near){
 
         if (loopClosureEnableFlag == false)
             return;
-        performLoopClosure();
+        performLoopClosure(//回环
+                isLoop,
+                loop,
+                near);
     }
 
     bool detectLoopClosure(){
@@ -642,13 +648,14 @@ public:
         downSizeFilterHistoryKeyFrames.setInputCloud(nearHistorySurfKeyFrameCloud);
         downSizeFilterHistoryKeyFrames.filter(*nearHistorySurfKeyFrameCloudDS);
 
-
         return true;
     }
 
 
-    void performLoopClosure(){
-
+    void performLoopClosure(//回环
+            bool& isLoop,
+            nav_msgs::Odometry& loop,
+            nav_msgs::Odometry& near){
         if (cloudKeyPoses3D->points.empty() == true)
             return;
 
@@ -683,9 +690,6 @@ public:
         if (icp.hasConverged() == false || icp.getFitnessScore() > historyKeyframeFitnessScore)
             return;
 
-
-        cout << "RS loop OK!" << endl;
-
         float x, y, z, roll, pitch, yaw;
         Eigen::Affine3f correctionCameraFrame;
         correctionCameraFrame = icp.getFinalTransformation();
@@ -706,6 +710,12 @@ public:
         isam->update(gtSAMgraph);
         isam->update();
         gtSAMgraph.resize(0);
+
+        // qh add for debug
+        cout << "RS loop OK!" << endl;
+        //回环
+        isLoop = true;
+
 
         aLoopIsClosed = true;
     }
@@ -1290,7 +1300,11 @@ public:
              nav_msgs::Odometry laser_odom_to_init,
              sensor_msgs::Imu::Ptr imuTopic,
             //输出
-             nav_msgs::Odometry& aft_mapped_to_init)
+             nav_msgs::Odometry& aft_mapped_to_init,
+            //回环
+             bool& isLoop,
+             nav_msgs::Odometry& loop,
+             nav_msgs::Odometry& near)
     {
         timeLaserCloudCornerLast = laser_cloud_corner_last.header.stamp.toSec();
         laserCloudCornerLast->clear();
@@ -1351,8 +1365,8 @@ public:
 
                 extractSurroundingKeyFrames();
 
-                static int count = 0;
-                cout << count++ << endl;
+                //static int count = 0;
+                //cout << count++ << endl;
                 downsampleCurrentScan();
                 scan2MapOptimization();
                 saveKeyFramesAndFactor();
@@ -1361,7 +1375,10 @@ public:
                 clearCloud();
             }
             //回环检测
-            loopClosureThread();
+            loopClosureThread(//回环
+                    isLoop,
+                    loop,
+                    near);
         }
     }
 };

@@ -18,10 +18,11 @@ namespace lso{
         float downsample_resolution = 1.0;
         pcl::ApproximateVoxelGrid<PointType> GeometryCloudFilter;
         std::deque<Pose> Path;
-
+        pcl::KdTreeFLANN<PointType>::Ptr SmarkKDtree;
     public:
         Map(){
             GeometryCloudFilter.setLeafSize(downsample_resolution, downsample_resolution, downsample_resolution);// Init the DownSampleFilter
+            SmarkKDtree.reset(new pcl::KdTreeFLANN<PointType>());
         }
         //
         void GenerateSemanticMapCloudMsg(sensor_msgs::PointCloud2& msg){
@@ -36,6 +37,12 @@ namespace lso{
 
         // Add Frame and SMarks to Map
         void PushFrame(lso::KeyFrame::Ptr &tKF){
+            // Data Association
+            int DASMark = 0;
+            int UASMark = tKF->VisibleSMarks.size();
+
+
+            // Add the Information to Map
             KeyFrames.emplace_back(tKF, tKF->Ind);
             Path.push_back(tKF->mPose);
             for(const lso::SemanticMark::Ptr& mark : tKF->VisibleSMarks){

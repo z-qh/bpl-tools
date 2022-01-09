@@ -34,11 +34,12 @@
 
 class Pose{
 public:
-    Eigen::Vector3d Position = Eigen::Vector3d::Zero();//对象位置
-    Eigen::Quaterniond Orientation = Eigen::Quaterniond::Identity();//对象方向
-    Eigen::Isometry3d Posture = Eigen::Isometry3d::Identity();//对象位姿
-    Eigen::Vector3d RPY = Eigen::Vector3d::Zero();//欧拉角
-    Eigen::Matrix3d Rotation = Eigen::Matrix3d::Identity();//旋转矩阵
+    Eigen::Vector3d Position = Eigen::Vector3d::Zero();
+    Eigen::Quaterniond Orientation = Eigen::Quaterniond::Identity();
+    Eigen::Isometry3d Posture = Eigen::Isometry3d::Identity();
+    Eigen::Vector3d RPY = Eigen::Vector3d::Zero();
+    Eigen::Matrix3d Rotation = Eigen::Matrix3d::Identity();
+    Eigen::Matrix4d Transform = Eigen::Matrix4d::Identity();
 public:
     Pose(){};
     Pose(const Pose& pose_);
@@ -52,7 +53,8 @@ public:
     void SetWorldPose(const Eigen::Vector3d &pos_, double R, double P, double Y);
     void SetWorldPose(const Eigen::Vector3d &pos_, const Eigen::Matrix3d& rotation_);
     void SetWorldPose(const Eigen::Matrix4d &trans_);
-    friend std::ostream &operator<<(std::ostream& os, Pose& p);
+    Pose Between(const Pose& pose_);
+    friend std::ostream &operator<<(std::ostream& os, const Pose& p);
 };
 
 geometry_msgs::PoseStamped Pose2PoseStamped(Pose &p);

@@ -11,6 +11,7 @@ namespace lso{
     public:
         int mSemanticFlag = 0;// Semantic Label
         Eigen::Vector3d mSize = Eigen::Vector3d::Zero();// Clouds Cluster Size
+        Eigen::Vector3d mCenter = Eigen::Vector3d::Zero();// Cloud Cluster Center to Search And Data Association
         Pose mPose;// Posture
 
     public:

@@ -160,6 +160,10 @@ include_directories(
 #
 
 ##
+add_executable(rs9sc src/example/RS9SC.cpp)
+target_link_libraries(rs9sc ${bpl_LIBS})
+
+##
 add_executable(kitti2bag src/source/kitti2bag.cc)
 target_link_libraries(kitti2bag ${bpl_LIBS})
 

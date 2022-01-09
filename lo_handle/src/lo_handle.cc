@@ -19,6 +19,8 @@ ros::Publisher mapOdomNoLoopPub;
 ros::Publisher SCmapOdomPub;
 ros::Publisher odomTempPub;
 ros::Publisher cloudTempPub;
+ros::Publisher RSLoopPub;
+ros::Publisher SCLoopPub;
 
 //typedef sensor_msgs::PointCloud2ConstPtr SPCP;
 std::vector<nav_msgs::Odometry> hisOdom;//qh add for debug
@@ -70,8 +72,8 @@ void read_odom_from_file(std::vector<nav_msgs::Odometry>& msgs, std::string path
 }
 //qh add for debug
 
-string sourceBagPath = "/media/qh/YES/2021-08-30-16-12-25L.bag";
-string sourceBagPathTopic = "/os_cloud_node/points";
+string sourceBagPath = "/home/qh/oxford1/front.bag";
+string sourceBagPathTopic = "/laser";
 
 int main(int argc, char** argv)
 {
@@ -83,6 +85,8 @@ int main(int argc, char** argv)
     mapOdomPub = nh.advertise<nav_msgs::Odometry>("/mapOdomPub", 1);
     mapOdomNoLoopPub = nh.advertise<nav_msgs::Odometry>("/mapOdomNoLoopPub", 1);
     SCmapOdomPub = nh.advertise<nav_msgs::Odometry>("/SCmapOdomPub", 1);
+    RSLoopPub = nh.advertise<nav_msgs::Odometry>("RSLoop", 1);
+    SCLoopPub = nh.advertise<nav_msgs::Odometry>("SCLoop", 1);
 
     odomTempPub = nh.advertise<nav_msgs::Odometry>("/odomTempPub", 1);
     cloudTempPub = nh.advertise<sensor_msgs::PointCloud2>("/cloudTempPub", 1);
@@ -123,7 +127,7 @@ int main(int argc, char** argv)
     //耗时统计
     chrono::steady_clock::time_point t1;
     //遍历bag
-    for(it = view.begin(); it != view.end(); it++)
+    for(it = view.begin(); it != view.end() && ros::ok(); it++)
     {
         string nowTopic = (*it).getTopic();
         if(nowTopic == topics[0])
@@ -142,6 +146,7 @@ int main(int argc, char** argv)
             }
             sensor_msgs::PointCloud2 rosCloud = *tempCloud;
             frameCunt++;
+            cout << frameCunt << " cloud " << endl;
             //分割地面并处理
             IP.cloudHandler(rosCloud, segCloud, segCloudInfo, outCloud);
             cloudTempPub.publish(segCloud);
@@ -149,41 +154,48 @@ int main(int argc, char** argv)
             FA.run(segCloud, segCloudInfo, outCloud, nullptr, last_corner, last_surf, last_out, odom);
             odomTempPub.publish(odom);
             //雷达里程计
-            MAP.run(last_corner, last_surf, last_out, odom, nullptr, mapOdom);
-            //MAP2.run(last_corner, last_surf, last_out, odom, nullptr, mapOdomNoLoop);
-            //SCMAP.run(last_corner, last_surf, last_out, odom, nullptr, SCmapOdom);
+            bool RSloop = false,SCloop=false,Noneloop= false;
+            nav_msgs::Odometry RSloopOdom, SCloopOdom, noneloopodom;
+            nav_msgs::Odometry SCrelativeOdom, RSrelativeOdom, nonereodom;
+            MAP.run(last_corner, last_surf, last_out, odom, nullptr, mapOdom, RSloop, RSloopOdom, RSrelativeOdom);
+//            MAP2.run(last_corner, last_surf, last_out, odom, nullptr, mapOdomNoLoop, Noneloop, noneloopodom, nonereodom);
+//            SCMAP.run(last_corner, last_surf, last_out, odom, nullptr, SCmapOdom, SCloop, SCloopOdom, SCrelativeOdom);
             //发布消息
-            //mapOdomPub.publish(mapOdom);
-            //mapOdomNoLoopPub.publish(mapOdomNoLoop);
-            //SCmapOdomPub.publish(SCmapOdom);
+            mapOdomPub.publish(mapOdom);
+            mapOdomNoLoopPub.publish(mapOdomNoLoop);
+            SCmapOdomPub.publish(SCmapOdom);
+
+//            RSLoopPub.publish();
+//            SCrelativeOdom.header.frame_id = "map";
+//            SCLoopPub.publish(SCrelativeOdom);
             //qh add for debug
-            tf::Quaternion orientation;
-            tf::quaternionMsgToTF(mapOdom.pose.pose.orientation, orientation);
-            tf::Matrix3x3 ori(orientation);
-            tf::Vector3 pose(mapOdom.pose.pose.position.x,
-                          mapOdom.pose.pose.position.y,
-                          mapOdom.pose.pose.position.z);
-            tf::Matrix3x3 A(0, 0, 1, 1, 0, 0, 0, 1, 0);
-            auto AT = A.inverse();
+            //tf::Quaternion orientation;
+            //tf::quaternionMsgToTF(mapOdom.pose.pose.orientation, orientation);
+            //tf::Matrix3x3 ori(orientation);
+            //tf::Vector3 pose(mapOdom.pose.pose.position.x,
+            //              mapOdom.pose.pose.position.y,
+            //              mapOdom.pose.pose.position.z);
+            //tf::Matrix3x3 A(0, 0, 1, 1, 0, 0, 0, 1, 0);
+            //auto AT = A.inverse();
 
-            tf::Quaternion res_ori;
-            (A * ori * AT).getRotation(res_ori);
-            res_ori.normalize();
-            tf::Vector3 res_pos = A * pose;
+            //tf::Quaternion res_ori;
+            //(A * ori * AT).getRotation(res_ori);
+            //res_ori.normalize();
+            //tf::Vector3 res_pos = A * pose;
 
-            nav_msgs::Odometry correctedOdom;
-            correctedOdom.pose.pose.orientation.x = res_ori.x();
-            correctedOdom.pose.pose.orientation.y = res_ori.y();
-            correctedOdom.pose.pose.orientation.z = res_ori.z();
-            correctedOdom.pose.pose.orientation.w = res_ori.w();
-            correctedOdom.pose.pose.position.x = -res_pos.x();
-            correctedOdom.pose.pose.position.y = -res_pos.y();
-            correctedOdom.pose.pose.position.z = res_pos.z();
-            correctedOdom.header.frame_id = "camera_init";
-            correctedOdom.header.stamp = ros::Time::now();
-            if(correctedOdom.pose.pose.position.x != NAN)
-                hisOdom.push_back(correctedOdom);
-            mapOdomPub.publish(correctedOdom);
+            //nav_msgs::Odometry correctedOdom;
+            //correctedOdom.pose.pose.orientation.x = res_ori.x();
+            //correctedOdom.pose.pose.orientation.y = res_ori.y();
+            //correctedOdom.pose.pose.orientation.z = res_ori.z();
+            //correctedOdom.pose.pose.orientation.w = res_ori.w();
+            //correctedOdom.pose.pose.position.x = -res_pos.x();
+            //correctedOdom.pose.pose.position.y = -res_pos.y();
+            //correctedOdom.pose.pose.position.z = res_pos.z();
+            //correctedOdom.header.frame_id = "camera_init";
+            //correctedOdom.header.stamp = ros::Time::now();
+            //if(correctedOdom.pose.pose.position.x != NAN)
+            //    hisOdom.push_back(correctedOdom);
+            //mapOdomPub.publish(correctedOdom);
             //qh add for debug
 
         }

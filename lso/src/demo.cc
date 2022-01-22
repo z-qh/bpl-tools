@@ -1,3 +1,5 @@
+
+#define PCL_NO_PRECOMPILE
 //#include "Base.h"
 //
 //using namespace std;
@@ -701,8 +703,79 @@ void Splicing(){
     cout << " save " << totalSize << endl;
 }
 
-int main(int argc, char** argv){
-    Splicing();
+#include "rosbag/bag.h"
+#include "rosbag/view.h"
+#include "sensor_msgs/PointCloud2.h"
+#include "pcl_conversions/pcl_conversions.h"
+
+
+#include "/home/qh/AutoCoordinateAlign.h"
+#include "random"
+#include "pcl/registration/icp.h"
+struct PointXYZIL
+{
+    PCL_ADD_POINT4D
+    PCL_ADD_INTENSITY;
+    uint32_t label;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIL,
+                                   (float, x, x)
+                                           (float, y, y)
+                                           (float, z, z)
+                                           (float, intensity, intensity)
+                                           (uint32_t, label, label)
+)
+
+
+void readBagToBinAndLabel(){
+    string bagPath = /*"/home/qh/kitti/seq01.bag";*/"/home/qh/dlut/2021-01-19-11-10-53DaQuanL.bag";
+    string DestBin = /*"/home/qh/kitti/test/bin/";*/"/home/qh/dlut/daquan/bin/";
+    string DestLabel = /*"/home/qh/kitti/test/labels/";*/"/home/qh/dlut/daquan/labels/";
+    rosbag::Bag bag;
+    bag.open(bagPath, rosbag::bagmode::Read);
+    vector<string> topics;
+    topics.emplace_back("/lslidar_point_cloud");
+//    topics.emplace_back("/laser");
+    rosbag::View view(bag, rosbag::TopicQuery(topics));
+    int count = 0;
+    for(auto it = view.begin(); it != view.end(); it++){
+        string thisTopic = it->getTopic();
+        if(thisTopic == topics[0]){
+            sensor_msgs::PointCloud2::ConstPtr thisMsg = (it->instantiate<sensor_msgs::PointCloud2>());
+            pcl::PointCloud<PointXYZIL>::Ptr thisCloud(new pcl::PointCloud<PointXYZIL>());
+            pcl::fromROSMsg(*thisMsg, *thisCloud);
+            stringstream ss1, ss2;
+            ss1 << DestBin << fixed << setw(6) <<  setfill('0') << count << ".bin";
+            ss2 << DestLabel << fixed << setw(6) <<  setfill('0') << count << ".label";
+            ofstream BinFile, LabelFile;
+            BinFile.open(ss1.str(), ios::binary);
+            LabelFile.open(ss2.str(), ios::binary);
+            for(auto& p : thisCloud->points){
+                BinFile.write((char*)&(p.x), 3 * sizeof(float));
+                BinFile.write((char*)&(p.intensity), sizeof(float));
+                LabelFile.write((char*)&(p.label), sizeof(uint32_t));
+            }
+            BinFile.close();
+            LabelFile.close();
+            if(count > 2000){
+                bag.close();
+                exit(0);
+            }
+            cout << count++ << " " << thisCloud->points.size() << endl;
+            cout << ss1.str() << endl << ss2.str() << endl;
+//            char k = getchar();
+//            if (k == 'q'){
+//                bag.close();
+//                exit(0);
+//            }
+        }
+    }
+}
+
+int main(){
+
 }
 
 //

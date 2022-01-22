@@ -17,13 +17,12 @@
 
 #include "sensor_msgs/Imu.h"
 #include "nav_msgs/Odometry.h"
-#include "tf/tf.h"
-#include "tf/transform_datatypes.h"
 #include "fstream"
 
 #include "pcl/point_types.h"
 #include "pcl/point_cloud.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include "gnss_driver/gps_navi_msg.h"
 
 #include "pcl/io/pcd_io.h"
 
@@ -38,21 +37,69 @@ struct VelodynePointXYZILR
 } EIGEN_ALIGN16;
 POINT_CLOUD_REGISTER_POINT_STRUCT(VelodynePointXYZILR,
                                    (float, x, x) (float, y, y) (float, z, z) (float, intensity, intensity)
-                                           (uint16_t, label, label) (uint16_t, ring, ring) (float, time, time)
+                                           (uint32_t, label, label) (uint16_t, ring, ring) (float, time, time)
 )
 using namespace std;
 
+
+
+
 class kitti{
 public:
-    static sensor_msgs::Imu readIMU(string thisIMUFilePath){
+    /***************经纬高转enu坐标******************/
+    bool isFirstGPS = true;
+    double first_Xe = 0;
+    double first_Ye = 0;
+    double first_Ze = 0;
+    void BLH2ENU(double lat, double lon, double alt, double &x, double &y, double &z) {
+        double sin_lat = sin(lat * M_PI / 180.0);
+        double cos_lat = cos(lat * M_PI / 180.0);
+        double sin_lon = sin(lon * M_PI / 180.0);
+        double cos_lon = cos(lon * M_PI / 180.0);
+        //经度(单位为°),纬度(单位为°),高度(单位m),东北天坐标系下坐标,ECEF->ENU(trans)
+        lat = lat * M_PI / 180; // To rad.
+        lon = lon * M_PI / 180;
+        double f = 1 / 298.257223563; // WGS84
+        double A_GNSS = 6378137.0;         // WGS84
+        double B_GNSS = A_GNSS * (1 - f);
+        double e = sqrt(A_GNSS * A_GNSS - B_GNSS * B_GNSS) / A_GNSS;
+        double N = A_GNSS / sqrt(1 - e * e * sin(lat) * sin(lat));
+        // To ECEF  地心站直角坐标系
+        double Xe = (N + alt) * cos(lat) * cos(lon); //地心系下坐标(单位m)
+        double Ye = (N + alt) * cos(lat) * sin(lon);
+        double Ze = (N * (1 - (e * e)) + alt) * sin(lat);
+        if(isFirstGPS){
+            first_Xe = Xe;
+            first_Ye = Ye;
+            first_Ze = Ze;
+            isFirstGPS = false;
+            std::cout<<"xe "<<Xe<<" ye "<<Ye<<" ze "<<Ze<<std::endl;
+            std::cout<<lat<<" lon "<<lon<<" alt "<<alt<<std::endl;
+        }
+        Xe -= first_Xe;
+        Ye -= first_Ye;
+        Ze -= first_Ze;
+        // To ENU
+        x = -Xe * sin_lon + Ye * cos_lon; //东北天坐标系下坐标
+        y = -Xe * sin_lat * cos_lon - Ye * sin_lat * sin_lon + Ze * cos_lat;
+        z = Xe * cos_lat * cos_lon + Ye * cos_lat * sin_lon + Ze * sin_lat;
+    }
+    pair<sensor_msgs::Imu,gnss_driver::gps_navi_msg> readIMU(string thisIMUFilePath){
         sensor_msgs::Imu thisIMUData;
+        gnss_driver::gps_navi_msg thisGNSSData;
         double noneValue;
         ifstream thisIMUDataFile(thisIMUFilePath);
-        for(int i = 0; i < 3; i++) thisIMUDataFile >> noneValue;
+        double lat,lon,alt;
+        thisIMUDataFile >> lat >> lon >> alt;
         double R,P,Y;
         thisIMUDataFile >> R >> P >> Y;
-        auto Ori = tf::createQuaternionFromRPY(R,P,Y);
-        Ori = Ori.normalize();
+        Eigen::Quaterniond Ori( Eigen::AngleAxisd(Y,Eigen::Vector3d::UnitZ())*
+                                Eigen::AngleAxisd(P,Eigen::Vector3d::UnitY()) *
+                                Eigen::AngleAxisd(R,Eigen::Vector3d::UnitX()));
+        Ori.normalize();
+//        double GPSX,GPSY,GPSZ;
+//        BLH2ENU(lat, lon, alt, GPSX, GPSY, GPSZ);
+        //IMU Not Trans
         thisIMUData.orientation.x = Ori.x();
         thisIMUData.orientation.y = Ori.y();
         thisIMUData.orientation.z = Ori.z();
@@ -66,7 +113,16 @@ public:
                         >> thisIMUData.angular_velocity.y
                         >> thisIMUData.angular_velocity.z;
         thisIMUDataFile.close();
-        return thisIMUData;
+        thisGNSSData.latitude = lat;
+        thisGNSSData.longitude = lon;
+        thisGNSSData.elevation = alt;
+        thisGNSSData.PosStatus = "KITTI";
+        thisGNSSData.InsWorkStatus = "KITTI";
+        thisGNSSData.rollAngle = R;
+        thisGNSSData.pitchAngle = P;
+        thisGNSSData.yawAngle = Y;
+
+        return make_pair(thisIMUData, thisGNSSData);
     }
     static double convertTime(string thisTimeStamp){
         struct tm tm;
@@ -92,6 +148,7 @@ private:
     string calbiPath;
     Eigen::Matrix3d imu_laser_R;
     Eigen::Vector3d imu_laser_t;
+    Eigen::Matrix4d imu_laser_T = Eigen::Matrix4d::Identity();
     void getAIMU2LaserMatrix(){
         ifstream calbiFile(calbiPath);
         string head;
@@ -105,8 +162,11 @@ private:
             iss >> imu_laser_R(1,0) >> imu_laser_R(1,1) >> imu_laser_R(1,2) >> imu_laser_t(1);
             iss >> imu_laser_R(2,0) >> imu_laser_R(2,1) >> imu_laser_R(2,2) >> imu_laser_t(2);
         }
+        imu_laser_T.block<3,3>(0,0) = imu_laser_R;
+        imu_laser_T.block<3,1>(0,3) = imu_laser_t;
         cout << head << imu_laser_R << endl;
         cout << head << imu_laser_t << endl;
+        getchar();
     }
 
     string velodynePath;
@@ -159,26 +219,26 @@ private:
     vector<nav_msgs::Odometry> gtData;
     void getGTData(){
         ifstream GTfile(GTPath);
-        Eigen::Matrix3d camera_to_laser;
-        camera_to_laser = imu_laser_R;
+        Eigen::Matrix4d camera_to_laser = Eigen::Matrix4d::Identity();
+        camera_to_laser.block<3,3>(0,0) = imu_laser_R;
+        camera_to_laser.block<3,1>(0,3) = imu_laser_t;
         // TO DO
         while(GTfile.good()){
             string infoStr;
             getline(GTfile, infoStr);
             if(infoStr.empty()) continue;
             istringstream iss(infoStr);
-            Eigen::Matrix3d tempR;
-            Eigen::Vector3d tempt;
-            iss >> tempR(0,0) >> tempR(0,1) >> tempR(0,2) >> tempt(0);
-            iss >> tempR(1,0) >> tempR(1,1) >> tempR(1,2) >> tempt(1);
-            iss >> tempR(2,0) >> tempR(2,1) >> tempR(2,2) >> tempt(2);
-            auto tempR2 = camera_to_laser.transpose() * tempR * camera_to_laser;
-            auto tempt2 = camera_to_laser.transpose() * tempt;
-            Eigen::Quaterniond tempQ(tempR2);
+            Eigen::Matrix4d tempT = Eigen::Matrix4d::Identity();
+            iss >> tempT(0,0) >> tempT(0,1) >> tempT(0,2) >> tempT(0, 3);
+            iss >> tempT(1,0) >> tempT(1,1) >> tempT(1,2) >> tempT(1, 3);
+            iss >> tempT(2,0) >> tempT(2,1) >> tempT(2,2) >> tempT(2, 3);
+            auto tempR2 = camera_to_laser.transpose() * tempT * camera_to_laser;
+            Eigen::Matrix3d tempR = tempT.block<3,3>(0,0);
+            Eigen::Quaterniond tempQ(tempR);
             nav_msgs::Odometry tempOdom;
-            tempOdom.pose.pose.position.x = tempt2(0);
-            tempOdom.pose.pose.position.y = tempt2(1);
-            tempOdom.pose.pose.position.z = tempt2(2);
+            tempOdom.pose.pose.position.x = tempT(0, 3);
+            tempOdom.pose.pose.position.y = tempT(1, 3);
+            tempOdom.pose.pose.position.z = tempT(2, 3);
             tempQ.normalize();
             tempOdom.pose.pose.orientation.x = tempQ.x();
             tempOdom.pose.pose.orientation.y = tempQ.y();
@@ -194,7 +254,7 @@ private:
     string IMUTimesPath;
     string IMUDataPath;
     vector<double> imuTimes;
-    vector<sensor_msgs::Imu> imuData;
+    vector<pair<sensor_msgs::Imu,gnss_driver::gps_navi_msg>> imuData;
     void getIMUTimeAndData(){
         ifstream imuTimeFile(IMUTimesPath);
         while(imuTimeFile.good()){
@@ -214,7 +274,8 @@ private:
             ss << fixed << setw(10) << setfill('0') << ind;
             IMUTempPath = IMUDataPath + "/" + ss.str() + ".txt";
             if( 0 == access(IMUTempPath.c_str(), 0) ){
-                sensor_msgs::Imu imuDataTemp = readIMU(IMUTempPath);
+                pair<sensor_msgs::Imu, gnss_driver::gps_navi_msg> navData;
+                navData = readIMU(IMUTempPath);
                 double thisImuTime = imuTimes[ind];
                 if( thisImuTime < 10000 || thisImuTime <= lastImuTime ){
                     cout << "get bad data abandon " << ind << fixed << lastImuTime << " " << thisImuTime << endl;
@@ -222,9 +283,11 @@ private:
                     continue;
                 }
                 lastImuTime = thisImuTime;
-                imuDataTemp.header.stamp = ros::Time().fromSec(thisImuTime);
-                imuDataTemp.header.frame_id = "laser";
-                imuData.push_back(imuDataTemp);
+                navData.first.header.stamp = ros::Time().fromSec(thisImuTime);
+                navData.second.header.stamp = ros::Time().fromSec(thisImuTime);
+                navData.first.header.frame_id = "laser";
+                navData.second.header.frame_id = "laser";
+                imuData.push_back(navData);
             }else{
                 break;
             }
@@ -240,10 +303,11 @@ private:
             cerr << "bag not open please check!" << endl;
             return;
         }
+        cout << " IMU " << endl;
         //IMU
-        double lastImuTime = imuData[startImu].header.stamp.toSec() - 0.1;
+        double lastImuTime = imuData[startImu].first.header.stamp.toSec() - 0.1;
         for(int i = startImu; i <= endImu; i++){
-            double thisImuTime = imuData[i].header.stamp.toSec();
+            double thisImuTime = imuData[i].first.header.stamp.toSec();
             if(thisImuTime < 10000 || thisImuTime <= lastImuTime){
                 cout << " imu get bad time " << i << " " << lastImuTime << " " << thisImuTime << endl;
                 getchar();
@@ -251,15 +315,18 @@ private:
                 return;
             }
             lastImuTime = thisImuTime;
-            bag.write("/imu/data", imuData[i].header.stamp, imuData[i]);
+            bag.write("/imu/data", imuData[i].first.header.stamp, imuData[i].first);
+            bag.write("/gps", imuData[i].second.header.stamp, imuData[i].second);
         }
 
+        cout << " GT " << endl;
         //GT
         for(int i = startOdom; i <= endOdom; i++){
             gtData[i].header.stamp = ros::Time().fromSec(rawLaserTimes[i+odom0InRaw]);
             bag.write("/gt", gtData[i].header.stamp, gtData[i]);
         }
 
+        cout << " Lidar " << endl;
         //label and lidar
         for(int i = startOdom; i <= endOdom ; i++){
             stringstream ss;
@@ -286,6 +353,10 @@ private:
                     uint32_t labelValue = 0;
                     labelfile.read((char *) &labelValue, sizeof(uint32_t));
                     point.label = labelValue;
+                    double tmpX = point.x;
+                    point.x = point.y;
+                    point.y = -tmpX;
+                    point.z = point.z;
                     points->push_back(point);
                     if ((binfile.eof() && !labelfile.eof()) || (!binfile.eof() && labelfile.eof()))
                     {
@@ -357,14 +428,14 @@ private:
         endTime = rawLaserTimes[endRaw];
         // save imu use imuData:startImu-endImu
         for(int i = 0; i < imuData.size(); i++){
-            double t = imuData[i].header.stamp.toSec();
+            double t = imuData[i].first.header.stamp.toSec();
             if(t > startTime){
                 startImu = i;
                 break;
             }
         }
         for(int i = imuData.size()-1; i >= 0; i--){
-            double t = imuData[i].header.stamp.toSec();
+            double t = imuData[i].first.header.stamp.toSec();
             if(t < endTime){
                 endImu = i;
                 break;
@@ -386,7 +457,7 @@ private:
         cout << endl;
         cout << fixed << "imu" << "\t\t" << startImu << "\t\t" << endImu << endl;
         cout << setprecision(3) << fixed
-        << "imu" << "\t\t" << getLocalTime(imuData[startImu].header.stamp.toSec()) << "\t" << getLocalTime(imuData[endImu].header.stamp.toSec()) << endl;
+        << "imu" << "\t\t" << getLocalTime(imuData[startImu].first.header.stamp.toSec()) << "\t" << getLocalTime(imuData[endImu].first.header.stamp.toSec()) << endl;
     }
 private:
     string pathBase;
@@ -441,7 +512,10 @@ int main(int argc, char** argv){
     //kitti seq08("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
 
     //
-    kitti seq00("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
+    // kitti seq00("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
+
+//    kitti seq00WithGNSS("/home/qh/kitti/00", "/home/qh/kitti/test00.bag", 0, 0, 4540);
+    kitti seq01WithGNSS("/home/qh/kitti/01", "/home/qh/kitti/test01.bag", 0, 0, 1100);
 
     return 0;
 }

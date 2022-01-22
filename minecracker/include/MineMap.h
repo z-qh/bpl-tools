@@ -4,11 +4,13 @@
 #include "random"
 
 
+
+//Random Generator
+static std::default_random_engine dre;
+static std::uniform_int_distribution<unsigned> uid(0, 100000000);
+
+
 class MineMap{
-private:
-    //Random Generator
-    static std::default_random_engine dre;
-    static std::uniform_int_distribution<unsigned> uid(0, 10000000);
 private:
     std::vector<std::vector<int>> Map;//MineMap
     //DataMap:99-Mine 100-108-MineNums
@@ -35,8 +37,8 @@ private:
         }
         //Generate The Mine
         for(int i = 0; i < MineNum; i++){
-            int m = uid(dre) % MX;
-            int n = uid(dre) % MY;
+            int m = (int)uid(dre) % MX;
+            int n = (int)uid(dre) % MY;
             if(Map[m][n] != 99) Map[m][n] = 99;// Push Mine
             else i--;// Try Again
         }
@@ -64,14 +66,14 @@ private:
     bool JudgeStatus(){
         for(auto&line:Map){
             for(auto&p:line){
-                if(Map[i][j]>99)
+                if(p>99)
                     return false;
             }
         }
         WinFlag = 2;
         return true;
     }
-
+    //
     bool TriggerAStep(int m, int n){
         if(WinFlag == 0 || WinFlag == 2)
             return false;
@@ -152,14 +154,14 @@ public:
     }
     // Return First Show Data
     // Return Second 1 OK, Return 0 Failed, Return 2 Win -1:Call Error
-    std::pair<std::vector<std::vector<int>,int> getAStep(int m, int n){
+    std::pair<std::vector<std::vector<int>>,int> getAStep(int m, int n){
         if(TriggerAStep(m, n)){
-            std::vector<std::vector<int> visMap;
+            std::vector<std::vector<int>> visMap;
             getShowMap(visMap);
             return std::make_pair(visMap, WinFlag);
         }
         else{
-            std::vector<std::vector<int> empty;
+            std::vector<std::vector<int>> empty;
             return std::make_pair(empty, -1);
         }
     }
@@ -170,7 +172,6 @@ public:
             for(auto&p:line){
                 if(p>=99) p = -2;
             }
-        return VisData;
     }
     // Set Flag
     bool SetFlag(int m, int n){
@@ -196,14 +197,14 @@ public:
             return false;
         if (Map[m][n] == CountAroundFlag(m, n))
         {
-            Onlbtup(m - 1, n);
-            Onlbtup(m + 1, n);
-            Onlbtup(m, n - 1);
-            Onlbtup(m, n + 1);
-            Onlbtup(m - 1, n - 1);
-            Onlbtup(m + 1, n - 1);
-            Onlbtup(m - 1, n + 1);
-            Onlbtup(m + 1, n + 1);
+            TriggerAStep(m - 1, n);
+            TriggerAStep(m + 1, n);
+            TriggerAStep(m, n - 1);
+            TriggerAStep(m, n + 1);
+            TriggerAStep(m - 1, n - 1);
+            TriggerAStep(m + 1, n - 1);
+            TriggerAStep(m - 1, n + 1);
+            TriggerAStep(m + 1, n + 1);
         }
         return true;
     }

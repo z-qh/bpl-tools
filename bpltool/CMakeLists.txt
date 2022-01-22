@@ -163,6 +163,16 @@ include_directories(
 add_executable(rs9sc src/example/RS9SC.cpp)
 target_link_libraries(rs9sc ${bpl_LIBS})
 
+add_executable(handleSM src/source/handleSM.cpp)
+target_link_libraries(handleSM ${bpl_LIBS})
+add_executable(transTool src/source/transTool.cpp)
+target_link_libraries(transTool ${bpl_LIBS})
+add_executable(kittiGPSTool src/source/kittiGPSTool.cpp)
+target_link_libraries(kittiGPSTool ${bpl_LIBS})
+##
+add_executable(avgerror src/source/avgerror.cpp)
+target_link_libraries(avgerror ${bpl_LIBS})
+
 ##
 add_executable(kitti2bag src/source/kitti2bag.cc)
 target_link_libraries(kitti2bag ${bpl_LIBS})

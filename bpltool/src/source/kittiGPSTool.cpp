@@ -1,3 +1,4 @@
+//将KITTI中的GPS打上时间戳转到东北天局部坐标系下
 #include "iostream"
 #include "fstream"
 #include "vector"

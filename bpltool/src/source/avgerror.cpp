@@ -1,3 +1,4 @@
+//移花接木，本事误差平均+GTSAM，后面发现单纯和误差平均没差别，因此在128行取消gtsam
 #include "ros/ros.h"
 #include "Eigen/Eigen"
 #include "iostream"

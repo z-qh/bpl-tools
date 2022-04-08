@@ -1,3 +1,4 @@
+//将SUMA出来的轨迹，semantic_rtk出来的轨迹，gps的轨迹，转到同一坐标系下
 #define PCL_NO_PRECOMPILE
 
 #include "ros/ros.h"

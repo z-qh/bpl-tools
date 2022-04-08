@@ -177,6 +177,10 @@ target_link_libraries(avgerror ${bpl_LIBS})
 add_executable(kitti2bag src/source/kitti2bag.cc)
 target_link_libraries(kitti2bag ${bpl_LIBS})
 
+##
+add_executable(oxford2bag src/source/oxfordHandle.cpp)
+target_link_libraries(oxford2bag ${bpl_LIBS})
+
 #
 add_executable(temp src/source/temp.cc)
 target_link_libraries(temp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBS} usb-1.0)

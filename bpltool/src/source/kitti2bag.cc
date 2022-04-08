@@ -59,20 +59,20 @@ public:
         //经度(单位为°),纬度(单位为°),高度(单位m),东北天坐标系下坐标,ECEF->ENU(trans)
         lat = lat * M_PI / 180; // To rad.
         lon = lon * M_PI / 180;
-        double f = 1 / 298.257223563; // WGS84
-        double A_GNSS = 6378137.0;         // WGS84
-        double B_GNSS = A_GNSS * (1 - f);
-        double e = sqrt(A_GNSS * A_GNSS - B_GNSS * B_GNSS) / A_GNSS;
-        double N = A_GNSS / sqrt(1 - e * e * sin(lat) * sin(lat));
+        double f        = 1 / 298.257223563; // WGS84
+        double A_GNSS   = 6378137.0;         // WGS84
+        double B_GNSS   = A_GNSS * (1 - f);
+        double e        = sqrt(A_GNSS * A_GNSS - B_GNSS * B_GNSS) / A_GNSS;
+        double N        = A_GNSS / sqrt(1 - e * e * sin(lat) * sin(lat));
         // To ECEF  地心站直角坐标系
         double Xe = (N + alt) * cos(lat) * cos(lon); //地心系下坐标(单位m)
         double Ye = (N + alt) * cos(lat) * sin(lon);
         double Ze = (N * (1 - (e * e)) + alt) * sin(lat);
         if(isFirstGPS){
-            first_Xe = Xe;
-            first_Ye = Ye;
-            first_Ze = Ze;
-            isFirstGPS = false;
+            first_Xe    = Xe;
+            first_Ye    = Ye;
+            first_Ze    = Ze;
+            isFirstGPS  = false;
             std::cout<<"xe "<<Xe<<" ye "<<Ye<<" ze "<<Ze<<std::endl;
             std::cout<<lat<<" lon "<<lon<<" alt "<<alt<<std::endl;
         }
@@ -97,8 +97,8 @@ public:
                                 Eigen::AngleAxisd(P,Eigen::Vector3d::UnitY()) *
                                 Eigen::AngleAxisd(R,Eigen::Vector3d::UnitX()));
         Ori.normalize();
-//        double GPSX,GPSY,GPSZ;
-//        BLH2ENU(lat, lon, alt, GPSX, GPSY, GPSZ);
+        double GPSX,GPSY,GPSZ;
+        BLH2ENU(lat, lon, alt, GPSX, GPSY, GPSZ);
         //IMU Not Trans
         thisIMUData.orientation.x = Ori.x();
         thisIMUData.orientation.y = Ori.y();
@@ -113,14 +113,14 @@ public:
                         >> thisIMUData.angular_velocity.y
                         >> thisIMUData.angular_velocity.z;
         thisIMUDataFile.close();
-        thisGNSSData.latitude = lat;
-        thisGNSSData.longitude = lon;
-        thisGNSSData.elevation = alt;
-        thisGNSSData.PosStatus = "KITTI";
-        thisGNSSData.InsWorkStatus = "KITTI";
-        thisGNSSData.rollAngle = R;
-        thisGNSSData.pitchAngle = P;
-        thisGNSSData.yawAngle = Y;
+        thisGNSSData.latitude       = lat;
+        thisGNSSData.longitude      = lon;
+        thisGNSSData.elevation      = alt;
+        thisGNSSData.PosStatus      = "KITTI";
+        thisGNSSData.InsWorkStatus  = "KITTI";
+        thisGNSSData.rollAngle      = R;
+        thisGNSSData.pitchAngle     = P;
+        thisGNSSData.yawAngle       = Y;
 
         return make_pair(thisIMUData, thisGNSSData);
     }
@@ -166,7 +166,6 @@ private:
         imu_laser_T.block<3,1>(0,3) = imu_laser_t;
         cout << head << imu_laser_R << endl;
         cout << head << imu_laser_t << endl;
-        getchar();
     }
 
     string velodynePath;
@@ -220,8 +219,7 @@ private:
     void getGTData(){
         ifstream GTfile(GTPath);
         Eigen::Matrix4d camera_to_laser = Eigen::Matrix4d::Identity();
-        camera_to_laser.block<3,3>(0,0) = imu_laser_R;
-        camera_to_laser.block<3,1>(0,3) = imu_laser_t;
+        camera_to_laser = imu_laser_T;
         // TO DO
         while(GTfile.good()){
             string infoStr;
@@ -283,10 +281,10 @@ private:
                     continue;
                 }
                 lastImuTime = thisImuTime;
-                navData.first.header.stamp = ros::Time().fromSec(thisImuTime);
-                navData.second.header.stamp = ros::Time().fromSec(thisImuTime);
-                navData.first.header.frame_id = "laser";
-                navData.second.header.frame_id = "laser";
+                navData.first.header.stamp      = ros::Time().fromSec(thisImuTime);
+                navData.second.header.stamp     = ros::Time().fromSec(thisImuTime);
+                navData.first.header.frame_id   = "laser";
+                navData.second.header.frame_id  = "laser";
                 imuData.push_back(navData);
             }else{
                 break;
@@ -297,34 +295,29 @@ private:
         cout << "imu-data " << imuData.size() << endl;
     }
 
-
     void save(){
         if(!bag.isOpen()){
             cerr << "bag not open please check!" << endl;
             return;
         }
         cout << " IMU " << endl;
-        //IMU
+        //IMU && GPS
         double lastImuTime = imuData[startImu].first.header.stamp.toSec() - 0.1;
         for(int i = startImu; i <= endImu; i++){
             double thisImuTime = imuData[i].first.header.stamp.toSec();
             if(thisImuTime < 10000 || thisImuTime <= lastImuTime){
                 cout << " imu get bad time " << i << " " << lastImuTime << " " << thisImuTime << endl;
-                getchar();
-                end();
-                return;
             }
             lastImuTime = thisImuTime;
             bag.write("/imu/data", imuData[i].first.header.stamp, imuData[i].first);
             bag.write("/gps", imuData[i].second.header.stamp, imuData[i].second);
         }
-
-        cout << " GT " << endl;
+        // cout << " GT " << endl;
         //GT
-        for(int i = startOdom; i <= endOdom; i++){
-            gtData[i].header.stamp = ros::Time().fromSec(rawLaserTimes[i+odom0InRaw]);
-            bag.write("/gt", gtData[i].header.stamp, gtData[i]);
-        }
+        // for(int i = startOdom; i <= endOdom; i++){
+        //     gtData[i].header.stamp = ros::Time().fromSec(rawLaserTimes[i+odom0InRaw]);
+        //     bag.write("/gt", gtData[i].header.stamp, gtData[i]);
+        // }
 
         cout << " Lidar " << endl;
         //label and lidar
@@ -353,10 +346,10 @@ private:
                     uint32_t labelValue = 0;
                     labelfile.read((char *) &labelValue, sizeof(uint32_t));
                     point.label = labelValue;
-                    double tmpX = point.x;
-                    point.x = point.y;
-                    point.y = -tmpX;
-                    point.z = point.z;
+                    // float tmpX = point.x;
+                    // point.x = point.y;
+                    // point.y = -tmpX;
+                    // point.z = point.z;
                     points->push_back(point);
                     if ((binfile.eof() && !labelfile.eof()) || (!binfile.eof() && labelfile.eof()))
                     {
@@ -377,55 +370,42 @@ private:
                 cout << "get bin " << bin << endl;
                 cout << "get label " << label << endl;
                 cout << "size " << points->size() << " time " << rawLaserTimes[i+odom0InRaw] << endl;
-//                char key = getchar();
-//                if(key == 'q'){
-//                    end();
-//                    return;
-//                }
                 points->clear();
             }
             else{
-                cout << "no bin or laebl " << bin  << " " << label << endl;
+                cout << "no bin or label " << bin  << " " << label << endl;
             }
         }
-
     }
 
-    void end(){
-        bag.close();
-        exit(0);
-    }
-
-    int odom0InRaw = -1;
-    int startOdom = -1;
-    int endOdom = -1;
-    int startImu = -1;
-    int endImu = -1;
+    int odom0InRaw  = -1;
+    int startOdom   = -1;
+    int endOdom     = -1;
+    int startImu    = -1;
+    int endImu      = -1;
     void alignedTime(){
-        //judge the dataset
         bool exitFlag = false;
         if( odomFramesSize==0 ){
             cerr << "data odom wrong " << endl;
             exitFlag = true;
         }
-        int startRaw = -1;
-        int endRaw = -1;
-        double startTime = 0;
-        double endTime = 0;
+        int startRaw        =-1;
+        int endRaw          =-1;
+        double startTime    = 0;
+        double endTime      = 0;
+
         //we got the odom data len
         //we got the raw  data len
         //we must konw the first odom frame conrrest which raw data
         //we must konw the start odom frame and the end odom frame
-        if(startOdom==-1) startOdom=0;
-        if(endOdom==-1) endOdom=odomFramesSize;
-        if(odom0InRaw==-1) odom0InRaw=0;
-        // save odom, gt, label time use rawLaserTimes:startRaw-endRaw
-        startRaw = odom0InRaw + startOdom;
-        endRaw = odom0InRaw + endOdom;
+        if(startOdom==-1)   startOdom   =0;
+        if(endOdom==-1)     endOdom=odomFramesSize;
+        if(odom0InRaw==-1)  odom0InRaw  =0;
+        startRaw    = odom0InRaw + startOdom;
+        endRaw      = odom0InRaw + endOdom;
+        startTime   = rawLaserTimes[startRaw];
+        endTime     = rawLaserTimes[endRaw];
 
-        // for get startImu and endImu
-        startTime = rawLaserTimes[startRaw];
-        endTime = rawLaserTimes[endRaw];
         // save imu use imuData:startImu-endImu
         for(int i = 0; i < imuData.size(); i++){
             double t = imuData[i].first.header.stamp.toSec();
@@ -448,12 +428,10 @@ private:
         cout << fixed << "raw" << "\t\t" << 0 << "\t\t" << rawLaserTimes.size()-1 << endl;
         cout << setprecision(3) << fixed
         << "raw" << "\t\t" << getLocalTime(rawLaserTimes.front()) << "\t" << getLocalTime(rawLaserTimes.back()) << endl;
-
         cout << endl;
         cout << fixed << "odom" << "\t\t" << startRaw << "\t\t" << endRaw << endl;
         cout << setprecision(3) << fixed
         << "odom" << "\t\t" << getLocalTime(rawLaserTimes[startRaw]) << "\t" << getLocalTime(rawLaserTimes[endRaw]) << endl;
-
         cout << endl;
         cout << fixed << "imu" << "\t\t" << startImu << "\t\t" << endImu << endl;
         cout << setprecision(3) << fixed
@@ -467,20 +445,21 @@ public:
     kitti() = delete;
     kitti(string pathBase_, string saveName_,int odom0InRaw_=-1, int startOdom_=-1, int endOdom_=-1){
         //////////////////////////////////////////////
-        pathBase = pathBase_;
-        saveName = saveName_;
-        odom0InRaw = odom0InRaw_;
-        startOdom = startOdom_;
-        endOdom = endOdom_;
+        pathBase    = pathBase_;
+        saveName    = saveName_;
+        odom0InRaw  = odom0InRaw_;
+        startOdom   = startOdom_;
+        endOdom     = endOdom_;
         ////////////////////////////////////////////
-        velodynePath = pathBase + "/velodyne";
-        labelPath = pathBase + "/labels";
-        IMUDataPath = pathBase + "/oxts/data";
-        GTPath = pathBase + "/poses.txt";
-        rawTimesPath = pathBase + "/timestampsRaw.txt";
-        IMUTimesPath = pathBase + "/oxts/timestamps.txt";
-        calbiPath = pathBase + "/calib.txt";
-        if( 0 == access(saveName.c_str(), 0)){
+        velodynePath    = pathBase + "/velodyne";
+        labelPath       = pathBase + "/labels";
+        IMUDataPath     = pathBase + "/oxts/data";
+        GTPath          = pathBase + "/poses.txt";
+        rawTimesPath    = pathBase + "/timestampsRaw.txt";
+        IMUTimesPath    = pathBase + "/oxts/timestamps.txt";
+        calbiPath       = pathBase + "/calib.txt";
+        ////////////////////////////////////////////
+        if(0 == access(saveName.c_str(), 0)){
             cerr << "file already exist: " << saveName << endl;
             return;
         }
@@ -505,17 +484,13 @@ public:
 
 
 int main(int argc, char** argv){
-
-    //kitti seq01("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
-
-    // 0 - 500 高度有点问题还是抛弃吧
-    //kitti seq08("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
-
-    //
-    // kitti seq00("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
-
-//    kitti seq00WithGNSS("/home/qh/kitti/00", "/home/qh/kitti/test00.bag", 0, 0, 4540);
-    kitti seq01WithGNSS("/home/qh/kitti/01", "/home/qh/kitti/test01.bag", 0, 0, 1100);
-
+//    kitti seq00WithGNSS("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
+    kitti seq01WithGNSS("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
+    kitti seq02WithGNSS("/home/qh/kitti/02", "/home/qh/kitti/seq02.bag", 0, 0, 4660);
+    kitti seq05WithGNSS("/home/qh/kitti/05", "/home/qh/kitti/seq05.bag", 0, 0, 2760);
+    kitti seq06WithGNSS("/home/qh/kitti/06", "/home/qh/kitti/seq06.bag", 0, 0, 1100);
+    kitti seq07WithGNSS("/home/qh/kitti/07", "/home/qh/kitti/seq07.bag", 0, 0, 1100);
+    // 0 - 500 GT的高度有点问题还是抛弃吧
+//    kitti seq08WithGNSS("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
     return 0;
 }

@@ -169,9 +169,6 @@ vector<Eigen::Matrix4d> RPYTOTrans(pcl::PointCloud<PointXYZIRPYT>& pose){
 pcl::PointCloud<PointXYZIRPYT> readFile(string filePath){
     pcl::PointCloud<PointXYZIRPYT> result;
     ifstream file(filePath);
-    string head;
-    getline(file, head);
-    cout << head;
     while(file.good()){
         string info;
         getline(file, info);
@@ -191,9 +188,6 @@ pcl::PointCloud<PointXYZIRPYT> readFile(string filePath){
 pcl::PointCloud<PointXYZIRPYT> readFileWithFlag(string filePath){
     pcl::PointCloud<PointXYZIRPYT> result;
     ifstream file(filePath);
-    string head;
-    getline(file, head);
-    cout << head;
     while(file.good()){
         string info;
         getline(file, info);
@@ -301,14 +295,33 @@ void saveXYZRPY(string filePath, pcl::PointCloud<PointXYZIRPYT>& pose){
     int count = 0;
     for(auto &p:pose){
         file << fixed
-             << setprecision(6) << p.time << " "
-             << setprecision(6) << p.x << " "
+             << setprecision(8) << p.time << " "
+             << setprecision(8) << p.x << " "
              << p.y << " "
              << p.z << " "
              << p.roll << " "
              << p.pitch << " "
              << p.yaw << endl;
     }
+    file.close();
+}
+
+void saveXYZRPYWithFlag(string filePath, pcl::PointCloud<PointXYZIRPYT>& pose){
+    ofstream file;
+    file.open(filePath);
+    int count = 0;
+    for(auto &p:pose){
+        file << fixed
+             << setprecision(8) << p.time << " "
+             << setprecision(8) << p.x << " "
+             << p.y << " "
+             << p.z << " "
+             << p.roll << " "
+             << p.pitch << " "
+             << p.yaw << " "
+             << (int)p.intensity << endl;
+    }
+    file.close();
 }
 
 void saveXYZRPY(string filePath, vector<double>&times, pcl::PointCloud<PointXYZIRPYT>& pose){
@@ -334,8 +347,8 @@ void saveXYZRPY(string filePath, vector<double>&times, vector<Eigen::Matrix4d>&t
         pitch = p.block<3,3>(0,0).eulerAngles(2,1,0)(1);
         roll = p.block<3,3>(0,0).eulerAngles(2,1,0)(2);
         file << fixed
-             << setprecision(6) << time << " "
-             << setprecision(6) << x << " "
+             << setprecision(8) << time << " "
+             << setprecision(8) << x << " "
              << y << " "
              << z << " "
              << roll << " "
@@ -380,7 +393,7 @@ void saveTum(string filePath, vector<pair<Eigen::Matrix4d,double>>&pose){
     ofstream file(filePath);
     for(auto&p:pose){
         Eigen::Quaterniond tmpQ(p.first.block<3,3>(0,0));
-        file << fixed << setprecision(6) << p.second << " "
+        file << fixed << setprecision(8) << p.second << " "
              << p.first(0,3) << " "
              << p.first(1,3) << " "
              << p.first(2,3) << " "
@@ -398,7 +411,7 @@ void saveTum(string path, pcl::PointCloud<PointXYZIRPYT>& pose){
         Eigen::Quaterniond tq(Eigen::AngleAxisd(p.yaw,   Eigen::Vector3d::UnitZ()) *
                               Eigen::AngleAxisd(p.pitch, Eigen::Vector3d::UnitY()) *
                               Eigen::AngleAxisd(p.roll,  Eigen::Vector3d::UnitX()));
-        file << fixed << setprecision(6) << p.time << " "
+        file << fixed << setprecision(8) << p.time << " "
              << p.x << " " << p.y << " " << p.z << " "
              << tq.x() << " " << tq.y() << " " << tq.z() << " " << tq.w() << endl;
     }
@@ -642,10 +655,10 @@ vector<PointXYZIRPYT> SAMHANDLE(vector<PointXYZIRPYT>&before,PointXYZIRPYT&final
     isam->update();
     isam->update();
     isamCurrentEstimate = isam->calculateEstimate();//得到正确的位姿估计
-    cout << " Before "<< before.size() << endl;
-    cout << " After "<< isamCurrentEstimate.size() << endl;
+    cout << "SECTION ADJ Before "<< before.size() << endl;
+    cout << "SECTION ADJ After  "<< isamCurrentEstimate.size() << endl;
     vector<PointXYZIRPYT> result;
-    for(int i=0; i<isamCurrentEstimate.size()-1; ++i){
+    for(int i=0; i<isamCurrentEstimate.size(); ++i){
         Pose3 thisEstimate;
         thisEstimate = isamCurrentEstimate.at<Pose3>(i);
         float x = thisEstimate.translation().x();
@@ -657,7 +670,7 @@ vector<PointXYZIRPYT> SAMHANDLE(vector<PointXYZIRPYT>&before,PointXYZIRPYT&final
         PointXYZIRPYT tmp;
 
         tmp.time = before[i].time;
-        tmp.intensity = before[i].time;
+        tmp.intensity = before[i].intensity;
         tmp.x = x;
         tmp.y = y;
         tmp.z = z;
@@ -725,7 +738,371 @@ vector<string> SEQNUMLIST{
         "00", "01", "02", "05", "08"
 };
 
+void recoverDaquanTime(pcl::PointCloud<PointXYZIRPYT>&poses,int start,int end){
+    if(poses.size() != end-start+1){
+        cout << " COUNT NOT MATCH PLEASE CHECK !" << endl;
+        cout << start << " " << end << endl;
+        return ;
+    }
+    vector<double> lidarTimes;
+    string lidarTimesPath = "/home/qh/dlut/Daquan/timestamp";
+    ifstream lidarTimesFile(lidarTimesPath);
+    while(lidarTimesFile.good()){
+        double timeStamp;
+        lidarTimesFile >> timeStamp;
+        if(lidarTimesFile.eof()) break;
+        lidarTimes.push_back(timeStamp);
+    }
+    for(int i = start-1; i <= end-1; ++i){
+        poses[i+1-start].time = lidarTimes[i];
+    }
+}
 
+void recoverOxfordTime(pcl::PointCloud<PointXYZIRPYT>&poses,int start,int end){
+    if(poses.size() != end-start+1){
+        cout << " COUNT NOT MATCH PLEASE CHECK !" << endl;
+        return ;
+    }
+    vector<string> lidarTimes;
+    string lidarTimesPath = "/home/qh/oxford1/velodyne_left_timestamps";
+    ifstream lidarTimesFile(lidarTimesPath);
+    while(lidarTimesFile.good()){
+        string timeStamp;
+        int noneValue;
+        lidarTimesFile >> timeStamp >> noneValue;
+        if(lidarTimesFile.eof()) break;
+        lidarTimes.push_back(timeStamp);
+    }
+    lidarTimesFile.close();
+    cout << "get lidar Times " << lidarTimes.size() << endl;
+    for(int i = start-1; i <= end-1; ++i){
+        poses[i+1-start].time = getTime(lidarTimes[i]);
+    }
+}
+void preHnadleaDquan(){
+
+    Eigen::Matrix4d lsT = Eigen::Matrix4d::Identity();
+    lsT << 0,-1, 0, 0,
+            1, 0, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1;
+
+
+    auto suma_trans_1 = readTrans("/home/qh/add_ws/daquan/suma/1_174_320");
+    for(auto&p:suma_trans_1) p = lsT * p * lsT.transpose();
+    auto suma_1 = TransToRPY(suma_trans_1);
+    recoverDaquanTime(suma_1, 174, 320);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma1.txt", suma_1);
+    saveTum("/home/qh/add_ws/daquan/suma/suma1Tum.txt", suma_1);
+
+    auto suma_trans_2 = readTrans("/home/qh/add_ws/daquan/suma/2_672_818");
+    for(auto&p:suma_trans_2) p = lsT * p * lsT.transpose();
+    auto suma_2 = TransToRPY(suma_trans_2);
+    recoverDaquanTime(suma_2, 672, 818);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma2.txt", suma_2);
+    saveTum("/home/qh/add_ws/daquan/suma/suma2Tum.txt", suma_2);
+
+    auto suma_trans_3 = readTrans("/home/qh/add_ws/daquan/suma/3_1188_1784");
+    for(auto&p:suma_trans_3) p = lsT * p * lsT.transpose();
+    auto suma_3 = TransToRPY(suma_trans_3);
+    recoverDaquanTime(suma_3, 1188, 1784);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma3.txt", suma_3);
+    saveTum("/home/qh/add_ws/daquan/suma/suma3Tum.txt", suma_3);
+
+    auto suma_trans_4 = readTrans("/home/qh/add_ws/daquan/suma/4_2116_2492");
+    for(auto&p:suma_trans_4) p = lsT * p * lsT.transpose();
+    auto suma_4 = TransToRPY(suma_trans_4);
+    recoverDaquanTime(suma_4, 2116, 2492);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma4.txt", suma_4);
+    saveTum("/home/qh/add_ws/daquan/suma/suma4Tum.txt", suma_4);
+
+    auto suma_trans_5 = readTrans("/home/qh/add_ws/daquan/suma/5_3034_3772");
+    for(auto&p:suma_trans_5) p = lsT * p * lsT.transpose();
+    auto suma_5 = TransToRPY(suma_trans_5);
+    recoverDaquanTime(suma_5, 3034, 3772);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma5.txt", suma_5);
+    saveTum("/home/qh/add_ws/daquan/suma/suma5Tum.txt", suma_5);
+
+    auto suma_trans_6 = readTrans("/home/qh/add_ws/daquan/suma/6_4550_5204");
+    for(auto&p:suma_trans_6) p = lsT * p * lsT.transpose();
+    auto suma_6 = TransToRPY(suma_trans_6);
+    recoverDaquanTime(suma_6, 4550, 5204);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma6.txt", suma_6);
+    saveTum("/home/qh/add_ws/daquan/suma/suma6Tum.txt", suma_6);
+
+    auto suma_trans_7 = readTrans("/home/qh/add_ws/daquan/suma/7_5640_6286");
+    for(auto&p:suma_trans_7) p = lsT * p * lsT.transpose();
+    auto suma_7 = TransToRPY(suma_trans_7);
+    recoverDaquanTime(suma_7, 5640, 6286);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma7.txt", suma_7);
+    saveTum("/home/qh/add_ws/daquan/suma/suma7Tum.txt", suma_7);
+
+    auto suma_trans_8 = readTrans("/home/qh/add_ws/daquan/suma/8_7474_8460");
+    for(auto&p:suma_trans_8) p = lsT * p * lsT.transpose();
+    auto suma_8 = TransToRPY(suma_trans_8);
+    recoverDaquanTime(suma_8, 7474, 8460);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma8.txt", suma_8);
+    saveTum("/home/qh/add_ws/daquan/suma/suma8Tum.txt", suma_8);
+
+    auto suma_trans_9 = readTrans("/home/qh/add_ws/daquan/suma/9_9130_10098");
+    for(auto&p:suma_trans_9) p = lsT * p * lsT.transpose();
+    auto suma_9 = TransToRPY(suma_trans_9);
+    recoverDaquanTime(suma_9, 9130, 10098);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma9.txt", suma_9);
+    saveTum("/home/qh/add_ws/daquan/suma/suma9Tum.txt", suma_9);
+
+    auto suma_trans_10 = readTrans("/home/qh/add_ws/daquan/suma/10_10228_11324");
+    for(auto&p:suma_trans_10) p = lsT * p * lsT.transpose();
+    auto suma_10 = TransToRPY(suma_trans_10);
+    recoverDaquanTime(suma_10, 10228, 11324);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma10.txt", suma_10);
+    saveTum("/home/qh/add_ws/daquan/suma/suma10Tum.txt", suma_10);
+
+    auto suma_trans_11 = readTrans("/home/qh/add_ws/daquan/suma/11_11814_12240");
+    for(auto&p:suma_trans_11) p = lsT * p * lsT.transpose();
+    auto suma_11 = TransToRPY(suma_trans_11);
+    recoverDaquanTime(suma_11, 11814, 12240);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma11.txt", suma_11);
+    saveTum("/home/qh/add_ws/daquan/suma/suma11Tum.txt", suma_11);
+
+    auto suma_trans_12 = readTrans("/home/qh/add_ws/daquan/suma/12_13480_14148");
+    for(auto&p:suma_trans_12) p = lsT * p * lsT.transpose();
+    auto suma_12 = TransToRPY(suma_trans_12);
+    recoverDaquanTime(suma_12, 13480, 14148);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma12.txt", suma_12);
+    saveTum("/home/qh/add_ws/daquan/suma/suma12Tum.txt", suma_12);
+
+    auto suma_trans_13 = readTrans("/home/qh/add_ws/daquan/suma/13_14638_15314");
+    for(auto&p:suma_trans_13) p = lsT * p * lsT.transpose();
+    auto suma_13 = TransToRPY(suma_trans_13);
+    recoverDaquanTime(suma_13, 14638, 15314);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma13.txt", suma_13);
+    saveTum("/home/qh/add_ws/daquan/suma/suma13Tum.txt", suma_13);
+
+    auto suma_trans_14 = readTrans("/home/qh/add_ws/daquan/suma/14_15684_16520");
+    for(auto&p:suma_trans_14) p = lsT * p * lsT.transpose();
+    auto suma_14 = TransToRPY(suma_trans_14);
+    recoverDaquanTime(suma_14, 15684, 16520);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma14.txt", suma_14);
+    saveTum("/home/qh/add_ws/daquan/suma/suma14Tum.txt", suma_14);
+
+    auto suma_trans_15 = readTrans("/home/qh/add_ws/daquan/suma/15_17400_18296");
+    for(auto&p:suma_trans_15) p = lsT * p * lsT.transpose();
+    auto suma_15 = TransToRPY(suma_trans_15);
+    recoverDaquanTime(suma_15, 17400, 18296);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma15.txt", suma_15);
+    saveTum("/home/qh/add_ws/daquan/suma/suma15Tum.txt", suma_15);
+
+    auto suma_trans_16 = readTrans("/home/qh/add_ws/daquan/suma/16_19334_21032");
+    for(auto&p:suma_trans_16) p = lsT * p * lsT.transpose();
+    auto suma_16 = TransToRPY(suma_trans_16);
+    recoverDaquanTime(suma_16, 19334, 21032);
+    saveXYZRPY("/home/qh/add_ws/daquan/suma/suma16.txt", suma_16);
+    saveTum("/home/qh/add_ws/daquan/suma/suma16Tum.txt", suma_16);
+}
+
+
+pcl::PointCloud<PointXYZIRPYT> AlignSuma2Last(PointXYZIRPYT lastPose, pcl::PointCloud<PointXYZIRPYT> sumaNow){
+    pcl::PointCloud<PointXYZIRPYT> result;
+    Eigen::Matrix4d StartT = Eigen::Matrix4d::Identity();
+    {
+        Eigen::Quaterniond q(Eigen::AngleAxisd(lastPose.yaw, Eigen::Vector3d::UnitZ()) *
+                             Eigen::AngleAxisd(lastPose.pitch, Eigen::Vector3d::UnitY()) *
+                             Eigen::AngleAxisd(lastPose.roll, Eigen::Vector3d::UnitX()));
+        Eigen::Quaterniond TQ(q.w(), q.x(), q.y(), q.z());
+        Eigen::Matrix3d TR(TQ);
+        StartT.block<3,3>(0,0) = TR;
+        StartT.block<3,1>(0,3) = Eigen::Vector3d(lastPose.x, lastPose.y, lastPose.z);
+    }
+    auto TT = RPYTOTrans(sumaNow);
+    for(auto&p:TT){
+        p = StartT * p;
+    }
+    result = TransToRPY(TT);
+    for(int i = 0; i < sumaNow.size(); i++){
+        result[i].time = sumaNow[i].time;
+        result[i].intensity = -1;
+    }
+    return result;
+}
+
+//void handleOxfordAndSuma(){
+//    vector<pcl::PointCloud<PointXYZIRPYT>> suma_ori(8, pcl::PointCloud<PointXYZIRPYT>());
+//    suma_ori[0] = readFile("/home/qh/add_ws/10/suma/suma_1.txt");
+//    suma_ori[1] = readFile("/home/qh/add_ws/10/suma/suma_2.txt");
+//    suma_ori[2] = readFile("/home/qh/add_ws/10/suma/suma_3.txt");
+//    suma_ori[3] = readFile("/home/qh/add_ws/10/suma/suma_4.txt");
+//    suma_ori[4] = readFile("/home/qh/add_ws/10/suma/suma_5.txt");
+//    suma_ori[5] = readFile("/home/qh/add_ws/10/suma/suma_6.txt");
+//    suma_ori[6] = readFile("/home/qh/add_ws/10/suma/suma_7.txt");
+//    suma_ori[7] = readFile("/home/qh/add_ws/10/suma/suma_8.txt");
+//
+//    auto RTKMAP_semantic = readFileWithFlag("/home/qh/add_ws/10/semantic_long_/RTKMAPafter.txt");
+//
+//    vector<pair<vector<PointXYZIRPYT>, int>> loss_recover_semantic;
+//    vector<pair<vector<PointXYZIRPYT>, int>> loss_recover_normal;
+//    //Semantic
+//    {
+//        int lastState = -1;
+//        for(int i = 0; i < RTKMAP_semantic.points.size(); ++i){
+//            auto&p=RTKMAP_semantic.points[i];
+//            int nowState = p.intensity;
+//            if(nowState != lastState){
+//                lastState = nowState;
+//                loss_recover_semantic.push_back(pair<vector<PointXYZIRPYT>,int>{vector<PointXYZIRPYT>(), nowState});
+//                loss_recover_semantic.back().first.push_back(p);
+//            }else{
+//                loss_recover_semantic.back().first.push_back(p);
+//            }
+//        }
+//        PointXYZIRPYT lastPose;
+//        bool haveLast = false;
+//        int lossGnssIndex = 0;
+//        for(int i = 0; i < loss_recover_semantic.size()-1; ++i){
+//            auto&p=loss_recover_semantic[i];
+//            if(p.second == 1 && loss_recover_semantic[i+1].second==0){
+//                lastPose = p.first.back();
+//                haveLast = true;
+//            }
+//            if(p.second == 0 && haveLast && lossGnssIndex < suma_ori.size()){
+//                haveLast = false;
+//                p.first.clear();
+//                auto handledSuma = AlignSuma2Last(lastPose, suma_ori[lossGnssIndex]);
+//                lossGnssIndex++;
+//                for(auto&a:handledSuma){
+//                    p.first.push_back(a);
+//                }
+//            }
+//        }
+//        pcl::PointCloud<PointXYZIRPYT> rtk_suma_semantic_before;
+//        pcl::PointCloud<PointXYZIRPYT> rtk_suma_semantic_after;
+//        cout << "SEMANTIC BEFORE====================>" << endl;
+//        for(int i = 0; i < loss_recover_semantic.size(); i++){
+//            auto&p=loss_recover_semantic[i];
+//            cout << "SECTION " << i << ": " << (p.second==0?"LOSS*************":"GNSS") << " SIZE: " << p.first.size() << endl;
+//            for(auto&a:p.first){
+//                rtk_suma_semantic_before.push_back(a);
+//            }
+//        }
+//        // ADJUST SECTION
+//        cout << "SEMANTIC ADJUST====================>" << endl;
+//        for(int i = 0; i < loss_recover_semantic.size(); ++i){
+//            if(loss_recover_semantic[i].second == 1) continue;
+//            auto&secNow =loss_recover_semantic[i].first;
+//            auto&secNext=loss_recover_semantic[i+1].first;
+//            auto&poseTo = secNext.front();
+//            auto&poseFrom = secNext.back();
+//            auto ans = SAMHANDLE(secNow, poseTo);
+//            secNow = ans;
+//        }
+//        cout << "SEMANTIC AFTER====================>" << endl;
+//        for(int i = 0; i < loss_recover_semantic.size(); i++){
+//            auto&p=loss_recover_semantic[i];
+//            cout << "SECTION " << i << ": " << (p.second==0?"LOSS*************":"GNSS") << " SIZE: "<< p.first.size() << endl;
+//            for(auto&a:p.first){
+//                rtk_suma_semantic_after.push_back(a);
+//            }
+//        }
+//        saveTum("/home/qh/add_ws/10/suma/suma_semanticTum", rtk_suma_semantic_before);
+//        saveTum("/home/qh/add_ws/10/suma/suma_semantic_gtsamTum", rtk_suma_semantic_after);
+//        saveXYZRPYWithFlag("/home/qh/add_ws/10/suma/suma_semantic.txt", rtk_suma_semantic_before);
+//        saveXYZRPYWithFlag("/home/qh/add_ws/10/suma/suma_semantic_gtsam.txt", rtk_suma_semantic_after);
+//    }
+//}
+
+
+
+void handleDaquanAndSuma(){
+    vector<pcl::PointCloud<PointXYZIRPYT>> suma_ori(16, pcl::PointCloud<PointXYZIRPYT>());
+    suma_ori[0] = readFile("/home/qh/add_ws/daquan/suma/suma1.txt");
+    suma_ori[1] = readFile("/home/qh/add_ws/daquan/suma/suma2.txt");
+    suma_ori[2] = readFile("/home/qh/add_ws/daquan/suma/suma3.txt");
+    suma_ori[3] = readFile("/home/qh/add_ws/daquan/suma/suma4.txt");
+    suma_ori[4] = readFile("/home/qh/add_ws/daquan/suma/suma5.txt");
+    suma_ori[5] = readFile("/home/qh/add_ws/daquan/suma/suma6.txt");
+    suma_ori[6] = readFile("/home/qh/add_ws/daquan/suma/suma7.txt");
+    suma_ori[7] = readFile("/home/qh/add_ws/daquan/suma/suma8.txt");
+    suma_ori[8] = readFile("/home/qh/add_ws/daquan/suma/suma9.txt");
+    suma_ori[9] = readFile("/home/qh/add_ws/daquan/suma/suma10.txt");
+    suma_ori[10] = readFile("/home/qh/add_ws/daquan/suma/suma11.txt");
+    suma_ori[11] = readFile("/home/qh/add_ws/daquan/suma/suma12.txt");
+    suma_ori[12] = readFile("/home/qh/add_ws/daquan/suma/suma13.txt");
+    suma_ori[13] = readFile("/home/qh/add_ws/daquan/suma/suma14.txt");
+    suma_ori[14] = readFile("/home/qh/add_ws/daquan/suma/suma15.txt");
+    suma_ori[15] = readFile("/home/qh/add_ws/daquan/suma/suma16.txt");
+
+
+    auto RTKMAP_semantic = readFileWithFlag("/home/qh/add_ws/daquan/RTKMAPsemantic_temp.txt");
+
+    vector<pair<vector<PointXYZIRPYT>, int>> loss_recover_semantic;
+    //Semantic
+    {
+        int lastState = -2;
+        for(int i = 0; i < RTKMAP_semantic.points.size(); ++i){
+            auto&p=RTKMAP_semantic.points[i];
+            int nowState = p.intensity;
+            if(nowState != lastState){
+                lastState = nowState;
+                loss_recover_semantic.push_back(pair<vector<PointXYZIRPYT>,int>{vector<PointXYZIRPYT>(), nowState});
+                loss_recover_semantic.back().first.push_back(p);
+            }else{
+                loss_recover_semantic.back().first.push_back(p);
+            }
+        }
+        PointXYZIRPYT lastPose;
+        bool haveLast = false;
+        int lossGnssIndex = 0;
+        for(int i = 0; i < loss_recover_semantic.size()-1; ++i){
+            auto&p=loss_recover_semantic[i];
+            if(p.second == 0 && loss_recover_semantic[i+1].second==-1){
+                lastPose = p.first.back();
+                haveLast = true;
+            }
+            if(p.second == -1 && haveLast && lossGnssIndex < suma_ori.size()){
+                haveLast = false;
+                p.first.clear();
+                auto handledSuma = AlignSuma2Last(lastPose, suma_ori[lossGnssIndex]);
+                lossGnssIndex++;
+                for(auto&a:handledSuma){
+                    p.first.push_back(a);
+                }
+            }
+        }
+        pcl::PointCloud<PointXYZIRPYT> rtk_suma_semantic_before;
+        pcl::PointCloud<PointXYZIRPYT> rtk_suma_semantic_after;
+        cout << "SEMANTIC BEFORE====================>" << endl;
+        for(int i = 0; i < loss_recover_semantic.size(); i++){
+            auto&p=loss_recover_semantic[i];
+            cout << "SECTION " << i << ": " << (p.second==-1?"LOSS*************":"GNSS") << " SIZE: " << p.first.size() << endl;
+            for(auto&a:p.first){
+                rtk_suma_semantic_before.push_back(a);
+            }
+        }
+        // ADJUST SECTION
+        cout << "SEMANTIC ADJUST====================>" << endl;
+        for(int i = 0; i < loss_recover_semantic.size(); ++i){
+            if(loss_recover_semantic[i].second == 0) continue;
+            auto&secNow =loss_recover_semantic[i].first;
+            auto&secNext=loss_recover_semantic[i+1].first;
+            auto&poseTo = secNext.front();
+            auto&poseFrom = secNext.back();
+            auto ans = SAMHANDLE(secNow, poseTo);
+            secNow = ans;
+        }
+        cout << "SEMANTIC AFTER====================>" << endl;
+        for(int i = 0; i < loss_recover_semantic.size(); i++){
+            auto&p=loss_recover_semantic[i];
+            cout << "SECTION " << i << ": " << (p.second==-1?"LOSS*************":"GNSS") << " SIZE: "<< p.first.size() << endl;
+            for(auto&a:p.first){
+                rtk_suma_semantic_after.push_back(a);
+            }
+        }
+        pcl::io::savePCDFileASCII("/home/qh/add_ws/daquan/test1.pcd", rtk_suma_semantic_before);
+        pcl::io::savePCDFileASCII("/home/qh/add_ws/daquan/test2.pcd", rtk_suma_semantic_after);
+        saveXYZRPYWithFlag("/home/qh/add_ws/daquan/suma_semantic_temp.txt", rtk_suma_semantic_before);
+        saveXYZRPYWithFlag("/home/qh/add_ws/daquan/suma_semantic_gtsam_temp.txt", rtk_suma_semantic_after);
+    }
+}
 int main(int argc, char** argv){
     ros::init(argc, argv, "transTool");
     ros::NodeHandle nh;
@@ -737,28 +1114,62 @@ int main(int argc, char** argv){
     ros::Publisher pubNormal = nh.advertise<nav_msgs::Odometry>("/normal", 1);
     ros::Publisher pubSemantic = nh.advertise<nav_msgs::Odometry>("/semantic", 1);
 
-    auto GNSS_sparse = readFile("/home/qh/add_ws/10/gt/GNSSsparse.txt");
 
-    auto GT_XYZRPY = getOxfordGT("/home/qh/add_ws/10/gt/gt.csv");
-    auto GT_trans  = RPYTOTrans(GT_XYZRPY);
-    Eigen::Matrix4d gt2gps = Eigen::Matrix4d::Identity();
-    gt2gps(1,1) = -1;
-    gt2gps(2,2) = -1;
-    for(auto&p:GT_trans){
-        p = gt2gps * p * gt2gps.transpose();
+    handleDaquanAndSuma();
+
+//    auto RTKMAP_semantic_ori = readFileWithFlag("/home/qh/add_ws/daquan/RTKMAPsemantic.txt");
+//    auto RTKMAP_trans = RPYTOTrans(RTKMAP_semantic_ori);
+    Eigen::Matrix4d tmpT = Eigen::Matrix4d::Identity();
+    tmpT << -1, 0, 0, 0,
+            0, 0, 1, 0,
+            0, 1, 0, 0,
+            0, 0, 0, 1;
+//    for(auto&p:RTKMAP_trans){
+//        p = tmpT * p * tmpT.transpose();
+//    }
+//    auto RTKMAP_semantic = TransToRPY(RTKMAP_trans);
+//    for(int i = 0; i < RTKMAP_semantic.size(); ++i){
+//        RTKMAP_semantic[i].time = RTKMAP_semantic_ori[i].time;
+//        RTKMAP_semantic[i].intensity = RTKMAP_semantic_ori[i].intensity;
+//    }
+//    saveXYZRPYWithFlag("/home/qh/add_ws/daquan/RTKMAPsemantic_temp.txt", RTKMAP_semantic);
+//    saveTum("/home/qh/add_ws/daquan/RTKMAPsemantic_tempTum.txt", RTKMAP_semantic);
+
+    auto before_temp = readFileWithFlag("/home/qh/add_ws/daquan/suma_semantic_temp.txt");
+    auto after_temp = readFileWithFlag("/home/qh/add_ws/daquan/suma_semantic_gtsam_temp.txt");
+
+    auto before_trans = RPYTOTrans(before_temp);
+    auto after_trans = RPYTOTrans(after_temp);
+    for(auto&p:before_trans){
+        p = tmpT.transpose() * p * tmpT;
     }
-    auto GT = TransToRPY(GT_trans);
-    for(int i = 0; i < GT.size(); i++){
-        GT[i].time = GT_XYZRPY[i].time;
+    for(auto&p:after_trans){
+        p = tmpT.transpose() * p * tmpT;
     }
 
-    saveXYZRPY("/home/qh/add_ws/10/gt/gt.txt", GT);
-    saveTum("/home/qh/add_ws/10/gt/gtTum.txt", GT);
+    auto before_res = TransToRPY(before_trans);
+    auto after_res = TransToRPY(after_trans);
+    for(int i = 0; i < before_res.size(); ++i){
+        before_res[i].time = before_temp[i].time;
+        before_res[i].intensity = before_temp[i].intensity;
+    }
+    for(int i = 0; i < after_res.size(); ++i){
+        after_res[i].time = after_temp[i].time;
+        after_res[i].intensity = after_temp[i].intensity;
+    }
+
+    saveXYZRPYWithFlag("/home/qh/add_ws/daquan/suma_semantic.txt", before_res);
+    saveTum("/home/qh/add_ws/daquan/suma_semanticTum.txt", before_res);
+
+    saveXYZRPYWithFlag("/home/qh/add_ws/daquan/suma_semantic_gtsam.txt", after_res);
+    saveTum("/home/qh/add_ws/daquan/suma_semantic_gtsamTum.txt", after_res);
 
 
     return 0;
+//
 
-    int gtI=0,rtkmapI=0,gpsI=0;
+
+    int sumaI=0,gpsI=0;
     ros::Rate loop(20);
     while(ros::ok()){
 //        if(gpsI<GPS.size())
@@ -767,10 +1178,10 @@ int main(int argc, char** argv){
 //            pubEigenPose(pubRTKMAP, RTKMAP.points[rtkmapI+=10]);
 //        if(gtI<GT.size())
 //            pubEigenPose(pubGT, GT[gtI+=10]);
-//        if(gpsI<GNSS_sparse.points.size())
-//            pubEigenPose(pubNormal, GNSS_sparse.points[gpsI+=5]);
-//        if(gtI<GT.points.size())
-//            pubEigenPose(pubSemantic, GT.points[gtI+=5]);
+//        if(gpsI<RTKMAP_now.points.size())
+//            pubEigenPose(pubNormal, RTKMAP_now.points[gpsI+=5]);
+//        if(sumaI<suma_1_ok.points.size())
+//            pubEigenPose(pubSemantic, suma_1_ok.points[sumaI+=1]);
         loop.sleep();
     }
 }

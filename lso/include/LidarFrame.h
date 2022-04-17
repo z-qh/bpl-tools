@@ -3,26 +3,34 @@
 
 #include "Geometry.h"
 #include "data_type.h"
+#include "ClusterCVC.h"
 
 
 /*
- * Frame
+ * LidarFrame
  */
-class Frame {
+class LidarFrame {
 public:
-    semanticCloudPtr mCloud;// Cloud for tracking Down sampled
-    semanticCloudPtr mGroundCloud;// Ground Cloud
-    semanticCloudPtr mEnviCloud;// Environment Cloud
+    semanticCloudPtr mCloud;
 public:
-    Pose mPose;// Posture
-    double mTime = 0;// Time
+    Pose mPose;
+    double mTime = 0;
 
 public:
-    Frame(){
+    LidarFrame() = delete;
+    LidarFrame(semanticCloudPtr lidar_cloud, double time){
+        mCloud = lidar_cloud;
+        mTime = time;
+        instantiation();
+    }
+    bool instantiation(){
+        if(mCloud->empty()) return false;
 
+
+        return true;
     }
 public:
-    using Ptr = std::shared_ptr<Frame>;
-    using ConstPtr = std::shared_ptr<const Frame>;
+    using Ptr = std::shared_ptr<LidarFrame>;
+    using ConstPtr = std::shared_ptr<const LidarFrame>;
 };
 #endif

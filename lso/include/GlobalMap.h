@@ -1,25 +1,27 @@
-#ifndef LSO_MAP_H_
-#define LSO_MAP_H_
+#ifndef GLOBAL_MAP_H_
+#define GLOBAL_MAP_H_
+
+#include "map"
 
 #include "Geometry.h"
-#include "Frame.h"
+#include "LidarFrame.h"
 #include "data_type.h"
 
 
-namespace lso{
-    class Map{
-    public:
-        int KeyFrameNum = 0;
-        map<int, Frame::Ptr> KeyFrames;
-    public:
-        Map(){
 
-        }
+class GlobalMap{
+public:
+    int KeyFrameNum = 0;
+    std::map<LidarFrame::Ptr, int> KeyFrames;
+public:
+    GlobalMap(){
 
-    public:
-        using Ptr = std::shared_ptr<Map>;
-        using ConstPtr = std::shared_ptr<const Map>;
-    };
-}
+    }
+
+public:
+    using Ptr = std::shared_ptr<GlobalMap>;
+    using ConstPtr = std::shared_ptr<const GlobalMap>;
+};
+
 
 #endif

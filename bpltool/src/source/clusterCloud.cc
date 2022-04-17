@@ -1,19 +1,6 @@
 /*
  * CVC聚类并画框显示，针对单一文件处理和在线处理
  */
-/*
- * Tips，亿天一个小技巧
- *
- *vector里面嵌套非指针类型的点云将引发内存深浅拷贝错误，使用第二种方式请注意reset
- *vector<pcl::PointCloud<pcl::PointXYZ>> pointCloudVector(2);×
- *vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> pointCloudVector(2);√
- *
- *直接使用点云，不需要对点云进行初始化，默认构造就好
- *
- *使用点云智能指针，需要对点云进行初始化，像这样
- *pcl::PointCloud<pcl::PointXYZ>::Ptr YESS(new pcl::PointCloud<pcl::PointXYZ>());
- *
- */
 #include "ros/ros.h"
 #include "sensor_msgs/PointCloud2.h"
 

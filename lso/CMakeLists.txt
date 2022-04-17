@@ -19,13 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
         nav_msgs
 )
 
-##OpenMP
-find_package(OpenMP)
-if (OPENMP_FOUND)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
-
 ##octomap
 #find_package(octomap REQUIRED)
 #include_directories(${ocotmap_INCLUDE_DIRS})
@@ -95,11 +88,6 @@ set(lso_EXTERN_LIBS
         )
 
 ##
-add_message_files(
-        DIRECTORY msgs
-        FILES
-        cloud_info.msg
-)
 generate_messages(
         DEPENDENCIES
         geometry_msgs
@@ -119,41 +107,23 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 
-##Optimizer
-add_library(Optimizer SHARED src/Optimizer.cpp)
-target_link_libraries(Optimizer ${lso_EXTERN_LIBS})
-target_include_directories(Optimizer PUBLIC include ${lso_EXTERN_INCLUDES} )
-##Base Pose
-##Frame
-add_library(Base SHARED src/Base.cpp src/Frame.cpp src/SemanticMark.cpp src/Map.cpp )
-target_link_libraries(Base ${lso_EXTERN_LIBS})
-target_include_directories(Base PUBLIC include ${lso_EXTERN_INCLUDES} )
+##Geometry
+add_library(Geometry SHARED src/Geometry.cpp)
+target_link_libraries(Geometry ${lso_EXTERN_LIBS})
+target_include_directories(Geometry PUBLIC include ${lso_EXTERN_INCLUDES})
 ##Cluster CVC
 add_library(cvc SHARED src/ClusterCVC.cpp)
 target_link_libraries(cvc ${lso_EXTERN_LIBS})
 target_include_directories(cvc PUBLIC include ${lso_EXTERN_INCLUDES} )
+
 #
 set(lso_IN_LIBS
-        Base
+        Geometry
         cvc
-        Optimizer
         )
 
-##fast gicp
-#add_library(fast_gicp SHARED
-#        src/fast_gicp/gicp/lsq_registration.cpp
-#        src/fast_gicp/gicp/fast_gicp.cpp
-#        src/fast_gicp/gicp/fast_gicp_st.cpp
-#        src/fast_gicp/gicp/fast_vgicp.cpp)
-#target_link_libraries(fast_gicp ${PCL_LIBRARIES})
-#target_include_directories(fast_gicp PUBLIC include ${PCL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
-
-## Tracking
-add_executable(tracking src/Tracking.cpp)
-target_link_libraries(tracking ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
-
 ## demo for test
-add_executable(demo src/demo.cc)
-target_link_libraries(demo ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
+add_executable(test1 src/test1.cpp)
+target_link_libraries(test1 ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
 ##
 

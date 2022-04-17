@@ -1,1 +1,1 @@
-#include "Map.h"
+#include "GlobalMap.h"

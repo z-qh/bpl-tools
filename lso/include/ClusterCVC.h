@@ -32,7 +32,6 @@ namespace cvc{
     int width = 0;
     int height = 0;
     const float PI = 3.1415926;
-
     template<typename T> std::string toString(const T& t) {
         std::ostringstream oss;
         oss << t;
@@ -123,7 +122,6 @@ namespace cvc{
         auto maxPosition = max_element(ai.begin(), ai.end());
         auto maxPosition1 = max_element(ri.begin(), ri.end());
         auto maxPosition2 = max_element(pi.begin(), pi.end());
-        //std::cout<<*maxPosition<<" "<<*maxPosition1<<" "<<*maxPosition2<<std::endl;
     }
 
     void find_neighbors(int polar, int range, int azimuth, std::vector<int>& neighborindex){
@@ -181,7 +179,6 @@ namespace cvc{
 
     std::vector<int>  CVC(std::unordered_map<int, Voxel> &map_in,const std::vector<PointAPR>& vapr){
         int current_cluster = 0;
-        //std::cout<<"CVC"<<std::endl;
         std::vector<int> cluster_indices = std::vector<int>(vapr.size(), -1);
         for(int i = 0; i< vapr.size(); ++i){
             if (cluster_indices[i] != -1)

@@ -85,7 +85,6 @@ extern const int imuQueLength = 100;
 
 extern const float sensorMountAngle = 0.0;
 //extern const float segmentTheta = 1.0472;
-extern const float segmentTheta = 45.0/180.0*M_PI;
 extern const int segmentValidPointNum = 5;
 extern const int segmentValidLineNum = 3;
 extern const float segmentAlphaX = ang_res_x / 180.0 * M_PI;

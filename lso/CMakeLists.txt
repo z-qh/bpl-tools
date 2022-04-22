@@ -123,7 +123,7 @@ set(lso_IN_LIBS
         )
 
 ## demo for test
-add_executable(test1 src/test1.cpp)
-target_link_libraries(test1 ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
+#add_executable(test1 src/test1.cpp)
+#target_link_libraries(test1 ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
 ##
 

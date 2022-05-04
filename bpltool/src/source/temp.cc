@@ -78,5 +78,5 @@ void Daquan2BinLabel(){
     stampFile.close();
 }
 int main(){
-    Daquan2BinLabel();
+    
 }

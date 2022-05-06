@@ -1,3 +1,6 @@
+
+#define PCL_NO_PRECOMPILE
+
 #include "iostream"
 #include "fstream"
 
@@ -16,6 +19,7 @@
 
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
+
 
 using namespace std;
 
@@ -90,6 +94,8 @@ pcl::PointCloud<PointXYZIL>::Ptr transformPointCloud(pcl::PointCloud<PointXYZIL>
 pcl::PointCloud<PointXYZIRPYT> readFile(string filePath){
     pcl::PointCloud<PointXYZIRPYT> result;
     ifstream file(filePath);
+    string header;
+    getline(file, header);
     while(file.good()){
         string info;
         getline(file, info);
@@ -111,7 +117,7 @@ void generateDaquanLast(){
     pcl::PointCloud<PointXYZIL>::Ptr allCloud(new pcl::PointCloud<PointXYZIL>());
     pcl::PointCloud<PointXYZIL>::Ptr allCloudDS(new pcl::PointCloud<PointXYZIL>());
     rosbag::Bag GNSS;
-    GNSS.open("", rosbag::bagmode::Read);
+    GNSS.open("/home/qh/2021-01-19-11-10-53DaQuanL.bag", rosbag::bagmode::Read);
 
     vector<string> topics;
     topics.push_back("/lslidar_point_cloud");

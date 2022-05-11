@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(lio_handle)
+project(selo)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
@@ -106,7 +106,7 @@ find_package(GTSAM REQUIRED)
 catkin_package(
         CATKIN_DEPENDS
 #        INCLUDE_DIRS include
-#        LIBRARIES lio_handle
+#        LIBRARIES selo
 #        CATKIN_DEPENDS other_catkin_pkg
 #        DEPENDS system_lib
 )
@@ -139,8 +139,8 @@ set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_D
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
-add_executable(lio_handle src/lio_handle.cc)
-target_link_libraries(lio_handle
+add_executable(selo src/selo.cc)
+target_link_libraries(selo
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}

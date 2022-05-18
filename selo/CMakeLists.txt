@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
         sensor_msgs
         cv_bridge
         image_transport
+        tf
         tf2
         tf2_geometry_msgs
         rosbag
@@ -23,6 +24,7 @@ find_package(OpenCV)
 find_package(PCL REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(GTSAM REQUIRED)
+find_package(yaml-cpp REQUIRED)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -123,6 +125,8 @@ include_directories(
         ${OpenCV_INCLUDE_DIRS}
         ${Ceres_INCLUDE_DIRS}
         ${GTSAM_INCLUDE_DIR}
+        ${YAML_INCLUDE_DIRS}
+
 )
 
 set(LIB_OPENCV_IMGPROC_DIR /usr/lib/x86_64-linux-gnu) #LIB_OPENCV_IMGPROC_DIR 是libtbb库的路径，缺哪个库找哪个，问题描述会有路径
@@ -139,6 +143,16 @@ set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_D
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
+
+add_executable(ascanRegistration src/scanRegistration.cpp)
+target_link_libraries(ascanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_executable(alaserOdometry src/laserOdometry.cpp)
+target_link_libraries(alaserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
+
+add_executable(alaserMapping src/laserMapping.cpp)
+target_link_libraries(alaserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
+
 add_executable(selo src/selo.cc)
 target_link_libraries(selo
         ${catkin_LIBRARIES}
@@ -146,6 +160,7 @@ target_link_libraries(selo
         ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
         ${CHOLMOD_LIBRARIES} gtsam libtbb
+        ${YAML_CPP_LIBRARIES}
         )
 ##
 ## Rename C++ executable without prefix

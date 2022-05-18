@@ -3,7 +3,7 @@
 #include "rosbag/view.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "pcl_conversions/pcl_conversions.h"
-#include "/home/qh/AutoCoordinateAlign.h"
+#include "/home/qh/qh_ws/src/AutoCoordinateAlign.h"
 #include "random"
 #include "pcl/registration/icp.h"
 #include "iostream"

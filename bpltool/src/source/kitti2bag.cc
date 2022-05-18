@@ -484,12 +484,12 @@ public:
 
 
 int main(int argc, char** argv){
-//    kitti seq00WithGNSS("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
-    kitti seq01WithGNSS("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
-    kitti seq02WithGNSS("/home/qh/kitti/02", "/home/qh/kitti/seq02.bag", 0, 0, 4660);
-    kitti seq05WithGNSS("/home/qh/kitti/05", "/home/qh/kitti/seq05.bag", 0, 0, 2760);
-    kitti seq06WithGNSS("/home/qh/kitti/06", "/home/qh/kitti/seq06.bag", 0, 0, 1100);
-    kitti seq07WithGNSS("/home/qh/kitti/07", "/home/qh/kitti/seq07.bag", 0, 0, 1100);
+    kitti seq00WithGNSS("/home/qh/kitti/00", "/home/qh/kitti/seq00.bag", 0, 0, 4540);
+    // kitti seq01WithGNSS("/home/qh/kitti/01", "/home/qh/kitti/seq01.bag", 0, 0, 1100);
+    // kitti seq02WithGNSS("/home/qh/kitti/02", "/home/qh/kitti/seq02.bag", 0, 0, 4660);
+    // kitti seq05WithGNSS("/home/qh/kitti/05", "/home/qh/kitti/seq05.bag", 0, 0, 2760);
+    // kitti seq06WithGNSS("/home/qh/kitti/06", "/home/qh/kitti/seq06.bag", 0, 0, 1100);
+    // kitti seq07WithGNSS("/home/qh/kitti/07", "/home/qh/kitti/seq07.bag", 0, 0, 1100);
     // 0 - 500 GT的高度有点问题还是抛弃吧
 //    kitti seq08WithGNSS("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
     return 0;

@@ -8,9 +8,9 @@ History:
 ***************************************************************************/
 
 #pragma once
+#include <cassert>
+#include <cstring>
 #include <fstream>
-#include <assert.h>
-#include <string.h>
 
 class KMeans
 {
@@ -39,7 +39,6 @@ public:
 	/*	SampleFile: <size><dim><data>...
 		LabelFile:	<size><label>...
 	*/
-
 	void Cluster(const char* sampleFileName, const char* labelFileName);
 	void Init(std::ifstream& sampleFile);
 	void Init(double *data, int N);

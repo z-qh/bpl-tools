@@ -38,7 +38,7 @@
 
 #include <math.h>
 #include <vector>
-#include "../include/common.h"
+
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -61,8 +61,8 @@
 #include <string>
 
 #include "lidarFactor.hpp"
-#include "../include/common.h"
-#include "../include/tic_toc.h"
+#include "common.h"
+#include "tic_toc.h"
 
 bool gt = false;
 

@@ -3,8 +3,8 @@
 #include <cmath>
 #include <vector>
 #include <string>
-#include "../include/common.h"
-#include "../include/tic_toc.h"
+#include "odom/common.h"
+#include "odom/tic_toc.h"
 #include <nav_msgs/Odometry.h>
 #include "opencv2/opencv.hpp"
 #include <pcl_conversions/pcl_conversions.h>
@@ -19,10 +19,10 @@
 #include <tf/transform_broadcaster.h>
 
 #include "queue"
-#include "../include/CVC.h"
+#include "cvc/CVC.h"
 
-#include "../include/KMeans.h"
-#include "../include/GMM.h"
+#include "gmm/KMeans.h"
+#include "gmm/GMM.h"
 
 using namespace std;
 
@@ -316,46 +316,6 @@ pcl::PointCloud<PointType>::Ptr mergeCloudAndUpdateInfo(pcl::PointCloud<PointTyp
     // 在生成第一帧点云聚类、新添加的点过多、有聚类的点概率数值过小的时候，需要重新进行生成聚类维护信息
     // 数据关联方式就是GMM，但是聚类方式还得搞一下，
     // updateCloud;
-
-    static bool update_cluster = true;
-    if(update_cluster){
-        //构建分类器
-        vector<PointAPR> papr;
-        calculateAPR(*dest, papr);
-        unordered_map<int, Voxel> hvoxel;
-        build_hash_table(papr, hvoxel);
-        vector<int> cluster_index = CVC(hvoxel, papr);
-        vector<int> cluster_id;
-        most_frequent_value(cluster_index, cluster_id);
-        //统计分割种类
-        map<int, vector<int>> classes;
-        for(int i = 0; i < cluster_index.size(); i++)
-        {
-            dest->points[i].label = cluster_index[i];
-            auto it = classes.find(cluster_index[i]);
-            if(it == classes.end())
-                classes.insert(make_pair(cluster_index[i], 1));
-            else
-                it->second.push_back(i);
-        }
-        //去除点数量比较少的聚类
-        cluster_cloud->clear();
-        for(auto it = classes.begin(); it != classes.end(); )
-        {
-            if(it->second.size() <= 30){
-                classes.erase(it++);
-            }else{
-                for(auto&p:it->second){
-                    cluster_cloud->push_back(dest->points[p]);
-                }
-                cout << it->first << " : " << it->second.size() << endl;
-                it++;
-            }
-        }
-        cout << " ClusterNums: " << classes.size() << endl;
-        printf("cluster time %f ms\n", cluster_time.toc());
-    }
-    return dest;
 }
 
 

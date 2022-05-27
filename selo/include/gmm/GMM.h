@@ -9,7 +9,6 @@ History:
 
 #pragma once
 #include <fstream>
-#include <assert.h>
 
 class GMM
 {
@@ -49,11 +48,11 @@ public:
 	friend std::istream& operator>>(std::istream& in, GMM& gmm);
 
 private:
-	int m_dimNum;		// ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½
-	int m_mixNum;		// Gaussianï¿½ï¿½Ä¿
-	double* m_priors;	// GaussianÈ¨ï¿½ï¿½
-	double** m_means;	// Gaussianï¿½ï¿½Öµ
-	double** m_vars;	// Gaussianï¿½ï¿½ï¿½ï¿½
+	int m_dimNum;		// Ñù±¾Î¬Êı
+	int m_mixNum;		// GaussianÊıÄ¿
+	double* m_priors;	// GaussianÈ¨ÖØ
+	double** m_means;	// Gaussian¾ùÖµ
+	double** m_vars;	// Gaussian·½²î
 
 	// A minimum variance is required. Now, it is the overall variance * 0.01.
 	double* m_minVars;

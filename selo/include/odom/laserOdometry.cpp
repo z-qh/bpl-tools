@@ -54,8 +54,8 @@
 #include <mutex>
 #include <queue>
 
-#include "../include/common.h"
-#include "../include/tic_toc.h"
+#include "common.h"
+#include "tic_toc.h"
 #include "lidarFactor.hpp"
 
 #define DISTORTION 0

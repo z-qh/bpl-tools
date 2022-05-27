@@ -134,9 +134,47 @@ add_library(libtbb SHARED IMPORTED) #添加库文件
 set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_DIR}/libtbb.so.2) #对标库文件 这里的LIB_OPENCV_IMGPROC_DIR就是第一行定义的路径
 
 ##GMM
-add_library(GMM SHARED src/GMM.cpp src/KMeans.cpp)
-target_link_libraries(GMM ${PCL_LIBRARIES})
-target_include_directories(GMM PUBLIC include ${PCL_INCLUDE_DIRS})
+add_library(GMM SHARED include/gmm/GMM.cpp include/gmm/KMeans.cpp include/gmm/CHMM.cpp)
+target_link_libraries(GMM)
+target_include_directories(GMM PUBLIC include)
+
+##CVC
+add_library(CVC SHARED include/cvc/CVC.cpp)
+target_link_libraries(CVC ${PCL_LIBRARIES})
+target_include_directories(CVC PUBLIC include ${PCL_INCLUDE_DIRS})
+
+#MOT
+add_library(MOT SHARED include/mot/object.cc
+                       include/mot/hungarian/hungarian_bigraph_matcher.cc
+                       include/mot/common/graph_util.cc
+                       include/mot/common/geometry_util.cc
+                       include/mot/pcl_clip/pcl_clip.cpp
+                       include/mot/remove_ground/remove_ground.cpp
+                       include/mot/cluster/region_growing_segmentation.cpp
+                       include/mot/cluster/EuclideanCluster.cpp
+                       include/mot/cluster/dbscan.cpp
+                       include/mot/min_box/min_box.cc
+                       include/mot/hm_tracker/hm_tracker.cc
+                       include/mot/hm_tracker/feature_descriptor.cc
+                       include/mot/hm_tracker/hungarian_matcher.cc
+                       include/mot/hm_tracker/kalman_filter.cc
+                       include/mot/hm_tracker/object_track.cc
+                       include/mot/hm_tracker/track_object_distance.cc
+                       include/mot/hm_tracker/tracked_object.cc)
+target_link_libraries(MOT ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+target_include_directories(CVC PUBLIC include ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+                       
+
+
+##A-LOAM odom
+add_executable(ascanRegistration include/odom/scanRegistration.cpp)
+target_link_libraries(ascanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_executable(alaserOdometry include/odom/laserOdometry.cpp)
+target_link_libraries(alaserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
+
+add_executable(alaserMapping include/odom/laserMapping.cpp)
+target_link_libraries(alaserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
 
 
 ## Add cmake target dependencies of the library
@@ -149,14 +187,6 @@ target_include_directories(GMM PUBLIC include ${PCL_INCLUDE_DIRS})
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
 
-add_executable(ascanRegistration src/scanRegistration.cpp)
-target_link_libraries(ascanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES})
-
-add_executable(alaserOdometry src/laserOdometry.cpp)
-target_link_libraries(alaserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
-
-add_executable(alaserMapping src/laserMapping.cpp)
-target_link_libraries(alaserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES})
 
 add_executable(selo src/selo.cc)
 target_link_libraries(selo
@@ -167,6 +197,16 @@ target_link_libraries(selo
         ${CHOLMOD_LIBRARIES} gtsam libtbb
         ${YAML_CPP_LIBRARIES}
         GMM
+        )
+
+add_executable(mot src/mot.cpp)
+target_link_libraries(mot
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
+        ${CHOLMOD_LIBRARIES} gtsam libtbb
+        ${YAML_CPP_LIBRARIES}
         )
 
 ## Rename C++ executable without prefix

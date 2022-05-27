@@ -1,3 +1,6 @@
+#ifndef _CVC_CLUSTER_
+#define _CVC_CLUSTER_
+
 #include <pcl/io/pcd_io.h>
 #include <pcl/features/integral_image_normal.h>
 #include <boost/thread/thread.hpp>
@@ -304,3 +307,5 @@ switch(i){
 
 return rgb;
 }
+
+#endif

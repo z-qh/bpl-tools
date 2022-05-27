@@ -39,8 +39,8 @@
 #include <cmath>
 #include <vector>
 #include <string>
-#include "../include/common.h"
-#include "../include/tic_toc.h"
+#include "common.h"
+#include "tic_toc.h"
 #include <nav_msgs/Odometry.h>
 #include "opencv2/opencv.hpp"
 #include <pcl_conversions/pcl_conversions.h>

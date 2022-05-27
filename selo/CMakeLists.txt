@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(selo)
-
+SET(CMAKE_BUILD_TYPE Release)
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
 
@@ -133,6 +133,11 @@ set(LIB_OPENCV_IMGPROC_DIR /usr/lib/x86_64-linux-gnu) #LIB_OPENCV_IMGPROC_DIR �
 add_library(libtbb SHARED IMPORTED) #添加库文件
 set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_DIR}/libtbb.so.2) #对标库文件 这里的LIB_OPENCV_IMGPROC_DIR就是第一行定义的路径
 
+##GMM
+add_library(GMM SHARED src/GMM.cpp src/KMeans.cpp)
+target_link_libraries(GMM ${PCL_LIBRARIES})
+target_include_directories(GMM PUBLIC include ${PCL_INCLUDE_DIRS})
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -161,8 +166,9 @@ target_link_libraries(selo
         ${OpenCV_LIBS}
         ${CHOLMOD_LIBRARIES} gtsam libtbb
         ${YAML_CPP_LIBRARIES}
+        GMM
         )
-##
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use

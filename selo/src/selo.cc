@@ -17,6 +17,13 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+
+#include "queue"
+#include "../include/CVC.h"
+
+#include "../include/KMeans.h"
+#include "../include/GMM.h"
+
 using namespace std;
 
 
@@ -24,24 +31,37 @@ int N_SCANS = 0;
 double MINIMUM_RANGE = 0.1;
 
 double timeCloudRaw = 0;
+double tiemOdomRaw = 0;
 
-bool newRawCloud = false;
+nav_msgs::Odometry laserOdomIn;
 
 pcl::PointCloud<PointType>::Ptr laserCloudIn(new pcl::PointCloud<PointType>());
 
 pcl::PointCloud<PointType>::Ptr laserCloudPole(new pcl::PointCloud<PointType>());
-pcl::PointCloud<PointType>::Ptr laserCloudBuilding(new pcl::PointCloud<PointType>());
+pcl::PointCloud<PointType>::Ptr laserCloudUpdate(new pcl::PointCloud<PointType>());
+pcl::PointCloud<PointType>::Ptr cluster_cloud(new pcl::PointCloud<PointType>());
+
+
+queue<nav_msgs::Odometry> laserOdomQueue;
+queue<sensor_msgs::PointCloud2ConstPtr> laserCloudMsgQueue;
 
 void publishCloud();
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg);
+void handleCloudMsgs(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg);
+
+void laserOdomHandler(nav_msgs::Odometry odom);
+void handleOdomMsgs(nav_msgs::Odometry odom);
+
 pcl::PointCloud<PointType>::Ptr mergeCloud(pcl::PointCloud<PointType>::Ptr dest, pcl::PointCloud<PointType>::Ptr source, vector<bool>&interest);
+pcl::PointCloud<PointType>::Ptr mergeCloudAndUpdateInfo(pcl::PointCloud<PointType>::Ptr dest, pcl::PointCloud<PointType>::Ptr source, vector<bool>&interest);
 vector<bool> getInterest(string file_name="/home/qh/kitti_data_interest.yaml");
 
 ros::Publisher pubPoleCloud;
-ros::Publisher pubBuildingCloud;
+ros::Publisher pubUpdatedCloud;
+ros::Publisher pubClusterCloud;
 
 vector<bool> interest_label;
-
+bool gt = false;
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "selo_temp");
@@ -50,28 +70,68 @@ int main(int argc, char** argv)
     nh.param<int>("scan_line", N_SCANS, 16);
     
     nh.param<double>("minimum_range", MINIMUM_RANGE, 0.1);
-
+    nh.param<bool>("gt", gt, false);
+    string odomTopic;
+    if(gt){
+        odomTopic = "/gt";
+    }else{
+        odomTopic = "/aft_mapped_to_init";
+    }
     interest_label = getInterest();
 
-    ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_registered", 10, laserCloudHandler);
+    ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/laser", 1, laserCloudHandler);
+    ros::Subscriber subLaserOdom;
+    subLaserOdom = nh.subscribe<nav_msgs::Odometry>(odomTopic, 1, laserOdomHandler);
 
     pubPoleCloud = nh.advertise<sensor_msgs::PointCloud2>("/pole_cloud_registered", 10);
-    pubBuildingCloud = nh.advertise<sensor_msgs::PointCloud2>("/building_cloud_registered", 10);
-
+    pubUpdatedCloud = nh.advertise<sensor_msgs::PointCloud2>("/updated_cloud_registered", 10);
+    pubClusterCloud = nh.advertise<sensor_msgs::PointCloud2>("/cluster_cloud_registered", 10);
     ros::Rate loop(100);
 
     while(ros::ok()){
         ros::spinOnce();
+        if( laserOdomQueue.empty() || laserCloudMsgQueue.empty()) continue;
+        while(abs( laserOdomQueue.front().header.stamp.toSec() - laserCloudMsgQueue.front()->header.stamp.toSec() ) > 0.05 ){
+            if( laserOdomQueue.empty() || laserCloudMsgQueue.empty()) break;
+            if( laserOdomQueue.front().header.stamp.toSec() < laserCloudMsgQueue.front()->header.stamp.toSec())laserOdomQueue.pop();
+            else laserCloudMsgQueue.pop();
+        }
+        if( laserOdomQueue.empty() || laserCloudMsgQueue.empty()) continue;
+        if( abs( laserOdomQueue.front().header.stamp.toSec() - laserCloudMsgQueue.front()->header.stamp.toSec() ) < 0.05 ){
+            
+            handleCloudMsgs(laserCloudMsgQueue.front());
+            handleOdomMsgs(laserOdomQueue.front());
+            laserCloudMsgQueue.pop();
+            laserOdomQueue.pop();
+            Eigen::Matrix4f transN = Eigen::Matrix4f::Identity();
+            Eigen::Quaternionf qN(laserOdomIn.pose.pose.orientation.w, 
+                                    laserOdomIn.pose.pose.orientation.x,
+                                    laserOdomIn.pose.pose.orientation.y,
+                                    laserOdomIn.pose.pose.orientation.z);
+            Eigen::Vector3f tN(laserOdomIn.pose.pose.position.x,laserOdomIn.pose.pose.position.y,laserOdomIn.pose.pose.position.z);
+            transN.block<3,3>(0,0) = Eigen::Matrix3f(qN);
+            transN.block<3,1>(0,3) = tN;
+            if(gt){
+                Eigen::Matrix4f gauss = Eigen::Matrix4f::Identity();
+                gauss<<0,-1, 0, 0,
+                    0, 0,-1, 0,
+                    1, 0, 0, 0,
+                    0, 0, 0, 1;
+                transN = gauss.transpose() * transN * gauss;
+            }
+            pcl::transformPointCloud(*laserCloudIn, *laserCloudIn, transN);
 
-        if(newRawCloud){
-            newRawCloud = false;
+            TicToc t_merge;
+            mergeCloudAndUpdateInfo(laserCloudPole, laserCloudIn, interest_label);
+            printf("merge time %f ms\n", t_merge.toc());
 
             publishCloud();
 
         }
+
         loop.sleep();
     }
-
+    if(!laserCloudPole->empty()) pcl::io::savePCDFileASCII("/home/qh/cluster.pcd", *laserCloudPole);
     return 0;
 
 }
@@ -91,7 +151,6 @@ void removeClosedPointCloud(const pcl::PointCloud<PointType> &cloud_in, pcl::Poi
         if (cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z < thres * thres)
             continue;
         cloud_out.points[j] = cloud_in.points[i];
-        cloud_out.points[j].label = cloud_out.points[j].label&0xFFFF;
         j++;
     }
     if (j != cloud_in.points.size())
@@ -104,25 +163,30 @@ void removeClosedPointCloud(const pcl::PointCloud<PointType> &cloud_in, pcl::Poi
     cloud_out.is_dense = true;
 }
 
+void laserOdomHandler(nav_msgs::Odometry odom){
+    laserOdomQueue.push(odom);
+    while(laserOdomQueue.size() > 10) laserOdomQueue.pop();
+}
+
+void handleOdomMsgs(nav_msgs::Odometry odom){
+    tiemOdomRaw = odom.header.stamp.toSec();
+    laserOdomIn = odom;
+}
+
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
 {
-    
-    newRawCloud = true;
-    timeCloudRaw = laserCloudMsg->header.stamp.toSec();
+    laserCloudMsgQueue.push(laserCloudMsg);
+    while(laserCloudMsgQueue.size() > 10) laserCloudMsgQueue.pop();
+}
 
+void handleCloudMsgs(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg){
+    timeCloudRaw = laserCloudMsg->header.stamp.toSec();
     vector<uint32_t> cloudLable;
     pcl::fromROSMsg(*laserCloudMsg, *laserCloudIn);
     std::vector<int> indices;
 
     pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
     removeClosedPointCloud(*laserCloudIn, *laserCloudIn, MINIMUM_RANGE);
-
-    TicToc t_merge;
-
-    mergeCloud(laserCloudPole, laserCloudIn, interest_label);
-
-    printf("merge time %f ms\n", t_merge.toc());
-
 }
 // 栅格化管理点云归并，距离已存点云相隔0.1m以上才会发生归并，这种归并主要发生在：
 //    1.旧观测点因观测位置改变，区域点云得到了形状地补全，此栅格注册方式忠实原始点云信息，不进行下采样。如一棵大树在初次观测为一面圆弧，全方位观测后得到一个圆柱
@@ -164,13 +228,7 @@ pcl::PointCloud<PointType>::Ptr mergeCloud(pcl::PointCloud<PointType>::Ptr dest,
 
     for(size_t i = 0; i < source->size(); ++i){
         auto&p=source->points[i];
-        if( p.label >= interest.size()){
-            cout << " ERROR HERE " << p.label << endl;
-            continue;
-            char k = getchar();
-            if (k == 'q') exit(0);
-        }
-        if(!interest[p.label]) continue;
+        if(!interest[p.label&0xFFFF]) continue;
         int ind_x = std::floor(p.x-minpt(0) / lx);
         int ind_y = std::floor(p.y-minpt(1) / ly);
         int ind_z = std::floor(p.z-minpt(2) / lz);
@@ -196,9 +254,110 @@ pcl::PointCloud<PointType>::Ptr mergeCloud(pcl::PointCloud<PointType>::Ptr dest,
 }
 
 
-void extractInstances(pcl::PointCloud<PointType>::Ptr dest){
+pcl::PointCloud<PointType>::Ptr mergeCloudAndUpdateInfo(pcl::PointCloud<PointType>::Ptr dest, pcl::PointCloud<PointType>::Ptr source, vector<bool>&interest)
+{   
+    //update info
+    laserCloudUpdate.reset(new pcl::PointCloud<PointType>());
+    //merge
+    double lx=0.1,ly=0.1,lz=0.1;
+    Eigen::Vector4f minpt,maxpt;
+    pcl::getMinMax3D(*source, minpt, maxpt);
 
+    map<int, std::pair<int, int> > dest_map; //key:voxel_i - val:dest_i,source_i
+    
+    int width = std::ceil( (maxpt(0)-minpt(0)) / lx );
+    int len   = std::ceil( (maxpt(1)-minpt(1)) / ly );
+    int hei   = std::ceil( (maxpt(2)-minpt(2)) / ly );
+    int perh  = width * len;
+
+    static double maxVol = 0;
+    double nowVol = (maxpt(0)-minpt(0))*(maxpt(1)-minpt(1))*(maxpt(2)-minpt(2));
+    if(nowVol > maxVol) maxVol = nowVol;
+    TicToc index_time;
+    for(size_t i = 0; i < dest->size(); ++i){
+        auto&p=dest->points[i];
+        if( p.x < minpt(0) || p.y < minpt(1) || p.z < minpt(2) || 
+            p.x > maxpt(0) || p.y > maxpt(1) || p.z > maxpt(2) ) continue;
+        int ind_x = std::floor(p.x-minpt(0) / lx);
+        int ind_y = std::floor(p.y-minpt(1) / ly);
+        int ind_z = std::floor(p.z-minpt(2) / lz);
+        int ind = ind_x + ind_y * width + ind_z * perh; 
+        dest_map[ind] = std::make_pair(i, -1);
+    }
+
+    for(size_t i = 0; i < source->size(); ++i){
+        auto&p=source->points[i];
+        if(!interest[p.label&0xFFFF]) continue;
+        int ind_x = std::floor(p.x-minpt(0) / lx);
+        int ind_y = std::floor(p.y-minpt(1) / ly);
+        int ind_z = std::floor(p.z-minpt(2) / lz);
+        int ind = ind_x + ind_y * width + ind_z * perh;
+        auto it = dest_map.find(ind);
+        if(it != dest_map.end()) it->second.second = i;
+        else dest_map[ind] = std::make_pair(-1, i);
+    }
+    printf("\tindex time %f\n", index_time.toc());
+
+    TicToc add_time;
+    int add_count=0;
+    for(auto&p:dest_map){
+        if(p.second.second != -1){
+            dest->push_back(source->points[p.second.second]);
+            laserCloudUpdate->push_back(source->points[p.second.second]);
+            add_count++;
+        }
+    }
+    printf("\tadd time %f num: %d\n", add_time.toc(), add_count);
+
+    TicToc cluster_time;
+    //cluster updatedcloud 
+    // 基于高斯混合模型的城市道路场景物体约束点云配准
+    // 根据局部地图、全局地图生成高斯混合模型，用于进行新点的实例化参数估计与数据关联，将新点关联到概率最大的实例中去，并根据优化后的位姿更新地图信息，以使得新的GMM是优化过后的点云注册而来
+    // 在生成第一帧点云聚类、新添加的点过多、有聚类的点概率数值过小的时候，需要重新进行生成聚类维护信息
+    // 数据关联方式就是GMM，但是聚类方式还得搞一下，
+    // updateCloud;
+
+    static bool update_cluster = true;
+    if(update_cluster){
+        //构建分类器
+        vector<PointAPR> papr;
+        calculateAPR(*dest, papr);
+        unordered_map<int, Voxel> hvoxel;
+        build_hash_table(papr, hvoxel);
+        vector<int> cluster_index = CVC(hvoxel, papr);
+        vector<int> cluster_id;
+        most_frequent_value(cluster_index, cluster_id);
+        //统计分割种类
+        map<int, vector<int>> classes;
+        for(int i = 0; i < cluster_index.size(); i++)
+        {
+            dest->points[i].label = cluster_index[i];
+            auto it = classes.find(cluster_index[i]);
+            if(it == classes.end())
+                classes.insert(make_pair(cluster_index[i], 1));
+            else
+                it->second.push_back(i);
+        }
+        //去除点数量比较少的聚类
+        cluster_cloud->clear();
+        for(auto it = classes.begin(); it != classes.end(); )
+        {
+            if(it->second.size() <= 30){
+                classes.erase(it++);
+            }else{
+                for(auto&p:it->second){
+                    cluster_cloud->push_back(dest->points[p]);
+                }
+                cout << it->first << " : " << it->second.size() << endl;
+                it++;
+            }
+        }
+        cout << " ClusterNums: " << classes.size() << endl;
+        printf("cluster time %f ms\n", cluster_time.toc());
+    }
+    return dest;
 }
+
 
 void publishCloud(){
     sensor_msgs::PointCloud2 tmpMsgs;
@@ -207,10 +366,17 @@ void publishCloud(){
     tmpMsgs.header.frame_id = "camera_init";
     pubPoleCloud.publish(tmpMsgs);
 
-    // pcl::toROSMsg(*laserCloudBuilding, tmpMsgs);
-    // tmpMsgs.header.stamp = ros::Time().fromSec(timeCloudRaw);
-    // tmpMsgs.header.frame_id = "camera_init";
-    // pubBuildingCloud.publish(tmpMsgs);
+    pcl::toROSMsg(*laserCloudUpdate, tmpMsgs);
+    tmpMsgs.header.stamp = ros::Time().fromSec(timeCloudRaw);
+    tmpMsgs.header.frame_id = "camera_init";
+    pubUpdatedCloud.publish(tmpMsgs);
+
+    pcl::toROSMsg(*cluster_cloud, tmpMsgs);
+    tmpMsgs.header.stamp = ros::Time().fromSec(timeCloudRaw);
+    tmpMsgs.header.frame_id = "camera_init";
+    pubClusterCloud.publish(tmpMsgs);
+
+    
 }
 
 #include "yaml-cpp/yaml.h"
@@ -231,7 +397,7 @@ vector<bool> getInterest(string file_name){
         if( now_label > max_labels && now_label_val != "" ){
             max_labels = now_label; 
         }
-        cout << now_label << ": " << now_label_val << endl; 
+        printf("%d : %s\n", now_label, now_label_val.c_str());
     }
 
     stringstream ss(config["interest"].as<string>());
@@ -243,10 +409,10 @@ vector<bool> getInterest(string file_name){
     std::sort(ind.begin(), ind.end());
 
     interest.resize(max_labels+1, false);
-    cout << "Total " << labels.size() << " labels." << " Max LabelNum: " << max_labels << ". These are interested:" << endl;
+    printf("Total %d labels. Max LabelNum: %d. Thest are interested:\n", (int)labels.size(), max_labels);
     for(auto&p:ind){
         interest[p] = true;
-        cout << p << ": " << "true" << endl;
+        printf("%d:true\n", p);
     }
 
     return interest;

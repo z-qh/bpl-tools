@@ -314,10 +314,10 @@ private:
         }
         // cout << " GT " << endl;
         //GT
-        // for(int i = startOdom; i <= endOdom; i++){
-        //     gtData[i].header.stamp = ros::Time().fromSec(rawLaserTimes[i+odom0InRaw]);
-        //     bag.write("/gt", gtData[i].header.stamp, gtData[i]);
-        // }
+        for(int i = startOdom; i <= endOdom; i++){
+            gtData[i].header.stamp = ros::Time().fromSec(rawLaserTimes[i+odom0InRaw]);
+            bag.write("/gt", gtData[i].header.stamp, gtData[i]);
+        }
 
         cout << " Lidar " << endl;
         //label and lidar

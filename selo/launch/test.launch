@@ -11,7 +11,8 @@
 
     <param name="mapping_line_resolution" type="double" value="0.4"/>
     <param name="mapping_plane_resolution" type="double" value="0.8"/>
-
+    <param name="gt" type="bool" value="false"/>
+    
     <node pkg="selo" type="ascanRegistration" name="ascanRegistration" output="log" />
 
     <node pkg="selo" type="alaserOdometry" name="alaserOdometry" output="log" />

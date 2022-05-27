@@ -64,6 +64,7 @@
 #include "../include/common.h"
 #include "../include/tic_toc.h"
 
+bool gt = false;
 
 int frameCount = 0;
 
@@ -149,11 +150,33 @@ ros::Publisher pubLaserCloudSurround, pubLaserCloudMap, pubLaserCloudFullRes, pu
 
 nav_msgs::Path laserAfterMappedPath;
 
+bool newRawOdom = false;
+double tiemOdomRaw = 0;
+nav_msgs::Odometry laserOdomIn;
+
 // set initial guess，上一帧的增量wmap_wodom * 本帧Odometry位姿wodom_curr，旨在为本帧Mapping位姿w_curr设置一个初始值
 void transformAssociateToMap()
 {
 	q_w_curr = q_wmap_wodom * q_wodom_curr;
 	t_w_curr = q_wmap_wodom * t_wodom_curr + t_wmap_wodom;
+}
+
+void getGT()
+{
+	Eigen::Matrix4d transN = Eigen::Matrix4d::Identity();
+	Eigen::Quaterniond qN(laserOdomIn.pose.pose.orientation.w, 
+							laserOdomIn.pose.pose.orientation.x,
+							laserOdomIn.pose.pose.orientation.y,
+							laserOdomIn.pose.pose.orientation.z);
+	Eigen::Vector3d tN(laserOdomIn.pose.pose.position.x,laserOdomIn.pose.pose.position.y,laserOdomIn.pose.pose.position.z);
+	Eigen::Matrix4d gauss = Eigen::Matrix4d::Identity();
+	gauss<<0,-1, 0, 0,
+		0, 0,-1, 0,
+		1, 0, 0, 0,
+		0, 0, 0, 1;
+	
+	q_w_curr = gauss.block<3,3>(0,0).transpose() * qN * gauss.block<3,3>(0,0);
+	t_w_curr = gauss.block<3,3>(0,0).transpose() * tN + gauss.block<3,1>(0,3);
 }
 
 // 用在最后，当Mapping的位姿w_curr计算完毕后，更新增量wmap_wodom，旨在为下一次执行transformAssociateToMap函数时做准备
@@ -207,6 +230,13 @@ void laserCloudFullResHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloud
 	mBuf.lock();
 	fullResBuf.push(laserCloudFullRes2);
 	mBuf.unlock();
+}
+
+void laserOdomHandler(nav_msgs::Odometry odom){
+	newRawOdom = true;
+    tiemOdomRaw = odom.header.stamp.toSec();
+
+    laserOdomIn = odom;
 }
 
 // receive odomtry
@@ -332,6 +362,7 @@ void process()
 
 			// 上一帧的增量wmap_wodom * 本帧Odometry位姿wodom_curr，旨在为本帧Mapping位姿w_curr设置一个初始值
 			transformAssociateToMap();
+			if(gt) getGT();
 
 			TicToc t_shift;
 			// 下面这是计算当前帧位置t_w_curr（在上图中用红色五角星表示的位置）IJK坐标（见上图中的坐标轴），
@@ -961,6 +992,7 @@ int main(int argc, char **argv)
 	float planeRes = 0;
 	nh.param<float>("mapping_line_resolution", lineRes, 0.4);
 	nh.param<float>("mapping_plane_resolution", planeRes, 0.8);
+	nh.param<bool>("gt", gt, false);
 	printf("line resolution %f plane resolution %f \n", lineRes, planeRes);
 	downSizeFilterCorner.setLeafSize(lineRes, lineRes,lineRes);
 	downSizeFilterSurf.setLeafSize(planeRes, planeRes, planeRes);
@@ -985,6 +1017,9 @@ int main(int argc, char **argv)
 
 	pubLaserAfterMappedPath = nh.advertise<nav_msgs::Path>("/aft_mapped_path", 100);
 
+	ros::Subscriber subLaserOdom  = nh.subscribe<nav_msgs::Odometry>("/gt", 10, laserOdomHandler);
+
+
 	for (int i = 0; i < laserCloudNum; i++)
 	{
 		laserCloudCornerArray[i].reset(new pcl::PointCloud<PointType>());
@@ -994,6 +1029,13 @@ int main(int argc, char **argv)
 	std::thread mapping_process{process};
 
 	ros::spin();
+	// pcl::PointCloud<PointType> laserCloudMap;
+	// for (int i = 0; i < 4851; i++)
+	// {
+	// 	laserCloudMap += *laserCloudCornerArray[i];
+	// 	laserCloudMap += *laserCloudSurfArray[i];
+	// }
+	// if(!laserCloudMap.empty()) pcl::io::savePCDFileASCII("/home/qh/map.pcd", laserCloudMap);
 
 	return 0;
 }

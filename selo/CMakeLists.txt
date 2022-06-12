@@ -133,38 +133,22 @@ set(LIB_OPENCV_IMGPROC_DIR /usr/lib/x86_64-linux-gnu) #LIB_OPENCV_IMGPROC_DIR �
 add_library(libtbb SHARED IMPORTED) #添加库文件
 set_target_properties(libtbb PROPERTIES IMPORTED_LOCATION ${LIB_OPENCV_IMGPROC_DIR}/libtbb.so.2) #对标库文件 这里的LIB_OPENCV_IMGPROC_DIR就是第一行定义的路径
 
-##GMM
-add_library(GMM SHARED include/gmm/GMM.cpp include/gmm/KMeans.cpp include/gmm/CHMM.cpp)
-target_link_libraries(GMM)
-target_include_directories(GMM PUBLIC include)
-
 ##CVC
-add_library(CVC SHARED include/cvc/CVC.cpp)
+add_library(CVC SHARED include/cvc/cvc.cpp)
 target_link_libraries(CVC ${PCL_LIBRARIES})
 target_include_directories(CVC PUBLIC include ${PCL_INCLUDE_DIRS})
 
-#MOT
-add_library(MOT SHARED include/mot/object.cc
-                       include/mot/hungarian/hungarian_bigraph_matcher.cc
-                       include/mot/common/graph_util.cc
-                       include/mot/common/geometry_util.cc
-                       include/mot/pcl_clip/pcl_clip.cpp
-                       include/mot/remove_ground/remove_ground.cpp
-                       include/mot/cluster/region_growing_segmentation.cpp
-                       include/mot/cluster/EuclideanCluster.cpp
-                       include/mot/cluster/dbscan.cpp
-                       include/mot/min_box/min_box.cc
-                       include/mot/hm_tracker/hm_tracker.cc
-                       include/mot/hm_tracker/feature_descriptor.cc
-                       include/mot/hm_tracker/hungarian_matcher.cc
-                       include/mot/hm_tracker/kalman_filter.cc
-                       include/mot/hm_tracker/object_track.cc
-                       include/mot/hm_tracker/track_object_distance.cc
-                       include/mot/hm_tracker/tracked_object.cc)
-target_link_libraries(MOT ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
-target_include_directories(CVC PUBLIC include ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
-                       
+#INSMAP
+add_library(INSMAP SHARED include/map/instance.cpp
+                          include/map/hungarian_bigraph_matcher.cpp
+                          include/map/ins_map.cpp)
+target_link_libraries(INSMAP ${PCL_LIBRARIES})
+target_include_directories(INSMAP PUBLIC include ${PCL_INCLUDE_DIRS})
 
+#DBSCAN
+add_library(DBSCAN SHARED include/dbscan/DBSCAN.cpp)
+target_link_libraries(DBSCAN ${PCL_LIBRARIES})
+target_include_directories(DBSCAN PUBLIC include ${PCL_INCLUDE_DIRS})
 
 ##A-LOAM odom
 add_executable(ascanRegistration include/odom/scanRegistration.cpp)
@@ -183,12 +167,12 @@ target_link_libraries(alaserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
+## With catkin_make all packages are built within a single Cins_mapMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## USING
 
 
-add_executable(selo src/selo.cc)
+add_executable(selo src/selo.cpp)
 target_link_libraries(selo
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
@@ -196,17 +180,39 @@ target_link_libraries(selo
         ${OpenCV_LIBS}
         ${CHOLMOD_LIBRARIES} gtsam libtbb
         ${YAML_CPP_LIBRARIES}
-        GMM
         )
 
-add_executable(mot src/mot.cpp)
-target_link_libraries(mot
+add_executable(ins_map_builder src/ins_map_builder.cpp)
+target_link_libraries(ins_map_builder
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
         ${CERES_LIBRARIES}
         ${OpenCV_LIBS}
         ${CHOLMOD_LIBRARIES} gtsam libtbb
         ${YAML_CPP_LIBRARIES}
+        DBSCAN
+        INSMAP
+        )
+
+add_executable(merge_map_test src/merge_map_test.cpp)
+target_link_libraries(merge_map_test
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        INSMAP
+        )
+
+add_executable(merge_demo src/merge_demo.cpp)
+target_link_libraries(merge_demo
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        INSMAP
+        )
+
+add_executable(math_test src/math_test.cpp)
+target_link_libraries(math_test
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        INSMAP
         )
 
 ## Rename C++ executable without prefix

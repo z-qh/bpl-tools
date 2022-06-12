@@ -36,10 +36,14 @@
 
 
 #pragma once
+#define PCL_NO_PRECOMPILE
 
 #include <cmath>
 
 #include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/impl/passthrough.hpp>
 
 // typedef pcl::PointXYZI PointType;
 
@@ -69,3 +73,4 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIL,
                                            (uint32_t, label, label)
 )
 typedef PointXYZIL PointType;
+// typedef pcl::PointXYZI PointType;

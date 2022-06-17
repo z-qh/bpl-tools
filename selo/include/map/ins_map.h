@@ -585,7 +585,7 @@ public:
     bool Merge(InstancesPtr &instances, float timestamp, InsMapTestOptions option)
     {
         
-        printf("##########################\n");
+        // printf("##########################\n");
         //////////////////////////////////////////////////////////////////////////////
         // 初始化 合并新Instances中的同类
         TicToc merge_individual;
@@ -594,18 +594,18 @@ public:
         {
             first_run = false;
             return Initialize(instances, timestamp, option);
-            printf("First Run ##########################\n");
+            // printf("First Run ##########################\n");
         }
         // 记录当前位姿
         RecordPose(option.velodyne_trans, timestamp);
         // 获取可见Instances位于世界坐标系下
-        printf("merge_individual: %f ms\n", merge_individual.toc());
+        // printf("merge_individual: %f ms\n", merge_individual.toc());
 
         TicToc search_map;
         InstancesPtr local_map_instances, global_map_instances;
         CollectVisibleGlobalInstances(global_map_instances);
         CollectVisibleLocalInstances(local_map_instances);
-        printf("search_map: %f ms\n", search_map.toc());
+        // printf("search_map: %f ms\n", search_map.toc());
         //////////////////////////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////////////////////////////
@@ -614,19 +614,19 @@ public:
         auto matchInfo = Match2Instances(instances, global_map_instances, map_config.match_distance_maximum);
 
 
-        printf("global matched %d\n", matchInfo.size());
+        // printf("global matched %d\n", matchInfo.size());
 
         // 获取没有和 global 匹配的 new instanc
         auto unassignments_global_new = UnassignedInstance(instances, matchInfo);
         // 和 local 进行匹配
         auto local_match_info = Match2Instances(unassignments_global_new, local_map_instances, map_config.match_distance_maximum);
         
-        printf("local  matched %d\n", local_match_info.size());
+        // printf("local  matched %d\n", local_match_info.size());
 
         // 获取 既没有和 global 也没有和 local 匹配的 new instance
         auto unassignments_global_local_new = UnassignedInstance(unassignments_global_new, local_match_info);
 
-        printf("none   matched %d\n", unassignments_global_local_new.size());
+        // printf("none   matched %d\n", unassignments_global_local_new.size());
 
         // 既没和 global 匹配上 也没和 local 匹配上的 new instance 就作为临时地图存在历史地图中
         for (auto &p : unassignments_global_local_new)
@@ -634,7 +634,7 @@ public:
             p->id = instances_local_id--;
             local_map_manager.insert({p, now_timestamp});
         }
-        printf("match_graph: %f ms\n", match_graph.toc());
+        // printf("match_graph: %f ms\n", match_graph.toc());
         //////////////////////////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////////////////////////////
@@ -652,9 +652,9 @@ public:
         // 重建已合并的 global instanc 以更新
         RebuildInstances(global_map_instances);
         RebuildInstances(local_map_instances);
-        printf("rebuild global:  %d\n", global_map_instances.size());
-        printf("rebuild local :  %d\n", local_map_instances.size());
-        printf("merge_to_map: %f ms\n", merge_to_map.toc());
+        // printf("rebuild global:  %d\n", global_map_instances.size());
+        // printf("rebuild local :  %d\n", local_map_instances.size());
+        // printf("merge_to_map: %f ms\n", merge_to_map.toc());
         //////////////////////////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////////////////////////////
@@ -666,12 +666,12 @@ public:
 
         // 删除5s之前的临时Instances 该注册进去的删除也无妨已经被记录了
         DeleteFarAwayLocalMap();
-        printf("check_all_map: %f ms\n", check_all_map.toc());
+        // printf("check_all_map: %f ms\n", check_all_map.toc());
         //////////////////////////////////////////////////////////////////////////////
         
-        printf("now global map size: %d\n", global_map_manager.size());
-        printf("now local  map size: %d\n", local_map_manager.size());
-        printf("##########################\n");
+        // printf("now global map size: %d\n", global_map_manager.size());
+        // printf("now local  map size: %d\n", local_map_manager.size());
+        // printf("##########################\n");
         return true;
     }
     // get local global instanc
@@ -718,7 +718,7 @@ private:
         // 初始化不需要匹配直接将Instances记录到Map中
         for (auto &p : instances)
         {   
-            printf("\033[32m add new instance to map %d \033[0m\n", instances_map_id);
+            // printf("\033[32m add new instance to map %d \033[0m\n", instances_map_id);
             p->id = instances_map_id;
             global_map_manager.insert({p, instances_map_id});
             instances_map_id++;
@@ -798,7 +798,7 @@ private:
             }
         }
         int after_delete_number = local_map_manager.size();
-        printf("delete %d nomatched\n", before_delete_number - after_delete_number);
+        // printf("delete %d nomatched\n", before_delete_number - after_delete_number);
     }
 
     // 将与 global 匹配的 new instanc 进行归拢
@@ -810,7 +810,7 @@ private:
             int assignments_number = assignments.size();
             for (int i = 0; i < assignments_number; ++i)
             {
-                printf("global matched merge %d in %d\n", new_inss[assignments[i].first]->id, map_inss[assignments[i].second]->id);
+                // printf("global matched merge %d in %d\n", new_inss[assignments[i].first]->id, map_inss[assignments[i].second]->id);
                 mergeSource2Map(new_inss[assignments[i].first], map_inss[assignments[i].second]);
                 if (map_inss[assignments[i].second]->update)
                 {
@@ -843,7 +843,7 @@ private:
             int assignments_number = assignments.size();
             for (int i = 0; i < assignments_number; ++i)
             {
-                printf("local matched merge %d in %d\n", new_inss[assignments[i].first]->id, local_inss[assignments[i].second]->id);
+                // printf("local matched merge %d in %d\n", new_inss[assignments[i].first]->id, local_inss[assignments[i].second]->id);
                 mergeSource2Map(new_inss[assignments[i].first], local_inss[assignments[i].second]);
                 bool shape_success = true;
                 if (local_inss[assignments[i].second]->update)
@@ -863,7 +863,7 @@ private:
                 }
                 else
                 {
-                    printf("not in local you wen ti %d\n", local_inss[assignments[i].second]->id);
+                    printf("\033[31mnot in local you wen ti %d\033[0m\n", local_inss[assignments[i].second]->id);
                     exit(0);
                 }
                 // 加入 global
@@ -875,14 +875,14 @@ private:
                 auto it_global = global_map_manager.find(local_inss[assignments[i].second]);
                 if (it_global == global_map_manager.end())
                 {
-                    printf("\033[32madd new instance to map %d\033[0m\n", instances_map_id);
+                    // printf("\033[32madd new instance to map %d\033[0m\n", instances_map_id);
                     local_inss[assignments[i].second]->id = instances_map_id;
                     global_map_manager.insert({local_inss[assignments[i].second], instances_map_id});
                     instances_map_id++;
                 }
                 else
                 {
-                    printf("already in global you wen ti %d\n", (it_global->first)->id);
+                    printf("\033[31malready in global you wen ti %d\033[0m\n", (it_global->first)->id);
                     exit(0);
                 }
             }
@@ -925,7 +925,7 @@ private:
                 auto n_p = Get2InssCollisionVolumePercent(inss_[i], inss_[j]);
                 if (n_p.second > 0)
                 {
-                    printf("individual merge %d in %d\n", inss_[j]->id, inss_[i]->id);
+                    // printf("individual merge %d in %d\n", inss_[j]->id, inss_[i]->id);
                     mergeSource2Map(inss_[j], inss_[i]);
                     merged_ins_ind[j] = true;
                     if (inss_[i]->update)
@@ -947,26 +947,26 @@ private:
                 inss.push_back(inss_[i]);
             }
         }
-        printf("input before gather up:  %d\n", inss_number);
-        printf("input after  gather up:  %d\n", inss.size());
+        // printf("input before gather up:  %d\n", inss_number);
+        // printf("input after  gather up:  %d\n", inss.size());
         return true;
     }
 
     // 归拢 Instances 中的重复的 Instance 并记录到地图 返回新注册的 instanc
     InstancesPtr MergeSameInstancesToMap(InstancesPtr &inss_map, InstancesPtr &inss_local)
     {
-        printf("update map: ");
-        for (auto &p : inss_map)
-        {
-            printf("%d ", p->id);
-        }
-        printf("\n");
-        printf("update local: ");
-        for (auto &p : inss_local)
-        {
-            printf("%d ", p->id);
-        }
-        printf("\n");
+        // printf("update map: ");
+        // for (auto &p : inss_map)
+        // {
+        //     printf("%d ", p->id);
+        // }
+        // printf("\n");
+        // printf("update local: ");
+        // for (auto &p : inss_local)
+        // {
+        //     printf("%d ", p->id);
+        // }
+        // printf("\n");
 
         InstancesPtr inss, inss_;
         inss.resize(inss_map.size() + inss_local.size());
@@ -990,7 +990,7 @@ private:
                 auto n_p = Get2InssCollisionVolumePercent(inss_[i], inss_[j]);
                 if (n_p.second > .2f)
                 {
-                    printf("new merge %d in %d\n", inss_[j]->id, inss_[i]->id);
+                    // printf("new merge %d in %d\n", inss_[j]->id, inss_[i]->id);
                     mergeSource2Map(inss_[j], inss_[i]);
                     merged_ins_ind[j] = true;
                     if (inss_[i]->update)
@@ -1020,15 +1020,15 @@ private:
                 auto it_global = global_map_manager.find(inss_[i]);
                 if (it_global == global_map_manager.end())
                 {
-                    printf("not in global you wen ti %d\n", inss_[i]->id);
+                    printf("\033[31mnot in global you wen ti %d\033[0m\n", inss_[i]->id);
                     exit(0);
                 }
-                printf("\033[34madd delete instance from map %d\033[0m\n", (it_global->first)->id);
+                // printf("\033[34madd delete instance from map %d\033[0m\n", (it_global->first)->id);
                 global_map_manager.erase(it_global);
             }
         }
-        printf("map before gather up:  %d\n", inss_number);
-        printf("map after  gather up:  %d\n", inss.size());
+        // printf("map before gather up:  %d\n", inss_number);
+        // printf("map after  gather up:  %d\n", inss.size());
         return inss;
     }
 
@@ -1089,7 +1089,7 @@ private:
         {
             for (size_t i = 1; i < this_connect.size(); ++i)
             {
-                printf("map merge %d in %d\n", around_instances[this_connect[i]]->id, around_instances[this_connect.front()]->id);
+                // printf("map merge %d in %d\n", around_instances[this_connect[i]]->id, around_instances[this_connect.front()]->id);
                 mergeSource2Map(around_instances[this_connect[i]], around_instances[this_connect.front()]);
                 if (around_instances[this_connect.front()]->update)
                 {
@@ -1109,12 +1109,12 @@ private:
             auto it_global = global_map_manager.find(around_instances[i]);
             if (it_global != global_map_manager.end())
             {
-                printf("\033[34mmap delete instance from map %d\033[0m\n", (it_global->first)->id);
+                // printf("\033[34mmap delete instance from map %d\033[0m\n", (it_global->first)->id);
                 global_map_manager.erase(it_global);
             }
             else
             {
-                printf("not in global you wen ti %d\n", around_instances[i]->id);
+                printf("\033[31mnot in global you wen ti %d\033[0m\n", around_instances[i]->id);
                 exit(0);
             }
         }

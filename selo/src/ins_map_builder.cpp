@@ -388,7 +388,7 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         // 提取 环境  场景
         TicToc time_rg;
         pcl::PointCloud<PointType>::Ptr points_rm = GetFilteredInterest(rec_point, interest_labels);
-        printf("remove ground %f ms\n", time_rg.toc());
+        printf("get interest %f ms\n", time_rg.toc());
         points_rm->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
         points_rm->header.frame_id = "map";
         pub_pcl_cliped.publish(points_rm);
@@ -418,6 +418,9 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
             }
         }
         printf("cluster time %f ms\n", time_cluste.toc());
+
+        // min_box
+        TicToc box_time;
         pcl::PointCloud<PointType>::Ptr pcl_cluster_ptr(new pcl::PointCloud<PointType>);
         for (int i = 0; i < counter; i++)
         {
@@ -426,9 +429,6 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         pcl_cluster_ptr->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
         pcl_cluster_ptr->header.frame_id = "map";
         // pub_pcl_cluster.publish(pcl_cluster_ptr);
-
-        // min_box
-        TicToc box_time;
         std::vector<std::shared_ptr<Instance>> instances;
         for (int i = 0; i < counter; i++)
         {
@@ -441,19 +441,21 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
             } 
             instances.push_back(out_ins);
         }
-        printf("build shape time %f ms\n", box_time.toc());
-        // 将Instances转移到世界坐标系下
+
         TransformInstances(instances, *transN);
 
+        // 将Instances转移到世界坐标系下
         // static int saveDirId = 0;
         // std::stringstream ss;
         // ss << std::fixed << saveDirId++;
         // std::string saveDir = "/home/qh/temp/"+ss.str()+"/";
         // if( 0 == access( saveDir.c_str(), 0)) SaveInstances(instances, saveDir);
+        printf("build shape time %f ms\n", box_time.toc());
 
-
+        TicToc pub_time_1;
         pubBBoxMarker(instances, marker_pub_box, 1);
         pubPoints(instances, pub_pcl_cliped);
+        printf("pub local time %f ms\n", pub_time_1.toc());
 
         // tracker
         TicToc track_time;
@@ -468,11 +470,15 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
 
         }
 
+        printf("ins map time %f ms\n", track_time.toc());
+
+
+        TicToc pub_time_2;
         auto allMap = mapper.GetGlobalMap();
         pubBBoxMarker(allMap, map_marker, 0);
         pubPoints(allMap, map_cloud);
+        printf("pub global time %f ms\n", pub_time_2.toc());
 
-        printf("ins map time %f ms\n", track_time.toc());
     }
     printf("total time %f ms\n", total.toc());
 }

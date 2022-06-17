@@ -22,7 +22,7 @@ class HungarianOptimizer {
   // be square (i.e. we can have different numbers of agents and tasks), but it
   // must be regular (i.e. there must be the same number of entries in each row
   // of the matrix).
-  explicit HungarianOptimizer(const std::vector<std::vector<double>>& costs);
+  explicit HungarianOptimizer(const std::vector<std::vector<float>>& costs);
 
   // Find an assignment which maximizes the total cost.
   // Returns the assignment in the two vectors passed as argument.
@@ -105,7 +105,7 @@ class HungarianOptimizer {
   void clear_covers();
 
   // Find the smallest uncovered cell in the matrix.
-  double find_smallest_uncovered();
+  float find_smallest_uncovered();
 
   // Find an uncovered zero and store its coordinates in (zeroRow_, zeroCol_)
   // and return true, or return false if no such cell exists.
@@ -165,10 +165,10 @@ class HungarianOptimizer {
   int matrix_size_ = 0;
 
   // The expanded cost matrix.
-  std::vector<std::vector<double>> costs_;
+  std::vector<std::vector<float>> costs_;
 
   // The greatest cost in the initial cost matrix.
-  double max_cost_ = 0.0;
+  float max_cost_ = 0.0;
 
   // Which rows and columns are currently covered.
   std::vector<bool> rows_covered_;

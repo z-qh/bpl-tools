@@ -37,7 +37,7 @@
 #include "odom/common.h"
 
 #include "map/instance.h"
-#include "map/ins_map.h""
+#include "map/ins_map.h"
 
 double timestamp = 0;
 
@@ -274,7 +274,6 @@ bool MergeGlobalMapTest(InstancesPtr &inss)
     // 将当前Instance 归并到地图 global中
     for (int i = 0; i < inss.size(); ++i)
     {
-        std::cout << i << " find ";
         auto& p = inss[i];
         // 寻找半径内相交的点
         double search_radius = GetRectMaxRadius(p);

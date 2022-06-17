@@ -5,7 +5,7 @@
 #include <iostream>
 
 HungarianOptimizer::HungarianOptimizer(
-    const std::vector<std::vector<double>>& costs)
+    const std::vector<std::vector<float>>& costs)
     : state_(nullptr) {
   width_ = costs.size();
 
@@ -166,8 +166,8 @@ void HungarianOptimizer::clear_covers() {
 }
 
 // Find the smallest uncovered cell in the matrix.
-double HungarianOptimizer::find_smallest_uncovered() {
-  double minval = std::numeric_limits<double>::max();
+float HungarianOptimizer::find_smallest_uncovered() {
+  float minval = std::numeric_limits<float>::max();
   uncov_col_.clear();
   uncov_row_.clear();
 
@@ -278,7 +278,7 @@ void HungarianOptimizer::check_star() {
 // from every element in its row.  Go to Step 2.
 void HungarianOptimizer::reduce_rows() {
   for (int row = 0; row < matrix_size_; ++row) {
-    double min_cost = costs_[row][0];
+    float min_cost = costs_[row][0];
     for (int col = 1; col < matrix_size_; ++col) {
       min_cost = std::min(min_cost, costs_[row][col]);
     }
@@ -456,7 +456,7 @@ void HungarianOptimizer::make_augmenting_path() {
 // covered row, and subtract it from every element of each uncovered column.
 // Return to Step 4 without altering any stars, primes, or covered lines.
 void HungarianOptimizer::augment_path() {
-  double minval = find_smallest_uncovered();
+  float minval = find_smallest_uncovered();
 
   for (int row = 0; row < matrix_size_; ++row) {
     if (row_covered(row)) {

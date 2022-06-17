@@ -39,11 +39,11 @@
 #include "map/instance.h"
 #include "map/ins_map.h"
 
-double timestamp = 0;
+float timestamp = 0;
 
 std::vector<bool> interest_labels;
 
-const std::vector<Eigen::Vector3d> color_tab{
+const std::vector<Eigen::Vector3f> color_tab{
     {1, 1, 1}, // white
     {1, 0, 0}, // red
     {0, 0, 1}, // blue
@@ -129,55 +129,57 @@ void pushBBox(InstancePtr ins, int &marker_id, int color, visualization_msgs::Ma
     line_strip.color.g = color_tab[color](1);
     line_strip.color.b = color_tab[color](2);
     line_strip.color.a = 1.0;
-    line_strip.points.resize(5);
-    {
-        geometry_msgs::Point p1, p2, p3, p4, p5, p6, p7, p8;
-        p1.x = p5.x = ins->vertex1[0];
-        p1.y = p5.y = ins->vertex1[1];
+    int line_points_size = ins->cloud_2dshape->size()+1;
+    line_strip.points.resize(line_points_size);
+    for(int i = 0; i < line_points_size; ++i)
+    {   
+        geometry_msgs::Point p;
+        if(i == line_points_size-1)
+        {
+            p.x = ins->cloud_2dshape->points[0].x;
+            p.y = ins->cloud_2dshape->points[0].y;
+            p.z = ins->max_height;
+            line_strip.points[i] = p;
+            break;
+        }
+        p.x = ins->cloud_2dshape->points[i].x;
+        p.y = ins->cloud_2dshape->points[i].y;
+        p.z = ins->max_height;
+        line_strip.points[i] = p;
+    }
+    line_strip.id = marker_id;
+    marker_array_box.markers.push_back(line_strip);
+    marker_id++;
+    for(int i = 0; i < line_points_size; ++i)
+    {   
+        geometry_msgs::Point p;
+        if(i == line_points_size-1)
+        {
+            p.x = ins->cloud_2dshape->points[0].x;
+            p.y = ins->cloud_2dshape->points[0].y;
+            p.z = ins->min_height;
+            line_strip.points[i] = p;
+            break;
+        }
+        p.x = ins->cloud_2dshape->points[i].x;
+        p.y = ins->cloud_2dshape->points[i].y;
+        p.z = ins->min_height;
+        line_strip.points[i] = p;
+    }
+    line_strip.id = marker_id;
+    marker_array_box.markers.push_back(line_strip);
+    marker_id++;
+    for(int i = 0; i < line_points_size-1; ++i)
+    {   
+        line_strip.points.resize(2);
+        geometry_msgs::Point p1, p2;
+        p1.x = p2.x = ins->cloud_2dshape->points[i].x;
+        p1.y = p2.y = ins->cloud_2dshape->points[i].y;
         p1.z = ins->min_height;
-        p5.z = ins->max_height;
-        p2.x = p6.x = ins->vertex2[0];
-        p2.y = p6.y = ins->vertex2[1];
-        p2.z = ins->min_height;
-        p6.z = ins->max_height;
-        p3.x = p7.x = ins->vertex3[0];
-        p3.y = p7.y = ins->vertex3[1];
-        p3.z = ins->min_height;
-        p7.z = ins->max_height;
-        p4.x = p8.x = ins->vertex4[0];
-        p4.y = p8.y = ins->vertex4[1];
-        p4.z = ins->min_height;
-        p8.z = ins->max_height;
-        line_strip.id = marker_id;
+        p2.z = ins->max_height;
         line_strip.points[0] = p1;
         line_strip.points[1] = p2;
-        line_strip.points[2] = p4;
-        line_strip.points[3] = p3;
-        line_strip.points[4] = p1;
-        marker_array_box.markers.push_back(line_strip);
-        marker_id++;
         line_strip.id = marker_id;
-        line_strip.points[0] = p5;
-        line_strip.points[1] = p6;
-        line_strip.points[2] = p8;
-        line_strip.points[3] = p7;
-        line_strip.points[4] = p5;
-        marker_array_box.markers.push_back(line_strip);
-        marker_id++;
-        line_strip.id = marker_id;
-        line_strip.points[0] = p1;
-        line_strip.points[1] = p5;
-        line_strip.points[2] = p7;
-        line_strip.points[3] = p3;
-        line_strip.points[4] = p1;
-        marker_array_box.markers.push_back(line_strip);
-        marker_id++;
-        line_strip.id = marker_id;
-        line_strip.points[0] = p2;
-        line_strip.points[1] = p6;
-        line_strip.points[2] = p8;
-        line_strip.points[3] = p4;
-        line_strip.points[4] = p2;
         marker_array_box.markers.push_back(line_strip);
         marker_id++;
     }
@@ -224,8 +226,9 @@ pcl::PointCloud<PointType>::Ptr GetFilteredInterest(pcl::PointCloud<PointType>::
     }
 }
 
-void getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointIndices> &cluster_indices)
+bool getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointIndices> &cluster_indices)
 {
+    if(in->empty()) return false;
     cluster_indices.clear();
     int point_number = in->points.size();
     pcl::VoxelGrid<PointType> downSizeFilter;
@@ -243,7 +246,7 @@ void getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::Point
         *downSizePoints += *in;
     }
     int core_point_min_pts_param = 15; //判断不为噪声点的阈值
-    double clusterTolerance = 0.1;     // dbscan聚类搜索半径
+    float clusterTolerance = 0.1;     // dbscan聚类搜索半径
     int min_cluster_size_param = 20;   //聚类后点的数目最小值
     bool isDynamic = false;            //阈值是否动态调整
     pcl::KdTreeFLANN<PointType>::Ptr tree(new pcl::KdTreeFLANN<PointType>);
@@ -260,6 +263,7 @@ void getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::Point
     ec.setS(1.5);
     ec.setDynamic(isDynamic);
     ec.extract(cluster_indices); //聚类后所有的点的索引值存放在数组中
+    return true;
 }
 
 void getEulerCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointIndices> &clusters)
@@ -280,7 +284,7 @@ void getEulerCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointI
     {
         *downSizePoints += *in;
     }
-    double clusterTolerance = 0.2; //欧式聚类搜索距离
+    float clusterTolerance = 0.2; //欧式聚类搜索距离
     int minClusterSize = 30;       //最小聚类数量
     int maxClusterSize = 20000;    //最大聚类数量
     pcl::search::Search<PointType>::Ptr tree = boost::shared_ptr<pcl::search::Search<PointType>>(new pcl::search::KdTree<PointType>);
@@ -365,33 +369,34 @@ void laserOdomHandler(nav_msgs::Odometry odom)
 
 void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry odom)
 {
+    TicToc total;
     pcl::PointCloud<PointType>::Ptr rec_point(new pcl::PointCloud<PointType>);
     pcl::fromROSMsg(*rec, *rec_point);
     timestamp = rec->header.stamp.toSec();
     // 车辆坐标系向 世界坐标系转换的 转换矩阵
-    std::shared_ptr<Eigen::Matrix4d> transN = std::make_shared<Eigen::Matrix4d>();
-    Eigen::Quaterniond qN(odom.pose.pose.orientation.w,
+    std::shared_ptr<Eigen::Matrix4f> transN = std::make_shared<Eigen::Matrix4f>();
+    Eigen::Quaternionf qN(odom.pose.pose.orientation.w,
                             odom.pose.pose.orientation.x,
                             odom.pose.pose.orientation.y,
                             odom.pose.pose.orientation.z);
-    Eigen::Vector3d tN(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
-    transN->block<3, 3>(0, 0) = Eigen::Matrix3d(qN);
+    Eigen::Vector3f tN(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
+    transN->block<3, 3>(0, 0) = Eigen::Matrix3f(qN);
     transN->block<3, 1>(0, 3) = tN;
 
     if (rec_point->points.size() > 0)
     {
-        // remove ground
+        // 提取 环境  场景
         TicToc time_rg;
         pcl::PointCloud<PointType>::Ptr points_rm = GetFilteredInterest(rec_point, interest_labels);
         printf("remove ground %f ms\n", time_rg.toc());
         points_rm->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
         points_rm->header.frame_id = "map";
-        // pub_pcl_cliped.publish(points_rm);
+        pub_pcl_cliped.publish(points_rm);
 
         // cluster
         TicToc time_cluste;
         std::vector<pcl::PointIndices> clusters;
-        getDBSCANCluster(points_rm, clusters);
+        if ( ! getDBSCANCluster(points_rm, clusters) ) return; 
         // getEulerCluster(points_rm, clusters);
         int counter = clusters.size();
         float cluster_id = 1;
@@ -412,7 +417,7 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
                 points_vector.push_back(temp_cluster);
             }
         }
-        printf("cluster time %fms\n", time_cluste.toc());
+        printf("cluster time %f ms\n", time_cluste.toc());
         pcl::PointCloud<PointType>::Ptr pcl_cluster_ptr(new pcl::PointCloud<PointType>);
         for (int i = 0; i < counter; i++)
         {
@@ -427,23 +432,28 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         std::vector<std::shared_ptr<Instance>> instances;
         for (int i = 0; i < counter; i++)
         {
-            std::shared_ptr<Instance> out_obj(new Instance);
-            out_obj->cloud = points_vector[i];
-            instances.push_back(out_obj);
+            std::shared_ptr<Instance> out_ins(new Instance);
+            out_ins->cloud = points_vector[i];
+            out_ins->id = -i - 1000;
+            if( !out_ins->init())
+            {
+                continue;
+            } 
+            instances.push_back(out_ins);
         }
-        MinBoxInstanceBuilder instance_builder;
-        InstanceBuilderOptions instance_builder_options;
-        if (!instance_builder.Build(instance_builder_options, &instances))
-        {
-            return;
-        }
-        // printf("minbox time %fms\n", box_time.toc());
+        printf("build shape time %f ms\n", box_time.toc());
+        // 将Instances转移到世界坐标系下
+        TransformInstances(instances, *transN);
 
         // static int saveDirId = 0;
         // std::stringstream ss;
         // ss << std::fixed << saveDirId++;
         // std::string saveDir = "/home/qh/temp/"+ss.str()+"/";
         // if( 0 == access( saveDir.c_str(), 0)) SaveInstances(instances, saveDir);
+
+
+        pubBBoxMarker(instances, marker_pub_box, 1);
+        pubPoints(instances, pub_pcl_cliped);
 
         // tracker
         TicToc track_time;
@@ -456,16 +466,15 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
             map_option.velodyne_trans = *transN;
             mapper.Merge(instances, timestamp, map_option);
 
-            auto allMap = mapper.GetGlobalMap();
-
-            pubBBoxMarker(instances, marker_pub_box, 1);
-            pubPoints(instances, pub_pcl_cliped);
-
-            pubBBoxMarker(allMap, map_marker, 0);
-            pubPoints(allMap, map_cloud);
         }
-        printf("tracker time %fms\n", track_time.toc());
+
+        auto allMap = mapper.GetGlobalMap();
+        pubBBoxMarker(allMap, map_marker, 0);
+        pubPoints(allMap, map_cloud);
+
+        printf("ins map time %f ms\n", track_time.toc());
     }
+    printf("total time %f ms\n", total.toc());
 }
 
 int main(int argc, char **argv)

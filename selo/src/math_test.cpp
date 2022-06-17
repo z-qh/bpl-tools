@@ -551,11 +551,11 @@ void test_connect_test()
 
 int main()
 {
-    test_connect_test();
+    // test_connect_test();
 
 
-    string dddd1 = "/home/qh/temp/-1015.ins";
-    string dddd2 = "/home/qh/temp/-1030.ins";
+    string dddd1 = "/home/qh/temp/-1004.ins";
+    string dddd2 = "/home/qh/temp/-1026.ins";
     auto insA = LoadInstanace(dddd1);
     auto insB = LoadInstanace(dddd2);
     if(insA == nullptr) return 0;
@@ -579,7 +579,11 @@ int main()
     if(polygon_collision_area(ins_a_ver, ins_b_ver)) cout << " coll !!!!!"  << endl;
     cout << "##################" << endl;
     float area = polygon_collision_area_test(ins_a_ver, ins_b_ver);
-    cout << "area" << area << endl;
+    cout << insA->area << endl;
+    cout << insB->area << endl;
+    cout << "area " << area << endl;
+
+    if( area-insA->area > 1E-2 ) cout << " 123 " << endl;
 
     return 0;
 }

@@ -17,8 +17,12 @@
 #include "instance.h"
 #include "hungarian_bigraph_matcher.h"
 
+const float precision = 1E-2;
+
 typedef std::shared_ptr<Instance> InstancePtr;
 typedef std::vector<std::shared_ptr<Instance>> InstancesPtr;
+
+
 
 // 变换点云
 void TransformPointCloud(const Eigen::Matrix4f &trans_mat, pcl::PointCloud<PointType> &cloud_in_out)
@@ -496,7 +500,7 @@ std::pair<float, float> Get2InssCollisionVolumePercent(InstancePtr &ins_a, Insta
     if (gjk(ins_a_ver, ins_b_ver))
     {
         float coll_area = polygon_collision_area(ins_a_ver, ins_b_ver);
-        if (coll_area > ins_a->area || coll_area > ins_b->area)
+        if ( (coll_area-ins_a->area) > precision || (coll_area-ins_b->area) > precision)
         {
             printf("\033[31merror here 501 %d %d\033[0m\n", ins_a->id, ins_b->id);
             std::string saveDir = "/home/qh/temp";

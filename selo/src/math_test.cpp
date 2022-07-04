@@ -300,7 +300,7 @@ void testRect()
     char key;
     key = getchar();
     vector<shared_ptr<Instance>> inss1, inss2;
-    std::string dddd1 = "/home/qh/temp/ins_map";
+    std::string dddd1 = "/home/qh/ins_map_temp/ins_map";
     LoadInstanaces(inss1, dddd1);
     getchar();
 }
@@ -389,8 +389,8 @@ pcl::PolygonMesh ComputePolygonBoundaries(InstancePtr &ins)
         p.z = min_pt(2);
     }
     ins->cloud_2dshape = pcd_xy;
-    pcl::io::savePCDFileASCII("/home/qh/temp/" + std::to_string(ins->id) + "_filtered.pcd", *(ins->cloud));
-    pcl::io::savePCDFileASCII("/home/qh/temp/" + std::to_string(ins->id) + "_origin.pcd", *(ins->cloud_2dshape));
+    pcl::io::savePCDFileASCII("/home/qh/ins_map_temp/" + std::to_string(ins->id) + "_filtered.pcd", *(ins->cloud));
+    pcl::io::savePCDFileASCII("/home/qh/ins_map_temp/" + std::to_string(ins->id) + "_origin.pcd", *(ins->cloud_2dshape));
     // 对2d_shape 求凸包 求凹包
     pcl::ConvexHull<PointType> convex_hull;
     convex_hull.setDimension(2);
@@ -554,8 +554,8 @@ int main()
     // test_connect_test();
 
 
-    string dddd1 = "/home/qh/temp/-1004.ins";
-    string dddd2 = "/home/qh/temp/-1026.ins";
+    string dddd1 = "/home/qh/ins_map_temp/-1002.ins";
+    string dddd2 = "/home/qh/ins_map_temp/-1027.ins";
     auto insA = LoadInstanace(dddd1);
     auto insB = LoadInstanace(dddd2);
     if(insA == nullptr) return 0;
@@ -566,13 +566,13 @@ int main()
     cout << insA->cloud_2dshape->size() << endl;
     for (auto &p : insA->cloud_2dshape->points)
     {
-        cout << "(" << p.x << "," << p.y << ")," << p.z << endl;
+        cout << "(" << p.x << "," << p.y << ")," << endl;
         ins_a_ver.push_back(p);
     }
     cout << insB->cloud_2dshape->size() << endl;
     for (auto &p : insB->cloud_2dshape->points)
     {
-        cout << "(" << p.x << "," << p.y << ")," << p.z << endl;
+        cout << "(" << p.x << "," << p.y << ")," << endl;
         ins_b_ver.push_back(p);
     }
 

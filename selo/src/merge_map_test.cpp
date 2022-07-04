@@ -208,7 +208,7 @@ int main(int argc, char **argv)
     after_merge_map_cloud_puber  = nh.advertise<pcl::PointCloud<PointType>>("/after_map_points", 1);
 
     InstancesPtr load_inss;
-    string load_str = "/home/qh/temp/ins_map";
+    string load_str = "/home/qh/ins_map_temp/ins_map";
     LoadInstanaces(load_inss, load_str);
 
     
@@ -233,7 +233,7 @@ int main(int argc, char **argv)
         pubPoints(merged_inss, after_merge_map_cloud_puber);
         loop.sleep();
     }
-    string save_path = "/home/qh/temp/ins_map_merge";
+    string save_path = "/home/qh/ins_map_temp/ins_map_merge";
     SaveInstances(merged_inss, save_path);
 
     return 0;

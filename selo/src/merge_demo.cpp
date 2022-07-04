@@ -605,9 +605,9 @@ int main(int argc, char **argv)
     marker_pub_box_2 = nh.advertise<visualization_msgs::MarkerArray>("/marker_box_2", 1);
 
     vector<shared_ptr<Instance>> instances1, instances2, instances0;
-    string d0 = "/home/qh/temp/0/";
-    string d1 = "/home/qh/temp/1/";
-    string d2 = "/home/qh/temp/2/";
+    string d0 = "/home/qh/ins_map_temp/0/";
+    string d1 = "/home/qh/ins_map_temp/1/";
+    string d2 = "/home/qh/ins_map_temp/2/";
 
     LoadInstanaces(instances0, d0);
     LoadInstanaces(instances1, d1);

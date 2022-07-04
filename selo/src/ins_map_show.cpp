@@ -243,7 +243,7 @@ int main(int argc, char** argv)
     ins_pub_map_cloud      = nh.advertise<pcl::PointCloud<PointType>>("/ins_map/ins_cloud", 1);
     
     InstancesPtr  instances;
-    string path = "/home/qh/temp/" + prefix;
+    string path = "/home/qh/ins_map_temp/" + prefix;
     LoadInstanaces(instances, path);
     pcl::PointCloud<PointType>::Ptr shape_cloud(new pcl::PointCloud<PointType>());
 
@@ -251,7 +251,7 @@ int main(int argc, char** argv)
 
     if(!all_box_cloud->empty())
     {
-        // pcl::io::savePCDFileASCII("/home/qh/temp/"+prefix+"_BBox.pcd", *all_box_cloud);
+        pcl::io::savePCDFileASCII("/home/qh/ins_map_temp/"+prefix+"_BBox.pcd", *all_box_cloud);
     }
 
     pcl::PointCloud<PointType>::Ptr origin_cloud(new pcl::PointCloud<PointType>());
@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 
     if(!origin_cloud->empty())
     {
-        // pcl::io::savePCDFileASCII("/home/qh/temp/"+prefix+"_cloud.pcd", *origin_cloud);
+        pcl::io::savePCDFileASCII("/home/qh/ins_map_temp/"+prefix+"_cloud.pcd", *origin_cloud);
     }
 
     ros::Rate loop(0.2);

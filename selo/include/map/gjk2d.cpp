@@ -4,7 +4,7 @@
 
 
 
-const float eps = 1E-2;
+const float eps = 1E-3;
 // 基础点处理方法
 // 作差向量
 PointType subtract(PointType a, PointType b)

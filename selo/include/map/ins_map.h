@@ -77,13 +77,52 @@ void ConnectComponentAnalysis(const std::vector<std::vector<int>> &graph, std::v
     }
 }
 
+// 计算两个凸包相交区域占比
+std::pair<float, float> Get2InssCollisionVolumePercent(InstancePtr &ins_a, InstancePtr &ins_b)
+{
+    std::vector<PointType> ins_a_ver, ins_b_ver;
+    for (auto &p : ins_a->cloud_2dshape->points)
+        ins_a_ver.push_back(p);
+    for (auto &p : ins_b->cloud_2dshape->points)
+        ins_b_ver.push_back(p);
+    if (gjk(ins_a_ver, ins_b_ver))
+    {
+        float coll_area = polygon_collision_area(ins_a_ver, ins_b_ver);
+        if ( (coll_area-ins_a->area) > precision || (coll_area-ins_b->area) > precision)
+        {
+            printf("\033[31merror here 501 %d %d\033[0m\n", ins_a->id, ins_b->id);
+            std::string saveDir = "/home/qh/ins_map_temp";
+            SaveInstance(ins_a, saveDir);
+            SaveInstance(ins_b, saveDir);
+            exit(0);
+        }
+        return std::pair<float, float>(coll_area / ins_a->area, coll_area / ins_b->area);
+    }
+
+    return std::pair<float, float>(0, 0);
+}
+
 // 计算两个聚类距离
 float ComputeDistance(InstancePtr new_ins, InstancePtr map_ins)
 {
     // Compute distance for given new_ins & map_ins
-    float location_distance = (new_ins->center - map_ins->center).norm(); //距离差异
+    // float location_distance = (new_ins->center - map_ins->center).norm(); //距离差异
 
-    float result_distance = location_distance; //各个差异*权值
+    pcl::PointCloud<PointType>::Ptr total2dshapes(new pcl::PointCloud<PointType>());
+    *total2dshapes = *new_ins->cloud_2dshape + *map_ins->cloud_2dshape;
+    pcl::ConvexHull<PointType> convex_hull;
+    convex_hull.setDimension(2);
+    convex_hull.setComputeAreaVolume(true);
+    convex_hull.setInputCloud(total2dshapes);
+    pcl::PolygonMesh mesh_result;
+    convex_hull.reconstruct(mesh_result);
+    float S_total = convex_hull.getTotalArea();
+    
+    auto S_overlap_rate = Get2InssCollisionVolumePercent(new_ins, map_ins);
+    float S_overlap = S_overlap_rate.second * map_ins->area;
+
+    float result_distance = sqrt(S_total / ( new_ins->area + map_ins->area - S_overlap ));
+    result_distance = (new_ins->center - map_ins->center).norm();
     return result_distance;
 }
 
@@ -489,30 +528,6 @@ bool isSame(InstancePtr &a, InstancePtr &b)
     return !(a.owner_before(b) || b.owner_before(a));
 }
 
-// 计算两个凸包相交区域占比
-std::pair<float, float> Get2InssCollisionVolumePercent(InstancePtr &ins_a, InstancePtr &ins_b)
-{
-    std::vector<PointType> ins_a_ver, ins_b_ver;
-    for (auto &p : ins_a->cloud_2dshape->points)
-        ins_a_ver.push_back(p);
-    for (auto &p : ins_b->cloud_2dshape->points)
-        ins_b_ver.push_back(p);
-    if (gjk(ins_a_ver, ins_b_ver))
-    {
-        float coll_area = polygon_collision_area(ins_a_ver, ins_b_ver);
-        if ( (coll_area-ins_a->area) > precision || (coll_area-ins_b->area) > precision)
-        {
-            printf("\033[31merror here 501 %d %d\033[0m\n", ins_a->id, ins_b->id);
-            std::string saveDir = "/home/qh/temp";
-            SaveInstance(ins_a, saveDir);
-            SaveInstance(ins_b, saveDir);
-            exit(0);
-        }
-        return std::pair<float, float>(coll_area / ins_a->area, coll_area / ins_b->area);
-    }
-
-    return std::pair<float, float>(0, 0);
-}
 
 // 将Instance点云转到给定坐标下
 void TransformInstance(InstancePtr ins, const Eigen::Matrix4f &pose)

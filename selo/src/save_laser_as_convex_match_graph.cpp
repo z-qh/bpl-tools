@@ -37,7 +37,6 @@
 #include "odom/common.h"
 
 #include "map/instance.h"
-#include "map/ins_map.h"
 
 float timestamp = 0;
 
@@ -52,6 +51,11 @@ const std::vector<Eigen::Vector3f> color_tab{
     {0, 1, 1} // sky
 };
 
+
+typedef std::shared_ptr<Instance> InstancePtr;
+typedef std::vector<std::shared_ptr<Instance>> InstancesPtr;
+
+
 std::queue<nav_msgs::Odometry> laserOdomQueue;
 std::queue<sensor_msgs::PointCloud2ConstPtr> laserCloudMsgQueue;
 
@@ -64,7 +68,6 @@ ros::Publisher map_cloud;
 ros::Publisher pub_pcl_cluster, pub_pcl_cliped;
 
 
-InsMapTest mapper;
 
 void pubPoints(InstancesPtr &inss, ros::Publisher &pubCloud)
 {
@@ -138,51 +141,51 @@ void pushBBox(InstancePtr ins, int &marker_id, int color, visualization_msgs::Ma
         {
             p.x = ins->cloud_2dshape->points[0].x;
             p.y = ins->cloud_2dshape->points[0].y;
-            p.z = ins->max_height;
+            p.z = 0;
             line_strip.points[i] = p;
             break;
         }
         p.x = ins->cloud_2dshape->points[i].x;
         p.y = ins->cloud_2dshape->points[i].y;
-        p.z = ins->max_height;
+        p.z = 0;
         line_strip.points[i] = p;
     }
     line_strip.id = marker_id;
     marker_array_box.markers.push_back(line_strip);
     marker_id++;
-    for(int i = 0; i < line_points_size; ++i)
-    {   
-        geometry_msgs::Point p;
-        if(i == line_points_size-1)
-        {
-            p.x = ins->cloud_2dshape->points[0].x;
-            p.y = ins->cloud_2dshape->points[0].y;
-            p.z = ins->min_height;
-            line_strip.points[i] = p;
-            break;
-        }
-        p.x = ins->cloud_2dshape->points[i].x;
-        p.y = ins->cloud_2dshape->points[i].y;
-        p.z = ins->min_height;
-        line_strip.points[i] = p;
-    }
-    line_strip.id = marker_id;
-    marker_array_box.markers.push_back(line_strip);
-    marker_id++;
-    for(int i = 0; i < line_points_size-1; ++i)
-    {   
-        line_strip.points.resize(2);
-        geometry_msgs::Point p1, p2;
-        p1.x = p2.x = ins->cloud_2dshape->points[i].x;
-        p1.y = p2.y = ins->cloud_2dshape->points[i].y;
-        p1.z = ins->min_height;
-        p2.z = ins->max_height;
-        line_strip.points[0] = p1;
-        line_strip.points[1] = p2;
-        line_strip.id = marker_id;
-        marker_array_box.markers.push_back(line_strip);
-        marker_id++;
-    }
+    // for(int i = 0; i < line_points_size; ++i)
+    // {   
+    //     geometry_msgs::Point p;
+    //     if(i == line_points_size-1)
+    //     {
+    //         p.x = ins->cloud_2dshape->points[0].x;
+    //         p.y = ins->cloud_2dshape->points[0].y;
+    //         p.z = ins->min_height;
+    //         line_strip.points[i] = p;
+    //         break;
+    //     }
+    //     p.x = ins->cloud_2dshape->points[i].x;
+    //     p.y = ins->cloud_2dshape->points[i].y;
+    //     p.z = ins->min_height;
+    //     line_strip.points[i] = p;
+    // }
+    // line_strip.id = marker_id;
+    // marker_array_box.markers.push_back(line_strip);
+    // marker_id++;
+    // for(int i = 0; i < line_points_size-1; ++i)
+    // {   
+    //     line_strip.points.resize(2);
+    //     geometry_msgs::Point p1, p2;
+    //     p1.x = p2.x = ins->cloud_2dshape->points[i].x;
+    //     p1.y = p2.y = ins->cloud_2dshape->points[i].y;
+    //     p1.z = ins->min_height;
+    //     p2.z = ins->max_height;
+    //     line_strip.points[0] = p1;
+    //     line_strip.points[1] = p2;
+    //     line_strip.id = marker_id;
+    //     marker_array_box.markers.push_back(line_strip);
+    //     marker_id++;
+    // }
 }
 
 void pubBBoxMarker(const std::vector<std::shared_ptr<Instance>> &instances, ros::Publisher marker_pub_box_, int color = 0)
@@ -369,6 +372,19 @@ void laserOdomHandler(nav_msgs::Odometry odom)
         laserOdomQueue.pop();
 }
 
+void saveInstancesMatchGraph(InstancesPtr &inss, std::string filename){
+    std::ofstream file(filename);
+    file<<inss.size()<<std::endl;
+    for(auto&ins:inss){
+        file<<ins->cloud_2dshape->size()<<std::endl;
+        for(auto&p:ins->cloud_2dshape->points)
+        {
+            file<<p.x<<" "<<p.y<<std::endl;
+        }
+    }
+    file.close();
+}
+
 void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry odom)
 {
     TicToc total;
@@ -398,8 +414,8 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         // cluster
         TicToc time_cluste;
         std::vector<pcl::PointIndices> clusters;
-        // if ( ! getDBSCANCluster(points_rm, clusters) ) return; 
-        if ( ! getEulerCluster(points_rm, clusters) ) return;
+        if ( ! getDBSCANCluster(points_rm, clusters) ) return; 
+        // if ( ! getEulerCluster(points_rm, clusters) ) return;
         int counter = clusters.size();
         float cluster_id = 1;
         std::vector<pcl::PointCloud<PointType>::Ptr> points_vector;
@@ -443,9 +459,12 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
             } 
             instances.push_back(out_ins);
         }
-
-        TransformInstances(instances, *transN);
-
+        // TransformInstances(instances, *transN);
+        static std::vector<std::string> file_names;
+        std::stringstream ss;
+        static int local_map_id = 0;
+        ss << std::fixed << std::setprecision(2) << "/home/qh/ins_map_temp/match_graph/" << local_map_id++ << ".inss";
+        // saveInstancesMatchGraph(instances, ss.str());
         // 将Instances转移到世界坐标系下
         // static int saveDirId = 0;
         // std::stringstream ss;
@@ -454,36 +473,18 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         // if( 0 == access( saveDir.c_str(), 0)) SaveInstances(instances, saveDir);
         printf("build shape time %f ms\n", box_time.toc());
 
+
         TicToc pub_time_1;
         pubBBoxMarker(instances, marker_pub_box, 1);
-        pubPoints(instances, pub_pcl_cliped);
+        // pubPoints(instances, pub_pcl_cliped);
         printf("pub local time %f ms\n", pub_time_1.toc());
 
-        // tracker
-        TicToc track_time;
-        static int tracker_seq_num = 0;
         
-        if (instances.size() > 0)
-        {
-            tracker_seq_num++;
-            InsMapTestOptions map_option;
-            map_option.velodyne_trans = *transN;
-            mapper.Merge(instances, timestamp, map_option);
-
-        }
-
-        printf("ins map time %f ms\n", track_time.toc());
-
-
-        TicToc pub_time_2;
-        auto allMap = mapper.GetGlobalMap();
-        pubBBoxMarker(allMap, map_marker, 0);
-        pubPoints(allMap, map_cloud);
-        printf("pub global time %f ms\n", pub_time_2.toc());
 
     }
     printf("total time %f ms\n", total.toc());
 }
+
 
 int main(int argc, char **argv)
 {
@@ -529,8 +530,6 @@ int main(int argc, char **argv)
         }
         loop.sleep();
     }
-    std::string save_final_path = "/home/qh/ins_map_temp/ins_map";
-    auto final_instances = mapper.GetGlobalMap();
-    SaveInstances(final_instances, save_final_path);
+
     return 0;
 }

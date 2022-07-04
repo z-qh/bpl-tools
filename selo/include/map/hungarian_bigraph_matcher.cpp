@@ -4,8 +4,7 @@
 
 #include <iostream>
 
-HungarianOptimizer::HungarianOptimizer(
-    const std::vector<std::vector<float>>& costs)
+HungarianOptimizer::HungarianOptimizer(const std::vector<std::vector<float>>& costs)
     : state_(nullptr) {
   width_ = costs.size();
 

@@ -209,8 +209,6 @@ target_link_libraries(ins_map_builder
 # ${PCL_LIBRARIES}
 # INSMAP
 # )
-
-
 add_executable(ins_map_show src/ins_map_show.cpp)
 target_link_libraries(ins_map_show
         ${catkin_LIBRARIES}
@@ -222,6 +220,16 @@ add_executable(math_test src/math_test.cpp)
 target_link_libraries(math_test
         ${catkin_LIBRARIES}
         ${PCL_LIBRARIES}
+        INSMAP
+)
+
+add_executable(save_laser_as_convex_match_graph src/save_laser_as_convex_match_graph.cpp)
+target_link_libraries(save_laser_as_convex_match_graph
+        ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${YAML_CPP_LIBRARIES}
+        ${CERES_LIBRARIES}
+        ${OpenCV_LIBS}
         INSMAP
 )
 

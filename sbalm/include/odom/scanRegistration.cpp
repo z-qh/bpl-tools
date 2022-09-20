@@ -474,6 +474,7 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     nh.param<int>("scan_line", N_SCANS, 16);
+
     nh.param<double>("minimum_range", MINIMUM_RANGE, 0.1);
 
     printf("scan line number %d \n", N_SCANS);

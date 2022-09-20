@@ -1,0 +1,297 @@
+
+// 计算三角面积
+double GetConvexHullArea(Eigen::Vector2d &p1, Eigen::Vector2d &p2, Eigen::Vector2d &p3)
+{
+    return std::abs(0.5 * (p1(0) * p2(1) + p2(0) * p3(1) + p3(0) * p1(1) - p1(0) * p3(1) - p2(0) * p1(1) - p3(0) * p2(1)));
+}
+
+// 计算矩形面积 vector size : 4
+double GetRectangleArea(std::vector<Eigen::Vector2d> &rect)
+{
+    if (rect.size() != 4)
+        return -1;
+    return 2.0 * GetConvexHullArea(rect[0], rect[1], rect[2]);
+}
+
+// ab cd 两线平行 vector size : 2
+
+bool parallel(std::vector<Eigen::Vector2d> &l1, std::vector<Eigen::Vector2d> &l2)
+{
+    double v_x = (l1[1](1) - l1[0](1)) * (l2[1](0) - l2[0](0)) - (l2[1](1) - l2[0](1)) * (l1[1](0) - l1[0](0));
+    if (v_x <= 0.1 && v_x >= -0.1)
+        return true;
+    return false;
+}
+
+// vec(p1, p2) x vec(p1, p) : (b.x-a.x)*(c.y-a.y)-(c.x-a.x)*(b.y-a.y)
+double GetCross(Eigen::Vector2d &a, Eigen::Vector2d &b, Eigen::Vector2d &c)
+{
+    return (b(0) - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (b(1) - a(1));
+}
+
+// def parallel(ax, ay, bx, by, cx, cy, dx, dy):
+//     return (by - ay) * (dx - cx) - (dy - cy) * (bx - ax)
+// ax=33.890000 
+// ay=13.530000 
+// bx=41.300000
+// by=8.790000 
+// cx=50.050000
+// cy=22.470000 
+// dx=42.640000
+// dy=27.200000
+
+//
+// 判断点在矩形内
+bool IsPointInMatrix(Eigen::Vector2d &p, std::vector<Eigen::Vector2d> &rect1)
+{
+    return GetCross(rect1[0], rect1[1], p) * GetCross(rect1[2], rect1[3], p) >= 0 && GetCross(rect1[1], rect1[2], p) * GetCross(rect1[3], rect1[0], p) >= 0;
+}
+
+// 计算线段交点 vector size : 2 重合相交无交点 顶点相交无交点 交叉相交一交点
+bool GetIntersection(std::vector<Eigen::Vector2d> &l1, std::vector<Eigen::Vector2d> &l2, Eigen::Vector2d &intersect_point)
+{
+    if (parallel(l1, l2))
+        return false;
+    // assert(parallel(l1, l2) == false);
+    intersect_point = Eigen::Vector2d(-1, -1);
+
+    double cross_12_13 = (l1[1](0) - l1[0](0)) * (l2[0](1) - l1[0](1)) - (l2[0](0) - l1[0](0)) * (l1[1](1) - l1[0](1));
+    double cross_12_14 = (l1[1](0) - l1[0](0)) * (l2[1](1) - l1[0](1)) - (l2[1](0) - l1[0](0)) * (l1[1](1) - l1[0](1));
+    double cross_34_31 = (l2[1](0) - l2[0](0)) * (l1[0](1) - l2[0](1)) - (l1[0](0) - l2[0](0)) * (l2[1](1) - l2[0](1));
+    double cross_34_32 = (l2[1](0) - l2[0](0)) * (l1[1](1) - l2[0](1)) - (l1[1](0) - l2[0](0)) * (l2[1](1) - l2[0](1));
+
+    if (cross_12_13 * cross_12_14 <= 0 && cross_34_31 * cross_34_32 <= 0)
+    {
+        if (cross_12_14 == 0) // 12 coincide 14 the corss is 4
+        {
+            return false;
+        }
+        double lambda = abs(cross_12_13 / cross_12_14);
+        double x = l2[0](0) + (lambda / (lambda + 1.0)) * (l2[1](0) - l2[0](0));
+        double y = l2[0](1) + (lambda / (lambda + 1.0)) * (l2[1](1) - l2[0](1));
+        intersect_point(0) = x;
+        intersect_point(1) = y;
+        return true;
+    }
+    return false;
+}
+
+// 计算两矩形之间的重复面积 vector size : 4 ; return size : 3 s1 s2 sameAreaS abcd inclock
+bool Get2RectangleImpactArea(std::vector<Eigen::Vector2d> &rect1, std::vector<Eigen::Vector2d> &rect2, std::vector<double> &result)
+{
+    double s1 = GetRectangleArea(rect1);
+    double s2 = GetRectangleArea(rect2);
+    result = std::vector<double>{s1, s2, -1};
+    if (s1 <= 0 || s2 <= 0)
+        return false;
+    // 4 edges ans 4 edges : 4 x 2
+    std::vector<std::vector<Eigen::Vector2d>> edges1(4, std::vector<Eigen::Vector2d>(2, Eigen::Vector2d::Zero()));
+    std::vector<std::vector<Eigen::Vector2d>> edges2(edges1);
+    edges1[0][0] = rect1[0];
+    edges1[0][1] = rect1[1];
+    edges1[1][0] = rect1[1];
+    edges1[1][1] = rect1[2];
+    edges1[2][0] = rect1[2];
+    edges1[2][1] = rect1[3];
+    edges1[3][0] = rect1[3];
+    edges1[3][1] = rect1[0];
+    // assert(parallel(edges1[0], edges1[2]) == true);
+    // assert(parallel(edges1[1], edges1[3]) == true);
+    edges2[0][0] = rect2[0];
+    edges2[0][1] = rect2[1];
+    edges2[1][0] = rect2[1];
+    edges2[1][1] = rect2[2];
+    edges2[2][0] = rect2[2];
+    edges2[2][1] = rect2[3];
+    edges2[3][0] = rect2[3];
+    edges2[3][1] = rect2[0];
+    // assert(parallel(edges2[0], edges2[2]) == true);
+    // assert(parallel(edges2[1], edges2[3]) == true);
+    if (!parallel(edges1[1], edges1[3]) || !parallel(edges1[0], edges1[2]))
+    {
+        std::cerr << "\033[31m"
+                  << "parallel1 error here"
+                  << "\033[0m" << std::endl;
+        for (auto &p : rect1)
+            std::cout << std::fixed << "(" << p(0) << "," << p(1) << ") ";
+        std::cout << std::endl;
+        exit(0);
+    }
+    if (!parallel(edges2[0], edges2[2]) || !parallel(edges2[1], edges2[3]))
+    {
+        std::cerr << "\033[31m"
+                  << "parallel2 error here"
+                  << "\033[0m" << std::endl;
+        for (auto &p : rect2)
+            std::cout << std::fixed << "(" << p(0) << "," << p(1) << ") ";
+        std::cout << std::endl;
+        exit(0);
+    }
+    // get intersections
+    std::set<std::pair<double, double>> intersections_set;
+    std::vector<Eigen::Vector2d> intersections;
+    // std::cout << "intersection" << std::endl;
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            Eigen::Vector2d intersection;
+            if (!GetIntersection(edges1[i], edges2[j], intersection))
+                continue;
+            // std::cout << intersection(0) << " " << intersection(1) << std::endl;
+            auto intersection_pair = std::make_pair(intersection(0), intersection(1));
+            auto it = intersections_set.find(intersection_pair);
+            if (it != intersections_set.end())
+                continue;
+            intersections_set.insert(intersection_pair);
+            intersections.push_back(intersection);
+        }
+    }
+    // get another inside points
+    std::vector<Eigen::Vector2d> inside_points;
+    for (int i = 0; i < 4; ++i)
+    {
+        if (IsPointInMatrix(rect1[i], rect2))
+        {
+            inside_points.push_back(rect1[i]);
+        }
+        if (IsPointInMatrix(rect2[i], rect1))
+        {
+            inside_points.push_back(rect2[i]);
+        }
+    }
+    // convex vertex
+    std::set<std::pair<double, double>> vertex_points_set;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_vertex(new pcl::PointCloud<pcl::PointXYZ>());
+    for (auto &p : intersections)
+    {
+        std::pair<double, double> tmpPair = std::make_pair(p(0), p(1));
+        if (vertex_points_set.find(tmpPair) != vertex_points_set.end())
+            continue;
+        vertex_points_set.insert(tmpPair);
+        pcl::PointXYZ tmpPoint;
+        tmpPoint.x = p(0);
+        tmpPoint.y = p(1);
+        convex_vertex->push_back(tmpPoint);
+    }
+    for (auto &p : inside_points)
+    {
+        std::pair<double, double> tmpPair = std::make_pair(p(0), p(1));
+        if (vertex_points_set.find(tmpPair) != vertex_points_set.end())
+            continue;
+        vertex_points_set.insert(tmpPair);
+        pcl::PointXYZ tmpPoint;
+        tmpPoint.x = p(0);
+        tmpPoint.y = p(1);
+        convex_vertex->push_back(tmpPoint);
+    }
+    // std::cout << "points" << std::endl;
+    // for(auto&p:convex_vertex->points){
+    // std::cout << p.x << " " << p.y << std::endl;
+    // }
+    if (convex_vertex->size() < 3)
+        return false;
+    // get overlapping area convex hull
+    pcl::ConvexHull<pcl::PointXYZ> convex_hull;
+    convex_hull.setInputCloud(convex_vertex);
+    convex_hull.setDimension(2);
+    convex_hull.setComputeAreaVolume(true);
+    pcl::PolygonMesh mesh_out;
+    convex_hull.reconstruct(mesh_out);
+    double convex_area = convex_hull.getTotalArea();
+    result[2] = convex_area;
+    return true;
+}
+
+bool UpXVector2(const Eigen::Vector2d &a, const Eigen::Vector2d &b)
+{
+    return a(0) < b(0);
+}
+bool UpYVector2(const Eigen::Vector2d &a, const Eigen::Vector2d &b)
+{
+    return a(1) < b(1);
+}
+bool DownYVector2(const Eigen::Vector2d &a, const Eigen::Vector2d &b)
+{
+    return a(1) > b(1);
+}
+
+void GetOrderedRect(std::vector<Eigen::Vector2d> &rect)
+{
+    std::sort(rect.begin(), rect.end(), UpXVector2);
+    std::sort(rect.begin(), rect.begin() + 2, DownYVector2);
+    std::sort(rect.begin() + 2, rect.end(), UpYVector2);
+}
+// 获取两个 Instance的 碰撞体积
+std::pair<double, double> Get2InssCollisionVolumePercent(InstancePtr &ins1, InstancePtr &ins2)
+{
+    // z len
+    std::pair<double, double> percent{0, 0};
+    double overlap_z;
+    Eigen::Vector2d ins1_z, ins2_z;
+    ins1_z = Eigen::Vector2d{ins1->min_height, ins1->max_height};
+    ins2_z = Eigen::Vector2d{ins2->min_height, ins2->max_height};
+    double overlap_z_min = std::max(ins1_z(0), ins2_z(0));
+    double overlap_z_max = std::min(ins1_z(1), ins2_z(1));
+    if (overlap_z_max <= overlap_z_min)
+    {
+        overlap_z = 0;
+        return percent;
+    }
+    overlap_z = overlap_z_max - overlap_z_min;
+
+    // rect area
+    std::vector<Eigen::Vector2d> ins1_rect, ins2_rect;
+    ins1_rect.push_back(Eigen::Vector2d{ins1->vertex1[0], ins1->vertex1[1]});
+    ins1_rect.push_back(Eigen::Vector2d{ins1->vertex2[0], ins1->vertex2[1]});
+    ins1_rect.push_back(Eigen::Vector2d{ins1->vertex4[0], ins1->vertex4[1]});
+    ins1_rect.push_back(Eigen::Vector2d{ins1->vertex3[0], ins1->vertex3[1]});
+
+    ins2_rect.push_back(Eigen::Vector2d{ins2->vertex1[0], ins2->vertex1[1]});
+    ins2_rect.push_back(Eigen::Vector2d{ins2->vertex2[0], ins2->vertex2[1]});
+    ins2_rect.push_back(Eigen::Vector2d{ins2->vertex4[0], ins2->vertex4[1]});
+    ins2_rect.push_back(Eigen::Vector2d{ins2->vertex3[0], ins2->vertex3[1]});
+    std::vector<double> overlap;
+    GetOrderedRect(ins1_rect);
+    GetOrderedRect(ins2_rect);
+    if (!Get2RectangleImpactArea(ins1_rect, ins2_rect, overlap))
+    {
+        percent = {0, 0};
+        return percent;
+    }
+    double ins1_vol = overlap[0] * (ins1_z(1) - ins1_z(0));
+    double ins2_vol = overlap[1] * (ins2_z(1) - ins2_z(0));
+    double overlap_vol = overlap[2] * overlap_z;
+    if (overlap[2] > overlap[1] + 0.1 || overlap[2] > overlap[0] + 0.1)
+    {
+        std::cerr << "\033[31m"
+                  << "convex hull error here"
+                  << "\033[0m" << std::endl;
+        std::cout << "s1:" << overlap[0] << " s2:" << overlap[1] << " same:" << overlap[2] << std::endl;
+        for (auto &p : ins1_rect)
+            std::cout << std::fixed << "(" << p(0) << "," << p(1) << ") ";
+        std::cout << std::endl;
+        for (auto &p : ins2_rect)
+            std::cout << std::fixed << "(" << p(0) << "," << p(1) << ") ";
+        std::cout << std::endl;
+    }
+    percent = {overlap_vol / ins1_vol, overlap_vol / ins2_vol};
+    return percent;
+}
+
+double GetDistance2AB(double &x1, double &y1, double &x2, double &y2)
+{
+    return (x1 - x2) * (y1 - y2);
+}
+
+double GetRectMaxRadius(InstancePtr &ins)
+{
+    double s1 = GetDistance2AB(ins->center(0), ins->center(1), ins->vertex1(0), ins->vertex1(1));
+    double s2 = GetDistance2AB(ins->center(0), ins->center(1), ins->vertex2(0), ins->vertex2(1));
+    double s3 = GetDistance2AB(ins->center(0), ins->center(1), ins->vertex3(0), ins->vertex3(1));
+    double max = max = s1 > s2 ? s1 : s2;
+    max = max > s3 ? max : s3;
+    return max;
+}
+
+

@@ -1,6 +1,6 @@
 <launch>
     
-    <param name="scan_line" type="int" value="32" />
+    <param name="scan_line" type="int" value="64" />
 
     <!-- if 1, do mapping 10 Hz, if 2, do mapping 5 Hz. Suggest to use 1, it will adjust frequence automaticlly -->
     <param name="mapping_skip_frame" type="int" value="1" />
@@ -12,22 +12,15 @@
     <param name="mapping_line_resolution" type="double" value="0.4"/>
     <param name="mapping_plane_resolution" type="double" value="0.8"/>
 
-    <node pkg="selo" type="ascanRegistration" name="ascanRegistration" output="log" >
-        <remap from="/laser" to="/lslidar_point_cloud"/>
-    </node>
+    <node pkg="selo" type="ascanRegistration" name="ascanRegistration" output="screen" />
 
-    <node pkg="selo" type="alaserOdometry" name="alaserOdometry" output="log" />
+    <node pkg="selo" type="alaserOdometry" name="alaserOdometry" output="screen" />
 
-    <node pkg="selo" type="alaserMapping" name="alaserMapping" output="log" />
-
-    
-    <node pkg="selo" type="ins_map_builder" name="ins_map_builder" output="screen">
-        <param name="odomTopic" value="/aft_mapped_to_init"/>
-        <remap from="/laser" to="/lslidar_point_cloud"/>
-    </node>
+    <node pkg="selo" type="alaserMapping" name="alaserMapping" output="screen" />
 
     <arg name="rviz" default="true" />
     <group if="$(arg rviz)">
         <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find selo)/rviz/selo.rviz" />
     </group>
+
 </launch>

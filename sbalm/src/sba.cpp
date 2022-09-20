@@ -31,13 +31,12 @@
 #include "dbscan/DBSCAN_kdtree.h"
 #include "dbscan/DBSCAN_flann.h"
 
-#include "odom/tic_toc.h"
 #include "yaml-cpp/yaml.h"
 
 #include "odom/common.h"
+#include "odom/tic_toc.h"
 
-#include "map/instance.h"
-#include "map/ins_map.h"
+#include "sba/ins_map.h"
 
 float timestamp = 0;
 
@@ -49,7 +48,7 @@ const std::vector<Eigen::Vector3f> color_tab{
     {0, 0, 1}, // blue
     {0, 1, 0}, // green
     {1, 1, 0}, // yellow
-    {0, 1, 1} // sky
+    {0, 1, 1}  // sky
 };
 
 std::queue<nav_msgs::Odometry> laserOdomQueue;
@@ -61,15 +60,14 @@ Eigen::Matrix4f gt2lidar = Eigen::Matrix4f::Identity();
 ros::Publisher map_marker;
 ros::Publisher marker_pub_box;
 ros::Publisher map_cloud;
-ros::Publisher pub_pcl_cluster, pub_pcl_cliped;
-
+ros::Publisher pub_pcl_cluster, pub_pcl_interest;
 
 InsMapTest mapper;
 
 void pubPoints(InstancesPtr &inss, ros::Publisher &pubCloud)
 {
     pcl::PointCloud<PointType>::Ptr tmpCloud(new pcl::PointCloud<PointType>());
-    for (auto&p:inss)
+    for (auto &p : inss)
     {
         *tmpCloud += *(p->cloud);
     }
@@ -129,12 +127,12 @@ void pushBBox(InstancePtr ins, int &marker_id, int color, visualization_msgs::Ma
     line_strip.color.g = color_tab[color](1);
     line_strip.color.b = color_tab[color](2);
     line_strip.color.a = 1.0;
-    int line_points_size = ins->cloud_2dshape->size()+1;
+    int line_points_size = ins->cloud_2dshape->size() + 1;
     line_strip.points.resize(line_points_size);
-    for(int i = 0; i < line_points_size; ++i)
-    {   
+    for (int i = 0; i < line_points_size; ++i)
+    {
         geometry_msgs::Point p;
-        if(i == line_points_size-1)
+        if (i == line_points_size - 1)
         {
             p.x = ins->cloud_2dshape->points[0].x;
             p.y = ins->cloud_2dshape->points[0].y;
@@ -150,10 +148,10 @@ void pushBBox(InstancePtr ins, int &marker_id, int color, visualization_msgs::Ma
     line_strip.id = marker_id;
     marker_array_box.markers.push_back(line_strip);
     marker_id++;
-    for(int i = 0; i < line_points_size; ++i)
-    {   
+    for (int i = 0; i < line_points_size; ++i)
+    {
         geometry_msgs::Point p;
-        if(i == line_points_size-1)
+        if (i == line_points_size - 1)
         {
             p.x = ins->cloud_2dshape->points[0].x;
             p.y = ins->cloud_2dshape->points[0].y;
@@ -169,8 +167,8 @@ void pushBBox(InstancePtr ins, int &marker_id, int color, visualization_msgs::Ma
     line_strip.id = marker_id;
     marker_array_box.markers.push_back(line_strip);
     marker_id++;
-    for(int i = 0; i < line_points_size-1; ++i)
-    {   
+    for (int i = 0; i < line_points_size - 1; ++i)
+    {
         line_strip.points.resize(2);
         geometry_msgs::Point p1, p2;
         p1.x = p2.x = ins->cloud_2dshape->points[i].x;
@@ -201,18 +199,30 @@ void pubBBoxMarker(const std::vector<std::shared_ptr<Instance>> &instances, ros:
     }
 }
 
-pcl::PointCloud<PointType>::Ptr GetFilteredInterest(pcl::PointCloud<PointType>::Ptr raw_pcl_, std::vector<bool> &interestLabel)
+std::vector<pcl::PointCloud<PointType>::Ptr> GetFilteredInterestSerial(pcl::PointCloud<PointType>::Ptr raw_pcl_, std::vector<bool> &interestLabel)
 {
+    int valid_labels = 0;
+    std::vector<int> interestLabelId(interestLabel.size(), 0);
+    for (int i = 0; i < interestLabel.size(); ++i)
+    {
+        if (interestLabel[i])
+        {
+            interestLabelId[i] = valid_labels;
+            valid_labels++;
+        }
+    }
     if (raw_pcl_->points.size() > 0)
     {
         // step1:getInterestedLabels
-        pcl::PointCloud<PointType>::Ptr interested(new pcl::PointCloud<PointType>());
-        pcl::PointCloud<PointType>::Ptr filtered(new pcl::PointCloud<PointType>);
+        std::vector<pcl::PointCloud<PointType>::Ptr> interested;
+        interested.resize(valid_labels);
+        for (auto &p : interested)
+            p.reset(new pcl::PointCloud<PointType>());
         for (auto p : raw_pcl_->points)
         {
             if (interestLabel[p.label & 0xFFFF])
             {
-                interested->points.push_back(p);
+                interested[interestLabelId[p.label & 0xFFFF]]->points.push_back(p);
             }
             else
             {
@@ -222,13 +232,14 @@ pcl::PointCloud<PointType>::Ptr GetFilteredInterest(pcl::PointCloud<PointType>::
     }
     else
     {
-        return nullptr;
+        return std::vector<pcl::PointCloud<PointType>::Ptr>();
     }
 }
 
 bool getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointIndices> &cluster_indices)
 {
-    if(in->empty()) return false;
+    if (in->empty())
+        return false;
     cluster_indices.clear();
     int point_number = in->points.size();
     pcl::VoxelGrid<PointType> downSizeFilter;
@@ -246,7 +257,7 @@ bool getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::Point
         *downSizePoints += *in;
     }
     int core_point_min_pts_param = 15; //判断不为噪声点的阈值
-    float clusterTolerance = 0.1;     // dbscan聚类搜索半径
+    float clusterTolerance = 0.1;      // dbscan聚类搜索半径
     int min_cluster_size_param = 20;   //聚类后点的数目最小值
     bool isDynamic = false;            //阈值是否动态调整
     pcl::KdTreeFLANN<PointType>::Ptr tree(new pcl::KdTreeFLANN<PointType>);
@@ -266,9 +277,32 @@ bool getDBSCANCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::Point
     return true;
 }
 
-bool getEulerCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointIndices> &clusters)
+bool getDBSCANClusterSerial(std::vector<pcl::PointCloud<PointType>::Ptr> &in, std::vector<std::vector<pcl::PointIndices>> &cluster_indices)
 {
-    if(in->empty()) return false;
+    std::vector<pcl::PointIndices> tmp_cluster_indices;
+    for (auto &p : in)
+    {
+        if (!getDBSCANCluster(p, tmp_cluster_indices))
+        {
+            cluster_indices.push_back(std::vector<pcl::PointIndices>());
+        }
+        else
+        {
+            cluster_indices.push_back(tmp_cluster_indices);
+        }
+    }
+    for (auto &p : cluster_indices)
+    {
+        if (!p.empty())
+            return true;
+    }
+    return false;
+}
+
+bool getEulerCluster(pcl::PointCloud<PointType>::Ptr &in, std::vector<pcl::PointIndices> &clusters)
+{
+    if (in->empty())
+        return false;
     clusters.clear();
     int point_number = in->points.size();
     pcl::VoxelGrid<PointType> downSizeFilter;
@@ -286,8 +320,8 @@ bool getEulerCluster(pcl::PointCloud<PointType>::Ptr in, std::vector<pcl::PointI
         *downSizePoints += *in;
     }
     float clusterTolerance = 0.2; //欧式聚类搜索距离
-    int minClusterSize = 30;       //最小聚类数量
-    int maxClusterSize = 20000;    //最大聚类数量
+    int minClusterSize = 30;      //最小聚类数量
+    int maxClusterSize = 20000;   //最大聚类数量
     pcl::search::Search<PointType>::Ptr tree = boost::shared_ptr<pcl::search::Search<PointType>>(new pcl::search::KdTree<PointType>);
     pcl::EuclideanClusterExtraction<PointType> ec;
     ec.setClusterTolerance(clusterTolerance); // 2cm
@@ -356,10 +390,10 @@ void laserOdomHandler(nav_msgs::Odometry odom)
         transN.block<3, 3>(0, 0) = Eigen::Matrix3f(qN);
         transN.block<3, 1>(0, 3) = tN;
         transN = gt2lidar.transpose() * transN * gt2lidar;
-        odom.pose.pose.orientation.w = Eigen::Quaternionf(transN.block<3,3>(0,0)).w();
-        odom.pose.pose.orientation.x = Eigen::Quaternionf(transN.block<3,3>(0,0)).x();
-        odom.pose.pose.orientation.y = Eigen::Quaternionf(transN.block<3,3>(0,0)).y();
-        odom.pose.pose.orientation.z = Eigen::Quaternionf(transN.block<3,3>(0,0)).z();
+        odom.pose.pose.orientation.w = Eigen::Quaternionf(transN.block<3, 3>(0, 0)).w();
+        odom.pose.pose.orientation.x = Eigen::Quaternionf(transN.block<3, 3>(0, 0)).x();
+        odom.pose.pose.orientation.y = Eigen::Quaternionf(transN.block<3, 3>(0, 0)).y();
+        odom.pose.pose.orientation.z = Eigen::Quaternionf(transN.block<3, 3>(0, 0)).z();
         odom.pose.pose.position.x = transN(0, 3);
         odom.pose.pose.position.y = transN(1, 3);
         odom.pose.pose.position.z = transN(2, 3);
@@ -378,45 +412,54 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
     // 车辆坐标系向 世界坐标系转换的 转换矩阵
     std::shared_ptr<Eigen::Matrix4f> transN = std::make_shared<Eigen::Matrix4f>();
     Eigen::Quaternionf qN(odom.pose.pose.orientation.w,
-                            odom.pose.pose.orientation.x,
-                            odom.pose.pose.orientation.y,
-                            odom.pose.pose.orientation.z);
+                          odom.pose.pose.orientation.x,
+                          odom.pose.pose.orientation.y,
+                          odom.pose.pose.orientation.z);
     Eigen::Vector3f tN(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
     transN->block<3, 3>(0, 0) = Eigen::Matrix3f(qN);
     transN->block<3, 1>(0, 3) = tN;
 
     if (rec_point->points.size() > 0)
     {
-        // 提取 环境  场景
+        // 提取 环境 场景
         TicToc time_rg;
-        pcl::PointCloud<PointType>::Ptr points_rm = GetFilteredInterest(rec_point, interest_labels);
+        auto points_interest_serial = GetFilteredInterestSerial(rec_point, interest_labels);
+        if (points_interest_serial.empty())
+            return;
+        pcl::PointCloud<PointType>::Ptr points_interest(new pcl::PointCloud<PointType>());
+        for(auto&p:points_interest_serial) *points_interest+=*p;
+        points_interest->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
+        points_interest->header.frame_id = "map";
+        pub_pcl_interest.publish(points_interest);
         printf("get interest %f ms\n", time_rg.toc());
-        points_rm->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
-        points_rm->header.frame_id = "map";
-        pub_pcl_cliped.publish(points_rm);
 
         // cluster
         TicToc time_cluste;
-        std::vector<pcl::PointIndices> clusters;
-        // if ( ! getDBSCANCluster(points_rm, clusters) ) return; 
-        if ( ! getEulerCluster(points_rm, clusters) ) return;
-        int counter = clusters.size();
-        float cluster_id = 1;
+        std::vector<std::vector<pcl::PointIndices>> clusters_serial;
+        if (!getDBSCANClusterSerial(points_interest_serial, clusters_serial))
+            return;
+
         std::vector<pcl::PointCloud<PointType>::Ptr> points_vector;
-        if (counter > 0)
+        points_vector.clear();
+        float cluster_id = 0;
+        for (size_t ind = 0; ind < clusters_serial.size(); ++ind)
         {
-            points_vector.clear();
-            for (int i = 0; i < counter; i++)
+            auto &clusters = clusters_serial[ind];
+            int counter = clusters.size();
+            if (counter > 0)
             {
-                pcl::PointCloud<PointType>::Ptr temp_cluster(new pcl::PointCloud<PointType>);
-                pcl::copyPointCloud(*points_rm, clusters[i], *temp_cluster);
-                int points_size = temp_cluster->size();
-                for (auto &p : temp_cluster->points)
+                for (int i = 0; i < counter; i++)
                 {
-                    p.intensity = cluster_id;
+                    pcl::PointCloud<PointType>::Ptr temp_cluster(new pcl::PointCloud<PointType>);
+                    pcl::copyPointCloud(*(points_interest_serial[ind]), clusters[i], *temp_cluster);
+                    int points_size = temp_cluster->size();
+                    for (auto &p : temp_cluster->points)
+                    {
+                        p.intensity = cluster_id;
+                    }
+                    cluster_id++;
+                    points_vector.push_back(temp_cluster);
                 }
-                cluster_id++;
-                points_vector.push_back(temp_cluster);
             }
         }
         printf("cluster time %f ms\n", time_cluste.toc());
@@ -424,29 +467,29 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
         // min_box
         TicToc box_time;
         pcl::PointCloud<PointType>::Ptr pcl_cluster_ptr(new pcl::PointCloud<PointType>);
-        for (int i = 0; i < counter; i++)
+        for (int i = 0; i < cluster_id; i++)
         {
             *pcl_cluster_ptr += *points_vector[i];
         }
         pcl_cluster_ptr->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
         pcl_cluster_ptr->header.frame_id = "map";
-        // pub_pcl_cluster.publish(pcl_cluster_ptr);
+        pub_pcl_cluster.publish(pcl_cluster_ptr);
+
         std::vector<std::shared_ptr<Instance>> instances;
-        for (int i = 0; i < counter; i++)
+        for (int i = 0; i < cluster_id; i++)
         {
             std::shared_ptr<Instance> out_ins(new Instance);
             out_ins->cloud = points_vector[i];
             out_ins->id = -i - 1000;
-            if( !out_ins->init())
+            if (!out_ins->init())
             {
                 continue;
-            } 
+            }
             instances.push_back(out_ins);
         }
-
+        // 将Instances转移到世界坐标系下
         TransformInstances(instances, *transN);
 
-        // 将Instances转移到世界坐标系下
         // static int saveDirId = 0;
         // std::stringstream ss;
         // ss << std::fixed << saveDirId++;
@@ -456,42 +499,35 @@ void BuildInsMap(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry
 
         TicToc pub_time_1;
         pubBBoxMarker(instances, marker_pub_box, 1);
-        pubPoints(instances, pub_pcl_cliped);
         printf("pub local time %f ms\n", pub_time_1.toc());
 
         // tracker
         TicToc track_time;
         static int tracker_seq_num = 0;
-        
+
         if (instances.size() > 0)
         {
             tracker_seq_num++;
             InsMapTestOptions map_option;
             map_option.velodyne_trans = *transN;
             mapper.Merge(instances, timestamp, map_option);
-
         }
 
         printf("ins map time %f ms\n", track_time.toc());
-
 
         TicToc pub_time_2;
         auto allMap = mapper.GetGlobalMap();
         pubBBoxMarker(allMap, map_marker, 0);
         pubPoints(allMap, map_cloud);
         printf("pub global time %f ms\n", pub_time_2.toc());
-
     }
     printf("total time %f ms\n", total.toc());
 }
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "mot");
-    ros::NodeHandle nh("~");
-
-    nh.getParam("odomTopic", odomTopic);
-    printf("get odom topic : %s\n", odomTopic.c_str());
+    ros::init(argc, argv, "sba");
+    ros::NodeHandle nh;
 
     interest_labels = getInterest("/home/qh/kitti_data_interest.yaml");
 
@@ -499,13 +535,13 @@ int main(int argc, char **argv)
     gt2lidar << 0, -1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0, 1;
     ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/laser", 1, laserCloudHandler);
     ros::Subscriber subLaserOdom = nh.subscribe<nav_msgs::Odometry>(odomTopic, 1, laserOdomHandler);
-    
-    marker_pub_box  = nh.advertise<visualization_msgs::MarkerArray>("/selo/marker_box", 1);
-    map_marker      = nh.advertise<visualization_msgs::MarkerArray>("/selo/map_marker", 1);
-    map_cloud       = nh.advertise<pcl::PointCloud<PointType>>("/selo/map_points", 1);
+
+    marker_pub_box = nh.advertise<visualization_msgs::MarkerArray>("/selo/marker_box", 1);
+    map_marker = nh.advertise<visualization_msgs::MarkerArray>("/selo/map_marker", 1);
+    map_cloud = nh.advertise<pcl::PointCloud<PointType>>("/selo/map_points", 1);
 
     pub_pcl_cluster = nh.advertise<pcl::PointCloud<PointType>>("/selo/cluster_points", 1);
-    pub_pcl_cliped = nh.advertise<pcl::PointCloud<PointType>>("/selo/interest_points", 1);
+    pub_pcl_interest = nh.advertise<pcl::PointCloud<PointType>>("/selo/interest_points", 1);
 
     ros::Rate loop(100);
     while (ros::ok())

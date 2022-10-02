@@ -20,6 +20,9 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+
 
 
 using namespace std;
@@ -166,9 +169,10 @@ public:
         if(cloud->empty()) return ;
         fitting_cylinder(cloud);
     }
+    using Ptr = std::shared_ptr<CylinderParameter>;
 private:
     void fitting_cylinder(const pcl::PointCloud<PointType>::Ptr cloud){
-        cout << "start fitting " << endl;
+        // cout << "start fitting " << endl;
         ceres::Problem::Options problem_option;
         ceres::Problem problem(problem_option);
         double parameter[7] = {0,0,1, 0,0,0, 0};
@@ -195,15 +199,15 @@ private:
         option.gradient_check_relative_precision = 1e-4;
         ceres::Solver::Summary summary;
         ceres::Solve(option, &problem, &summary);
-        cout << summary.FullReport() << endl;
+        // cout << summary.FullReport() << endl;
         D = Eigen::Vector3f(parameter[0], parameter[1], parameter[2]);
         D.normalize();
         r = parameter[6];
         A = Eigen::Vector3f(parameter[3], parameter[4], parameter[5]);
-        cout << "center: " << endl << A << endl;
-        cout << "dir :   " << endl << D << endl;
-        cout << "radius: " << endl << r << endl;
-        cout << "end " << endl;
+        // cout << "center: " << endl << A << endl;
+        // cout << "dir :   " << endl << D << endl;
+        // cout << "radius: " << endl << r << endl;
+        // cout << "end " << endl;
     }
 };
 //点到线的残差
@@ -274,6 +278,7 @@ public:
 
 
 ///////////////////////////////////////////////////////////
+ros::Publisher line_pub, cylinder_pub;
 std::queue<sensor_msgs::PointCloud2ConstPtr> laserCloudMsgQueue;
 ros::Publisher pub_pcl_cluster_frame, pub_pcl_interest;
 image_transport::Publisher imgPub;
@@ -289,11 +294,13 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec);
 int main(int argc, char** argv){
     ros::init(argc, argv, "pole");
     ros::NodeHandle nh;
+    line_pub = nh.advertise<visualization_msgs::MarkerArray>("/pole/line", 1);
+    cylinder_pub = nh.advertise<visualization_msgs::MarkerArray>("/pole/cylinder", 1);
     ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2>("/laser", 1, laserCloudHandler);
-    pub_pcl_cluster_frame = nh.advertise<pcl::PointCloud<PointType>>("/plane/cluster_frame", 1);
-    pub_pcl_interest = nh.advertise<pcl::PointCloud<PointType>>("/plane/interest_points", 1);
+    pub_pcl_cluster_frame = nh.advertise<pcl::PointCloud<PointType>>("/pole/cluster_frame", 1);
+    pub_pcl_interest = nh.advertise<pcl::PointCloud<PointType>>("/pole/interest_points", 1);
     image_transport::ImageTransport it(nh);
-    imgPub = it.advertise("/plane/img", 10);
+    imgPub = it.advertise("/pole/img", 10);
     interest_labels = getInterest("/home/qh/qh_ws/src/bpl-tools/bpltool/src/source/kitti_data_interest_pole.yaml");
     ros::Rate loop(100);
     while (ros::ok())
@@ -329,6 +336,81 @@ void pointAssociateToMap(PointType const *const pi, PointType *const po)
 	//po->intensity = 1.0;
 }
 
+Eigen::Quaternionf fromtwovectors(Eigen::Vector3f to, Eigen::Vector3f from=Eigen::Vector3f::UnitX()){
+    Eigen::Vector3f w = to.cross(from);
+    Eigen::Quaternionf q(1.0f+to.dot(from), w[0], w[1], w[2]);
+    q.normalize();
+    return q;
+}
+
+void ClearAllMarker(ros::Publisher &marker_pub_box_)
+{
+    visualization_msgs::MarkerArray::Ptr clear_marker_array(new visualization_msgs::MarkerArray);
+    visualization_msgs::Marker dummy_marker;
+    dummy_marker.action = visualization_msgs::Marker::DELETEALL;
+    clear_marker_array->markers.push_back(dummy_marker);
+    marker_pub_box_.publish(clear_marker_array);
+}
+
+void pushShape(std::vector<LineParameter::Ptr>&parameters, visualization_msgs::MarkerArray &marker_array_box)
+{
+    visualization_msgs::Marker line_shape;
+    line_shape.header.frame_id = "map";
+    line_shape.header.stamp = ros::Time().now();
+    line_shape.ns = "parameter";
+    line_shape.type = visualization_msgs::Marker::ARROW;
+    line_shape.scale.x = 2.5;
+    line_shape.scale.y = 0.25;
+    line_shape.scale.z = 0.25;
+    line_shape.color.r = 1.0;
+    line_shape.color.g = 0.0;
+    line_shape.color.b = 0.0;
+    line_shape.color.a = 1.0;
+    int line_points_size = parameters.size();
+    int marker_id = 1;
+    for(auto&p:parameters){
+        line_shape.pose.position.x = p->A[0];
+        line_shape.pose.position.y = p->A[1];
+        line_shape.pose.position.z = p->A[2];
+        auto q = fromtwovectors(p->D);
+        line_shape.pose.orientation.x = q.x();
+        line_shape.pose.orientation.y = q.y();
+        line_shape.pose.orientation.z = q.z();
+        line_shape.pose.orientation.w = q.w();
+        line_shape.id = marker_id++;
+        marker_array_box.markers.push_back(line_shape);
+    }
+}
+
+void pushShape(std::vector<CylinderParameter::Ptr>&parameters, visualization_msgs::MarkerArray &marker_array_box)
+{
+    visualization_msgs::Marker line_shape;
+    line_shape.header.frame_id = "map";
+    line_shape.header.stamp = ros::Time().now();
+    line_shape.ns = "parameter";
+    line_shape.type = visualization_msgs::Marker::ARROW;
+    line_shape.scale.x = 2.5;
+    line_shape.color.r = 1.0;
+    line_shape.color.g = 0.0;
+    line_shape.color.b = 0.0;
+    line_shape.color.a = 1.0;
+    int line_points_size = parameters.size();
+    int marker_id = 1;
+    for(auto&p:parameters){
+        line_shape.scale.y = p->r + 0.2;
+        line_shape.scale.z = p->r + 0.2;
+        line_shape.pose.position.x = p->A[0];
+        line_shape.pose.position.y = p->A[1];
+        line_shape.pose.position.z = p->A[2];
+        auto q = fromtwovectors(p->D);
+        line_shape.pose.orientation.x = q.x();
+        line_shape.pose.orientation.y = q.y();
+        line_shape.pose.orientation.z = q.z();
+        line_shape.pose.orientation.w = q.w();
+        line_shape.id = marker_id++;
+        marker_array_box.markers.push_back(line_shape);
+    }
+}
 
 void process(const sensor_msgs::PointCloud2ConstPtr &rec){
     TicToc time_rg;
@@ -378,6 +460,7 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec){
     //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
     vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud;
     vector<LineParameter::Ptr> cluster_parameter;
+    vector<CylinderParameter::Ptr> cluster_parameter2;
     vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud_frame;
     int cluster_label = 0;
     for(map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
@@ -396,21 +479,35 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec){
         //计算这部分点云的PCA并画框框
         Eigen::Vector4f min, max;
         LineParameter::Ptr line(new LineParameter(tempCloud));
-        cluster_parameter.emplace_back(line);
-        cluster_cloud_frame.emplace_back(tempCloud);
-        auto a = CylinderParameter(tempCloud);
+        CylinderParameter::Ptr cylinder(new CylinderParameter(tempCloud));
         cluster_label++;
+        cluster_parameter.emplace_back(line);
+        cluster_parameter2.emplace_back(cylinder);
+        cluster_cloud_frame.emplace_back(tempCloud);
     }
     now_cluster_cloud.swap(cluster_cloud);
     now_cluster_parameter.swap(cluster_parameter);
 
+
+    // 可视化参数化
+    ClearAllMarker(line_pub);
+    visualization_msgs::MarkerArray marker_array_line;
+    pushShape(cluster_parameter, marker_array_line);
+    line_pub.publish(marker_array_line);
+
+    ClearAllMarker(cylinder_pub);
+    visualization_msgs::MarkerArray marker_array_cylinder;
+    pushShape(cluster_parameter2, marker_array_cylinder);
+    cylinder_pub.publish(marker_array_cylinder);
+
+
+    //发布距离后点云
     pcl::PointCloud<PointType>::Ptr points_cluster_frame(new pcl::PointCloud<PointType>());
     for(auto&p:cluster_cloud_frame) *points_cluster_frame += *p;
     points_cluster_frame->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
     points_cluster_frame->header.frame_id = "map";
     pub_pcl_cluster_frame.publish(points_cluster_frame);
 
-    return ;
     // 更新上一帧位姿
     q_w_curr = Eigen::Map<Eigen::Quaterniond>(parameters); 
     t_w_curr = Eigen::Map<Eigen::Vector3d> (parameters + 4); 

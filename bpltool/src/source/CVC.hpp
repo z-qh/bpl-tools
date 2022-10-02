@@ -137,7 +137,7 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
     auto maxPosition = max_element(ai.begin(), ai.end());
     auto maxPosition1 = max_element(ri.begin(), ri.end());
     auto maxPosition2 = max_element(pi.begin(), pi.end());
-    cout<<*maxPosition<<" "<<*maxPosition1<<" "<<*maxPosition2<<endl;
+   //  cout<<*maxPosition<<" "<<*maxPget lineosition1<<" "<<*maxPosition2<<endl;
 
 }
 
@@ -204,7 +204,6 @@ void mergeClusters(vector<int>& cluster_indices, int idx1, int idx2) {
 
 vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr){
      int current_cluster = 0;
-     cout<<"CVC"<<endl;
      vector<int> cluster_indices = vector<int>(vapr.size(), -1);
 
      for(int i = 0; i< vapr.size(); ++i){

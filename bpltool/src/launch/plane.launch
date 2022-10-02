@@ -1,0 +1,10 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+    <node pkg="bpltool" type="plane" name="plane" output="screen">
+        <param name="bagPath" value="/home/qh/bin2bag/gnss.bag"/>
+    </node>
+    <arg name="rviz" default="true" />
+    <group if="$(arg rviz)">
+        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find bpltool)/rviz/plane.rviz" />
+    </group>
+</launch>

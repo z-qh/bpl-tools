@@ -9,11 +9,9 @@
 #include <g2o/core/optimization_algorithm_gauss_newton.h>
 #include <g2o/core/optimization_algorithm_dogleg.h>
 #include "g2o/solvers/dense/linear_solver_dense.h"
-
 #include "g2o/core/base_vertex.h"
 #include "g2o/core/base_unary_edge.h"
 #include "g2o/core/base_binary_edge.h"
-
 #include "g2o/types/slam3d/vertex_pointxyz.h"
 #include "g2o/core/auto_differentiation.h"
 #include "g2o/types/slam3d/edge_se3_pointxyz.h"
@@ -125,21 +123,27 @@ using namespace std;
 
 
 int main(){
+    // 三帧的位姿，准确
     Eigen::Matrix3d R1 = Eigen::Matrix3d::Identity();
     Eigen::Matrix3d R2(Eigen::AngleAxisd(20.0/180.0*M_PI, Eigen::Vector3d::UnitZ()));
     Eigen::Matrix3d R3(Eigen::AngleAxisd(40.0/180.0*M_PI, Eigen::Vector3d::UnitZ()));
+    // 三帧的平移，准确
     Eigen::Vector3d t1(0, 0, 0);
     Eigen::Vector3d t2(5, 1, 0);
     Eigen::Vector3d t3(10, 3, 0);
-
-    std::default_random_engine eng;
-    std::normal_distribution<double> gauss(0, 1);
-
+    // 地图点的全局位姿，准确（全局坐标为第一帧位姿）
     Eigen::Vector3d map_point1 = Eigen::Vector3d(3,5,0);
     Eigen::Vector3d map_point2 = Eigen::Vector3d(7,5,0);
     Eigen::Vector3d map_point3 = Eigen::Vector3d(5,8,0);
-
-
+    // 随机噪声参数
+    std::default_random_engine eng;
+    std::normal_distribution<double> gauss1(0, 0.1);
+    std::normal_distribution<double> gauss2(0, 0.1);
+    // 后面的假设都建立在观测是有噪声的情况下
+    // t1 += Eigen::Vector3d(gauss2(eng), gauss2(eng), gauss2(eng));
+    // t2 += Eigen::Vector3d(gauss2(eng), gauss2(eng), gauss2(eng));
+    // t3 += Eigen::Vector3d(gauss2(eng), gauss2(eng), gauss2(eng));
+    // 每一帧下对应的观测，是边数据，此处位姿是有误差的，但是每一帧观测是比较准确的
     Eigen::Vector3d mesaure_1_1 = R1.inverse() * map_point1 - R1.inverse() * t1;
     Eigen::Vector3d mesaure_1_2 = R1.inverse() * map_point2 - R1.inverse() * t1;
     Eigen::Vector3d mesaure_1_3 = R1.inverse() * map_point3 - R1.inverse() * t1;
@@ -149,21 +153,12 @@ int main(){
     Eigen::Vector3d mesaure_3_1 = R3.inverse() * map_point1 - R3.inverse() * t3;
     Eigen::Vector3d mesaure_3_2 = R3.inverse() * map_point2 - R3.inverse() * t3;
     Eigen::Vector3d mesaure_3_3 = R3.inverse() * map_point3 - R3.inverse() * t3;
-
-    map_point1 += Eigen::Vector3d(gauss(eng), gauss(eng), gauss(eng));
-    map_point2 += Eigen::Vector3d(gauss(eng), gauss(eng), gauss(eng));
-    map_point3 += Eigen::Vector3d(gauss(eng), gauss(eng), gauss(eng));
-
-    cout << " mappoint  " << endl << map_point1 << endl << map_point2 << endl << map_point3 << endl;
-
-    cout << " measurement 1 " << endl << mesaure_1_1 << endl << mesaure_1_2 << endl << mesaure_1_3 << endl;
-    cout << " measurement 2 " << endl << mesaure_2_1 << endl << mesaure_2_2 << endl << mesaure_2_3 << endl;
-    cout << " measurement 3 " << endl << mesaure_3_1 << endl << mesaure_3_2 << endl << mesaure_3_3 << endl;
-
+    // 情况2，观测本身是有误差的
+    map_point1 += Eigen::Vector3d(gauss1(eng), gauss1(eng), gauss1(eng));
+    map_point2 += Eigen::Vector3d(gauss1(eng), gauss1(eng), gauss1(eng));
+    map_point3 += Eigen::Vector3d(gauss1(eng), gauss1(eng), gauss1(eng));
 
     // pose维度6 landmark维度3
-
-
     using BlockSolverTpye = g2o::BlockSolverPL<6, 3>;
     using LinearSolverType = g2o::LinearSolverDense<BlockSolverTpye::PoseMatrixType>;
     // LM 算法
@@ -172,43 +167,32 @@ int main(){
     optimizer.setAlgorithm(solver);
     optimizer.setVerbose(true);
 
-    // typedef g2o::BlockSolverX Block;
-    // typedef g2o::BlockSolver< g2o::BlockSolverTraits<6,1> > Block;
-    // std::unique_ptr<Block::LinearSolverType> linearSolver ( new g2o::LinearSolverDense<Block::PoseMatrixType>());
-    // std::unique_ptr<Block> solver_ptr ( new Block ( std::move(linearSolver)));
-    // g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg ( std::move(solver_ptr));
-    // g2o::SparseOptimizer optimizer;     // 图模型
-    // optimizer.setAlgorithm( solver );   // 设置求解器
-    // optimizer.setVerbose( true );       // 打开调试输出
     cout << " optimizer  Levenberg " << endl;
-
     g2o::ParameterSE3Offset* cameraOffset = new g2o::ParameterSE3Offset;
     cameraOffset->setOffset();
     cameraOffset->setId(0);
     optimizer.addParameter(cameraOffset);
     
-
-
     // 位姿是顶点
     // 第一帧位姿
     g2o::VertexSE3 * vSE3_1 = new g2o::VertexSE3();
     vSE3_1->setEstimate(g2o::SE3Quat(R1,t1));
     vSE3_1->setId(0);
-    vSE3_1->setFixed(true);
+    vSE3_1->setFixed(false);
     optimizer.addVertex(vSE3_1);
 
     // 第二帧位姿
     g2o::VertexSE3 * vSE3_2 = new g2o::VertexSE3();
     vSE3_2->setEstimate(g2o::SE3Quat(R2,t2));
     vSE3_2->setId(1);
-    vSE3_2->setFixed(true);
+    vSE3_2->setFixed(false);
     optimizer.addVertex(vSE3_2);
 
     // 第三帧位姿
     g2o::VertexSE3 * vSE3_3 = new g2o::VertexSE3();
     vSE3_3->setEstimate(g2o::SE3Quat(R3,t3));
     vSE3_3->setId(2);
-    vSE3_3->setFixed(true);
+    vSE3_3->setFixed(false);
     optimizer.addVertex(vSE3_3);
 
     // 路标点是顶点
@@ -331,14 +315,26 @@ int main(){
     g2o::VertexPointXYZ* mapp1_res = static_cast<g2o::VertexPointXYZ*>(optimizer.vertex(3));
     g2o::VertexPointXYZ* mapp2_res = static_cast<g2o::VertexPointXYZ*>(optimizer.vertex(4));
     g2o::VertexPointXYZ* mapp3_res = static_cast<g2o::VertexPointXYZ*>(optimizer.vertex(5));
+    g2o::VertexSE3* T1_res = static_cast<g2o::VertexSE3*>(optimizer.vertex(0));
+    g2o::VertexSE3* T2_res = static_cast<g2o::VertexSE3*>(optimizer.vertex(1));
+    g2o::VertexSE3* T3_res = static_cast<g2o::VertexSE3*>(optimizer.vertex(2));
 
     auto mapp1_res_vec = mapp1_res->estimate();
     auto mapp2_res_vec = mapp2_res->estimate();
     auto mapp3_res_vec = mapp3_res->estimate();
+    auto t1_res_vec = T1_res->estimate().translation();
+    auto t2_res_vec = T2_res->estimate().translation();
+    auto t3_res_vec = T3_res->estimate().translation();
 
-    cout << " mapp 1 " << endl << mapp1_res_vec << endl;
-    cout << " mapp 2 " << endl << mapp2_res_vec << endl;
-    cout << " mapp 3 " << endl << mapp3_res_vec << endl;
+    printf("map point 1: before -> after  |2: before -> after  |3: before -> after\n");
+    printf("         x : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", map_point1[0], mapp1_res_vec[0], map_point2[0], mapp2_res_vec[0], map_point3[0], mapp3_res_vec[0]);
+    printf("         y : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", map_point1[1], mapp1_res_vec[1], map_point2[1], mapp2_res_vec[1], map_point3[1], mapp3_res_vec[1]);
+    printf("         z : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", map_point1[2], mapp1_res_vec[2], map_point2[2], mapp2_res_vec[2], map_point3[2], mapp3_res_vec[2]);
+
+    printf("translate 1: before -> after  |2: before -> after  |3: before -> after\n");
+    printf("         x : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", t1[0], t1_res_vec[0], t2[0], t2_res_vec[0], t3[0], t3_res_vec[0]);
+    printf("         y : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", t1[1], t1_res_vec[1], t2[1], t2_res_vec[1], t3[1], t3_res_vec[1]);
+    printf("         z : %05.2f  -> %05.2f  |   %05.2f  -> %05.2f  |   %05.2f  -> %05.2f\n", t1[2], t1_res_vec[2], t2[2], t2_res_vec[2], t3[2], t3_res_vec[2]);
 
     return 0;
 }

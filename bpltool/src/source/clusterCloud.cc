@@ -75,8 +75,8 @@ int main(int argc, char** argv)
  */
 pcl::PointXYZ getCloudCenter(const pcl::PointCloud<pcl::PointXYZ>& cloud)
 {
-    double sumX, sumY, sumZ;
-    for(int i = 0; i < cloud.size(); i++)
+    double sumX=0, sumY=0, sumZ=0;
+    for(size_t i = 0; i < cloud.size(); i++)
     {
         sumX += cloud.points[i].x;
         sumY += cloud.points[i].y;
@@ -167,7 +167,7 @@ void outlineHandle(string inputFile, string outputName)
     most_frequent_value(cluster_index, cluster_id);
     //统计分割种类
     map<int, int> classes;
-    for(int i = 0; i < cluster_index.size(); i++)
+    for(size_t i = 0; i < cluster_index.size(); i++)
     {
         map<int, int>::iterator it = classes.find(cluster_index[i]) ;
         //如果不存在key则添加新的key，如果存在key则原有的值加一
@@ -194,7 +194,7 @@ void outlineHandle(string inputFile, string outputName)
         //保存聚类的点云
         pcl::PointCloud<pcl::PointXYZ> tempCloud;
         tempCloud.clear();
-        for(int i = 0; i < cluster_index.size(); i++)
+        for(size_t i = 0; i < cluster_index.size(); i++)
         {
             if(cluster_index[i] == it->first)
             {
@@ -241,7 +241,7 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
 
     //统计聚类结果
     map<int, int> classes;
-    for(int i = 0; i < cluster_index.size(); i++)
+    for(size_t i = 0; i < cluster_index.size(); i++)
     {
         map<int, int>::iterator it = classes.find(cluster_index[i]) ;
         //如果不存在key则添加新的key，如果存在key则原有的值加一
@@ -269,7 +269,7 @@ void subCloudHandle(const sensor_msgs::PointCloud2& msg)
         //保存聚类的点云
         pcl::PointCloud<pcl::PointXYZ> tempCloud;
         tempCloud.clear();
-        for(int i = 0; i < cluster_index.size(); i++)
+        for(size_t i = 0; i < cluster_index.size(); i++)
         {
             if(cluster_index[i] == it->first)
             {

@@ -28,12 +28,12 @@ template<typename T> string toString(const T& t) {
 	oss << t;
 	return oss.str();
 }
-static int64_t gtm() {
-	struct timeval tm;
-	gettimeofday(&tm, 0);
-	int64_t re = (((int64_t) tm.tv_sec) * 1000 * 1000 + tm.tv_usec);
-	return re;
-}
+// static int64_t gtm() {
+// 	struct timeval tm;
+// 	gettimeofday(&tm, 0);
+// 	int64_t re = (((int64_t) tm.tv_sec) * 1000 * 1000 + tm.tv_usec);
+// 	return re;
+// }
 
 float Polar_angle_cal(float x, float y){
   float temp_tangle = 0;
@@ -81,7 +81,7 @@ bool compare_cluster(pair<int,int> a,pair<int,int> b){
 
 template <typename PointT>
 void calculateAPR(const pcl::PointCloud<PointT>& cloud_IN, vector<PointAPR>& vapr){
-     for (int i =0; i<cloud_IN.points.size(); ++i){
+     for (size_t i =0; i<cloud_IN.points.size(); ++i){
            PointAPR par;
            par.polar_angle = Polar_angle_cal(cloud_IN.points[i].x, cloud_IN.points[i].y);
            par.range = sqrt(cloud_IN.points[i].x*cloud_IN.points[i].x+cloud_IN.points[i].y*cloud_IN.points[i].y);
@@ -112,7 +112,7 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
      vector<int> ri;
      vector<int> pi;
      vector<int> ai;
-     for(int i =0; i< vapr.size(); ++i){
+     for(size_t i =0; i< vapr.size(); ++i){
            int azimuth_index = round(((vapr[i].azimuth-minazimuth)*180/PI)/deltaA);
            int polar_index = round(vapr[i].polar_angle*180/PI/deltaP);
            int range_index = round((vapr[i].range-minrange)/deltaR);
@@ -134,9 +134,9 @@ void build_hash_table(const vector<PointAPR>& vapr, unordered_map<int, Voxel> &m
            }
 
     }
-    auto maxPosition = max_element(ai.begin(), ai.end());
-    auto maxPosition1 = max_element(ri.begin(), ri.end());
-    auto maxPosition2 = max_element(pi.begin(), pi.end());
+   //  auto maxPosition = max_element(ai.begin(), ai.end());
+   //  auto maxPosition1 = max_element(ri.begin(), ri.end());
+   //  auto maxPosition2 = max_element(pi.begin(), pi.end());
    //  cout<<*maxPosition<<" "<<*maxPget lineosition1<<" "<<*maxPosition2<<endl;
 
 }
@@ -172,7 +172,7 @@ void find_neighbors(int polar, int range, int azimuth, vector<int>& neighborinde
 
 bool most_frequent_value(vector<int> values, vector<int> &cluster_index) {
 	unordered_map<int, int> histcounts;
-	for (int i = 0; i < values.size(); i++) {
+	for (size_t i = 0; i < values.size(); i++) {
 		if (histcounts.find(values[i]) == histcounts.end()) {
 			histcounts[values[i]] = 1;
 		}
@@ -181,10 +181,10 @@ bool most_frequent_value(vector<int> values, vector<int> &cluster_index) {
 		}
 	}
 
-	int max = 0, maxi;
+	// int max = 0, maxi;
 	vector<pair<int, int>> tr(histcounts.begin(), histcounts.end());
         sort(tr.begin(),tr.end(),compare_cluster);
-        for(int i = 0 ; i< tr.size(); ++i){
+        for(size_t i = 0 ; i< tr.size(); ++i){
              if(tr[i].second>10){
              cluster_index.push_back(tr[i].first);
              }
@@ -195,7 +195,7 @@ bool most_frequent_value(vector<int> values, vector<int> &cluster_index) {
 
 
 void mergeClusters(vector<int>& cluster_indices, int idx1, int idx2) {
-	for (int i = 0; i < cluster_indices.size(); i++) {
+	for (size_t i = 0; i < cluster_indices.size(); i++) {
 		if (cluster_indices[i] == idx1) {
 			cluster_indices[i] = idx2;
 		}
@@ -206,7 +206,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
      int current_cluster = 0;
      vector<int> cluster_indices = vector<int>(vapr.size(), -1);
 
-     for(int i = 0; i< vapr.size(); ++i){
+     for(size_t i = 0; i< vapr.size(); ++i){
 
            if (cluster_indices[i] != -1)
 			continue;
@@ -225,13 +225,13 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
 
                vector<int> neighborid;
                find_neighbors(polar_index, range_index, azimuth_index, neighborid);
-               for (int k =0; k<neighborid.size(); ++k){
+               for (size_t k =0; k<neighborid.size(); ++k){
 
                   it_find2 = map_in.find(neighborid[k]);
 
                   if (it_find2 != map_in.end()){
 
-                     for(int j =0 ; j<it_find2->second.index.size(); ++j){
+                     for(size_t j =0 ; j<it_find2->second.index.size(); ++j){
                         neightbors.push_back(it_find2->second.index[j]);
                       }
                    }
@@ -241,7 +241,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
             neightbors.swap(neightbors);
 
             if(neightbors.size()>0){
-                   for(int j =0 ; j<neightbors.size(); ++j){
+                   for(size_t j =0 ; j<neightbors.size(); ++j){
                       int oc = cluster_indices[i] ;
                       int nc = cluster_indices[neightbors[j]];
 		      if (oc != -1 && nc != -1) {
@@ -265,7 +265,7 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
  		if (cluster_indices[i] == -1) {
 			current_cluster++;
 			cluster_indices[i] = current_cluster;
-                   for(int s =0 ; s<neightbors.size(); ++s){
+                   for(size_t s =0 ; s<neightbors.size(); ++s){
                         cluster_indices[neightbors[s]] = current_cluster;
 		   }
                }
@@ -278,7 +278,8 @@ vector<int>  CVC(unordered_map<int, Voxel> &map_in,const vector<PointAPR>& vapr)
 
 vector<float> hsv2rgb(vector<float>& hsv){
 vector<float> rgb(3);
-float R,G,B,H,S,V;
+// float R,G,B;
+float H,S,V;
 H = hsv[0];
 S = hsv[1];
 V = hsv[2];

@@ -5,8 +5,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-# # Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++17)
 
 # # Find catkin macros and libraries
 # # if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -269,8 +268,12 @@ add_executable(steer_test src/example/steer_test.cpp)
 target_link_libraries(steer_test ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
 # #
-add_executable(pole src/source/pole.cpp)
-target_link_libraries(pole ${bpl_LIBS})
+add_executable(pole_release src/source/pole.cpp)
+target_link_libraries(pole_release ${bpl_LIBS})
+
+add_executable(pole_debug src/source/pole.cpp)
+target_link_libraries(pole_debug ${bpl_LIBS})
+target_compile_options(pole_debug PRIVATE -g)
 
 # #
 add_executable(plane src/source/plane.cpp)

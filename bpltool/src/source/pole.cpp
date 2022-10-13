@@ -241,6 +241,8 @@ public:
         if(cylinder.min_dis == FLT_MAX || cylinder.max_dis == -FLT_MAX) return cloud;
         const static double theta_d = (PI/30.0);
         const static double line_d = 0.1;
+        int label_color = 0;
+        if(!cylinder.valid) label_color = 255;
         for(double theta = -PI; theta < PI; theta+=theta_d){
             Eigen::Vector3d randp;
             randp[0] = cylinder.r * cos(theta);
@@ -256,6 +258,7 @@ public:
             Eigen::Vector3d np(p.x, p.y, p.z);
             Eigen::Vector3d cp = oriq * np + cylinder.A;
             p.x = cp[0], p.y = cp[1], p.z=cp[2];
+            p.label = label_color;
         }
         return cloud;
     }
@@ -297,32 +300,20 @@ public:
     friend std::ostream& operator<<(std::ostream& out, CylinderParameter&cylinder);
 public:
     Eigen::Vector3d translateA(Eigen::Matrix3d rot_, Eigen::Vector3d t_){
-        Eigen::Quaterniond q(Q.matrix().transpose() * rot_ * Q.matrix());
-        Eigen::Vector3d d = q * Eigen::Vector3d::UnitZ();
+        Eigen::Vector3d d = rot_ * D;
         d.normalize();
-        // Eigen::Vector3d c = rot_ * center + t_;
-        // Eigen::Vector3d ma_vec = rot_ * max_vec + t_;
-        // Eigen::Vector3d mi_vec = rot_ * min_vec + t_;
-        Eigen::Vector3d a = rot_ * A + t_;
-        double a0 = a[0] + d[0] * (a[2]-0.f) / d[2];
-        double a1 = a[1] + d[1] * (a[2]-0.f) / d[2];
+        Eigen::Vector3d c = rot_ * center + t_;
+        Eigen::Vector3d a;
+        double a0 = c[0] + d[0] * (c[2]-0.f) / d[2];
+        double a1 = c[1] + d[1] * (c[2]-0.f) / d[2];
         double a2 = 0.f;
         a[0]=a0, a[1]=a1, a[2]=a2;
-        // double dis1 = (ma_vec-a).dot(d);
-        // double dis2 = (mi_vec-a).dot(d);
-        // double ma_dis = max(dis1, dis2);
-        // double mi_dis = min(dis1, dis2);
         return a;
     }
-    CylinderParameter::Ptr translate(Eigen::Matrix3d rot_, Eigen::Vector3d t_){
-        // translate error here 
-        CylinderParameter::Ptr ans(new CylinderParameter(*this));
+    void translate(Eigen::Matrix3d rot_, Eigen::Vector3d t_){
         Eigen::Vector3d d = rot_ * D;
         d.normalize();
         Eigen::Quaterniond q(fromtwovectors(d));
-        // Eigen::Quaterniond q(Q.matrix().transpose() * rot_ * Q.matrix());
-        // Eigen::Vector3d d = q * Eigen::Vector3d::UnitZ();
-        d.normalize();
         Eigen::Vector3d c = rot_ * center + t_;
         Eigen::Vector3d ma_vec = rot_ * max_vec + t_;
         Eigen::Vector3d mi_vec = rot_ * min_vec + t_;
@@ -335,16 +326,20 @@ public:
         double dis2 = (mi_vec-a).dot(d);
         double ma_dis = max(dis1, dis2);
         double mi_dis = min(dis1, dis2);
-        ans->A = a;
-        ans->center = c;
-        ans->D = d;
-        ans->max_dis = ma_dis;
-        ans->min_dis = mi_dis;
-        ans->max_vec = ma_vec;
-        ans->min_vec = mi_vec;
-        ans->Q = q;
-        ans->r = r;
-        return ans;
+        this->A = a;
+        this->center = c;
+        this->D = d;
+        this->max_dis = ma_dis;
+        this->min_dis = mi_dis;
+        this->max_vec = ma_vec;
+        this->min_vec = mi_vec;
+        this->Q = q;
+        this->r = r;
+        this->valid = valid;
+        Eigen::Matrix4d trans = Eigen::Matrix4d::Identity();
+        trans.block<3,3>(0,0) = rot_;
+        trans.block<3,1>(0,3) = t_;
+        pcl::transformPointCloud(*ori_cloud, *ori_cloud, trans);
     }
 private:
     void fitting_cylinder(const pcl::PointCloud<PointType>::Ptr cloud, LineParameter::Ptr preline){
@@ -402,22 +397,27 @@ private:
         }
         // cout << "min: " << min_dis << endl;
         // cout << "max: " << max_dis << endl << endl;
+        if(summary.final_cost < 0.5) valid = true;
 
-        cout << "final cost " << summary.final_cost << endl;
-        if(summary.final_cost<0.2) cout << "#############" << endl;
-        else {
-            cout << "!!!!!!!!!!!!" << endl; 
-            static int bad_id = 1;
-            static string pathBase = "/home/qh/ins_map_temp/badcylinder/";
-            string log_file_name, shape_cloud_file_name, ori_cloud_file_name;
-            log_file_name = pathBase + to_string(bad_id) + ".log";
-            shape_cloud_file_name = pathBase + to_string(bad_id) + "shape.pcd";
-            ori_cloud_file_name = pathBase + to_string(bad_id) + "ori.pcd";
-            auto shape_cloud = CylinderParameter::generateCylinderCloud(*this);
-            auto ori_cloud = this->ori_cloud;
-            pcl::io::savePCDFileASCII(shape_cloud_file_name, *shape_cloud);
-            pcl::io::savePCDFileASCII(ori_cloud_file_name, *ori_cloud);
-        }
+        // cout << "final cost " << summary.final_cost << endl;
+        // if(summary.final_cost<0.5) cout << "#############" << endl;
+        // else {
+        //     cout << "!!!!!!!!!!!!" << endl; 
+        //     static int bad_id = 1;
+        //     static string pathBase = "/home/qh/ins_map_temp/badcylinder/";
+        //     string log_file_name, shape_cloud_file_name, ori_cloud_file_name;
+        //     log_file_name = pathBase + to_string(bad_id) + ".log";
+        //     shape_cloud_file_name = pathBase + to_string(bad_id) + "shape.pcd";
+        //     ori_cloud_file_name = pathBase + to_string(bad_id) + "ori.pcd";
+        //     auto shape_cloud = CylinderParameter::generateCylinderCloud(*this);
+        //     auto ori_cloud = this->ori_cloud;
+        //     // if(!shape_cloud->empty()) pcl::io::savePCDFileASCII(shape_cloud_file_name, *shape_cloud);
+        //     // if(!ori_cloud->empty()) pcl::io::savePCDFileASCII(ori_cloud_file_name, *ori_cloud);
+        //     ofstream file(log_file_name);
+        //     file << summary.FullReport() << endl;
+        //     file.close();
+        //     bad_id++;
+        // }
     }
 };
 
@@ -510,23 +510,45 @@ public:
     }
 public:
     CylinderParameter::Ptr cylinder = nullptr;
+    shared_ptr<vector<CylinderParameter::Ptr>> hcylinder;
     int id = 0;
     double timestamped = 0;
-    int survival_time = 0;
-    int visiable_time = 0;
+    int visiable_count = 0;
     int assocate_count = 0;
+    shared_ptr<Eigen::Vector3d> pre_center;
     Pole() = delete;
     Pole(CylinderParameter::Ptr c, int id_, double time){
         id = id_;
         timestamped = time;
         cylinder = c;
+        hcylinder.reset(new vector<CylinderParameter::Ptr>());
+        hcylinder->emplace_back(c);
+        pre_center.reset(new Eigen::Vector3d(c->A));
     }
     Pole(const Pole& p){
-        id = p.id;
-        timestamped = p.timestamped;
-        survival_time = p.survival_time;
-        assocate_count = p.assocate_count;
-        visiable_time = p.visiable_time;
+        this->id = p.id;
+        this->timestamped = p.timestamped;
+        this->assocate_count = p.assocate_count;
+        this->visiable_count = p.visiable_count;
+        this->hcylinder = p.hcylinder;
+    }
+    Eigen::Vector3d getCenter() const 
+    {
+        Eigen::Vector3d ans(*pre_center);
+        ans /= hcylinder->size();
+        return ans;
+    }
+    void updateMeasurement(CylinderParameter::Ptr c){
+        *pre_center += c->A;
+        hcylinder->emplace_back(c);
+        cylinder = c;
+    }
+    void update_clear(Eigen::Vector3d center){
+        *pre_center = center;
+        hcylinder->clear();
+        hcylinder->emplace_back(cylinder);
+        visiable_count = 0;
+        assocate_count = 0;
     }
     using Ptr = std::shared_ptr<Pole>;
 };
@@ -547,12 +569,10 @@ public:
 class PoleConstraint{
 public:
     int pole_id;
-    Eigen::Vector3d pre_center;
     shared_ptr<vector<PoseType::Ptr>> pose_vec;
     shared_ptr<vector<CylinderParameter::Ptr>> measurement_vec;
     PoleConstraint() = delete;
     PoleConstraint(int p_id):pole_id(p_id){
-        pre_center = Eigen::Vector3d::Zero();
         pose_vec.reset(new vector<PoseType::Ptr>());
         measurement_vec.reset(new vector<CylinderParameter::Ptr>());
     }
@@ -560,12 +580,6 @@ public:
         this->pole_id = pc.pole_id;
         this->pose_vec = pc.pose_vec;
         this->measurement_vec = pc.measurement_vec;
-    }
-    Eigen::Vector3d getCenter() const 
-    {
-        Eigen::Vector3d ans(pre_center);
-        ans /= measurement_vec->size();
-        return ans;
     }
     using Ptr = shared_ptr<PoleConstraint>;
 };
@@ -582,8 +596,10 @@ public:
     unordered_map<int, Pole::Ptr> global_map;
     pcl::KdTreeFLANN<PointType>::Ptr kdtreePoleCenterMap;
     pcl::PointCloud<PointType>::Ptr PoleCenterCloud;
-    list<list<pair<PoseType::Ptr, CylinderParameter::Ptr>>> BAAssocate; 
+    list<list<pair<PoseType::Ptr, CylinderParameter::Ptr>>> BAAssocate;
     list<list<int>> BAAssocateInd;
+    map<int, PoseType::Ptr, std::greater<int>> trajectory;
+    PoseType::Ptr lastPoseType = nullptr;
     int used_id;
     int odom_id;
     bool initial = false;
@@ -595,7 +611,7 @@ public:
     }
 
 
-    void addNewLandmark(std::vector<CylinderParameter::Ptr>& landmarks, double timestamp, nav_msgs::Odometry odom){
+    void addNewLandmark(std::vector<CylinderParameter::Ptr>& landmarks, double timestamp, nav_msgs::Odometry odom, double range){
         list<pair<PoseType::Ptr, CylinderParameter::Ptr>> nowBAAssocate;
         list<int> nowBAAssocateInd;
         shared_ptr<Eigen::Isometry3d> pose(new Eigen::Isometry3d(Eigen::Isometry3d::Identity()));
@@ -608,11 +624,24 @@ public:
                                                 odom.pose.pose.orientation.y,
                                                 odom.pose.pose.orientation.z));
         pose->rotate(nori);
-        PoseType::Ptr nPoseType(new PoseType(odom_id--, pose));
+        PoseType::Ptr nPoseType(new PoseType(odom_id, pose));
+        trajectory[odom_id] = nPoseType;
+        lastPoseType = nPoseType;
+        odom_id--;
 
         pcl::PointCloud<PointType>::Ptr nowPoleCenterCloud(new pcl::PointCloud<PointType>());
         // 删除比较差的map点
         cout << "remove bad mp" << endl;
+
+        pcl::KdTreeFLANN<PointType>::Ptr kdtreeLocalPoleCenterMap(new pcl::KdTreeFLANN<PointType>());
+        pcl::PointCloud<PointType>::Ptr LocalPoleCenterCloud(new pcl::PointCloud<PointType>());
+        for(auto&p:landmarks){
+            PointType ltmp;
+            ltmp.x = p->A[0],ltmp.y = p->A[1],ltmp.z = p->A[2];
+            LocalPoleCenterCloud->emplace_back(ltmp);
+        }
+        if(!LocalPoleCenterCloud->empty()) kdtreeLocalPoleCenterMap->setInputCloud(LocalPoleCenterCloud);
+
 
         for(unordered_map<int, Pole::Ptr>::iterator it = global_map.begin(); it != global_map.end();){
             // no match and too old
@@ -626,11 +655,29 @@ public:
                 continue;
             }
             // too few visiable frames 
-            if(it->second->survival_time * 1.0 / it->second->visiable_time < 0.2){
+            if(it->second->assocate_count * 1.0 / it->second->visiable_count < 0.2){
                 global_map.erase(it++);
                 continue;
             }
-            it->second->survival_time++;
+
+            // dis limit
+            // double tdis = (it->second->cylinder->A - nposi).norm();
+            // if(tdis < range) it->second->visiable_count++;
+
+            // kdtree limit
+            // if(LocalPoleCenterCloud->empty()){
+            //     it->second->visiable_count++;
+            // }else{
+            //     PointType htmp;
+            //     htmp.x=it->second->cylinder->A[0],htmp.y=it->second->cylinder->A[1],htmp.z=it->second->cylinder->A[2];
+            //     std::vector<int> pointSearchInd;
+            //     std::vector<float> pointSearchSqDis;
+            //     kdtreeLocalPoleCenterMap->radiusSearch(htmp, 5.0, pointSearchInd, pointSearchSqDis);
+            //     if(!pointSearchInd.empty()){
+            //         it->second->visiable_count++;
+            //     }
+            // }
+
             it++;
         }
         PoleCenterCloud->clear();
@@ -687,20 +734,19 @@ public:
                     continue;
                 }else{
                     // 记录BA参数
-                    nowBAAssocate.emplace_back(nPoseType, global_map[min_s_id]->cylinder);
+                    nowBAAssocate.emplace_back(nPoseType, min_s_pole->cylinder);
                     nowBAAssocateInd.emplace_back(min_s_id);
                     // 已经关联的更新cylinder以及Pole关联参数，
                     min_s_pole->assocate_count++;
-                    min_s_pole->visiable_time++;
-                    global_map[min_s_id]->cylinder = l;
+                    min_s_pole->visiable_count++;
+                    min_s_pole->updateMeasurement(l);
                 }
             }
         }
-        if(!nowBAAssocate.empty()) BAAssocate.emplace_back(move(nowBAAssocate));
-        if(!nowBAAssocateInd.empty()) BAAssocateInd.emplace_back(move(nowBAAssocateInd));
+        if(!nowBAAssocate.empty()) BAAssocate.emplace_back(nowBAAssocate);
+        if(!nowBAAssocateInd.empty()) BAAssocateInd.emplace_back(nowBAAssocateInd);
         cout << "add end " << endl;
     }
-    // 因为同一个Pole关联后会更新cylinder，于是这里返回的cylinder，但是还是需要Pole的信息以表示是否是同一个pole，然后也需要不同的cylinder提供观测。
     vector<PoleConstraint::Ptr> getBAAssocate(){
         unordered_map<int, PoleConstraint::Ptr> pole_constraint_dic;
         vector<PoleConstraint::Ptr> ans;
@@ -709,7 +755,6 @@ public:
         for(; itframeba != BAAssocate.end() && itframebaid != BAAssocateInd.end(); itframeba++,itframebaid++){
             auto itpba = itframeba->begin();
             auto itpbaid = itframebaid->begin();
-            // 查这一对BA的ID是否在Map中存在，如果因为劣质导致删除那么就不能提供BA，ID对应唯一的Pole，但是不能用Pole中的Cylinder， 只能用以前存起来的Cylinder
             for(; itpba != itframeba->end() && itpbaid != itframebaid->end(); itpba++, itpbaid++){
                 if(global_map.count(*itpbaid) == 1){
                     if(pole_constraint_dic.count(*itpbaid) != 1) pole_constraint_dic[*itpbaid] = PoleConstraint::Ptr(new PoleConstraint(*itpbaid));
@@ -717,7 +762,6 @@ public:
                     ba_constraint->pole_id = *itpbaid;
                     ba_constraint->pose_vec->emplace_back(itpba->first);
                     ba_constraint->measurement_vec->emplace_back(itpba->second);
-                    ba_constraint->pre_center += itpba->second->A;
                 }
             }
         }
@@ -727,7 +771,11 @@ public:
         return ans;
     }
     void updatepose(){
+        cout << "######################updatepose########################" << endl;
+        if(lastPoseType == nullptr) return;
+        cout << "get BA Assocate " << endl;
         auto baassocate = this->getBAAssocate();
+        cout << "Configuration optimize Tools " << endl;
         using BlockSolverTpye = g2o::BlockSolverPL<6, 3>;
         using LinearSolverType = g2o::LinearSolverDense<BlockSolverTpye::PoseMatrixType>;
         auto solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<BlockSolverTpye>(g2o::make_unique<LinearSolverType>()));
@@ -738,56 +786,143 @@ public:
         cameraOffset->setOffset();
         cameraOffset->setId(0);
         optimizer.addParameter(cameraOffset);
-        int vertex_cylinder_id = 1;
+        int vertex_pole_id = 1;
         int vertex_pose_id = baassocate.size()+1;
+        unordered_map<int, int> poseid2vertexid;
+        unordered_map<int, int> vertexid2poseid;
+        unordered_map<int, int> vertexid2poleid;
+        unordered_map<int, int> poleid2vertexid;
+        int last_pose_idf_id = 0;
+        int last_pose_vertex_id = 0;
+        cout << "Start add constraint" << endl;
+        cout << "Start add vertex" << endl;
+        int edge_count = 0;
         unordered_set<int> pose_vertex_id_dic, cylinder_vertex_id_dic;
         for(auto&perba:baassocate){
             for(size_t i = 0; i < perba->measurement_vec->size(); ++i){
-                auto&pose=*(*perba->pose_vec)[i];
-                // auto&cylinder=(*perba->measurement_vec)[i];
+                PoseType&pose(*(*perba->pose_vec)[i]);
                 if(pose_vertex_id_dic.count(pose.odom_id) != 1){
                     // 位姿是顶点
                     g2o::VertexSE3 * vSE3_w = new g2o::VertexSE3();
-                    vSE3_w->setEstimate(g2o::SE3Quat(pose.odom->rotation().cast<double>(),pose.odom->translation().cast<double>()));
+                    Eigen::Matrix3d tmpR=Eigen::Matrix3d::Identity();
+                    Eigen::Vector3d tmpt=Eigen::Vector3d::Zero();
+                    vSE3_w->setEstimate(g2o::SE3Quat(tmpR, tmpt));
+                    // vSE3_w->setEstimate(g2o::SE3Quat(pose.odom->rotation(),pose.odom->translation()));
                     vSE3_w->setId(vertex_pose_id);
                     vSE3_w->setFixed(false);
-                    optimizer.addVertex(vSE3_w);
-                    pose.odom_id = vertex_pose_id;
+                    // optimizer.addVertex(vSE3_w);
+                    vertexid2poseid[vertex_pose_id] = pose.odom_id;
+                    poseid2vertexid[pose.odom_id] = vertex_pose_id;
+                    if(last_pose_idf_id > pose.odom_id){
+                        last_pose_idf_id = pose.odom_id;
+                        last_pose_vertex_id = vertex_pose_id;
+                    }
                     vertex_pose_id++;
+                    cout << "\t get a pose vertex " << vertex_pose_id-1 << endl;
                 }
+                edge_count++;
             }
             if(cylinder_vertex_id_dic.count(perba->pole_id) == 1) continue;
             if(perba->measurement_vec->empty()) continue;
-            Eigen::Vector3d avg_posi_world = perba->getCenter();
+            Eigen::Vector3d avg_posi_world = global_map[perba->pole_id]->getCenter();
             // 路标点是顶点
             g2o::VertexPointXYZ * vMP_w = new g2o::VertexPointXYZ();
-            vMP_w->setEstimate(avg_posi_world.cast<double>());
-            vMP_w->setId(vertex_cylinder_id);
+            // vMP_w->setEstimate(avg_posi_world);
+            Eigen::Vector3d tmpp=Eigen::Vector3d::Zero();
+            vMP_w->setEstimate(tmpp);
+            vMP_w->setId(vertex_pole_id);
             vMP_w->setFixed(false);
-            optimizer.addVertex(vMP_w);
-            perba->pole_id = vertex_cylinder_id;
-            vertex_cylinder_id++;
+            // optimizer.addVertex(vMP_w);
+            vertexid2poleid[vertex_pole_id] = perba->pole_id;
+            poleid2vertexid[perba->pole_id] = vertex_pole_id;
+            vertex_pole_id++;
+            cout << "\t get a cylinder vertex " << vertex_pole_id-1 << endl;
         }
+        // 为每一帧BA添加 edge
         int edge_id = vertex_pose_id + 1;
+        cout << "Start add edge : " << edge_count << endl;
         for(auto&perba:baassocate){
             for(size_t i = 0; i < perba->measurement_vec->size(); ++i){
                 auto&pose=*(*perba->pose_vec)[i];
                 auto&cylinder=(*perba->measurement_vec)[i];
+                int pose_vertex_id = poseid2vertexid[pose.odom_id];
+                int pole_vertex_id = poleid2vertexid[perba->pole_id];
+                cout << "\t get a edge " << edge_id << " v1: " << pose_vertex_id << " v2: " << pole_vertex_id << endl;
                 g2o::EdgeSE3PointXYZ * edge_pose_cylinder = new g2o::EdgeSE3PointXYZ();
                 edge_pose_cylinder->setId(edge_id);
                 edge_pose_cylinder->setParameterId(0, 0);
-                edge_pose_cylinder->setVertex(pose.odom_id, dynamic_cast<g2o::VertexSE3*>(optimizer.vertex(pose.odom_id)));
-                edge_pose_cylinder->setVertex(perba->pole_id, dynamic_cast<g2o::VertexPointXYZ*>(optimizer.vertex(perba->pole_id)));
-                auto local_measurement = cylinder->translateA(pose.odom->rotation().transpose(),(-1)*pose.odom->rotation().transpose()*pose.odom->translation());
-                edge_pose_cylinder->setMeasurement(local_measurement.cast<double>());
-
+                edge_pose_cylinder->setVertex(0, dynamic_cast<g2o::VertexSE3*>(optimizer.vertex(pose_vertex_id)));
+                edge_pose_cylinder->setVertex(1, dynamic_cast<g2o::VertexPointXYZ*>(optimizer.vertex(pole_vertex_id)));
+                // Eigen::Vector3d local_measurement = cylinder->translateA(pose.odom->rotation().transpose(),(-1)*pose.odom->rotation().transpose()*pose.odom->translation());
+                Eigen::Vector3d local_measurement = Eigen::Vector3d::Zero();
+                edge_pose_cylinder->setMeasurement(local_measurement);
+                // optimizer.addEdge(edge_pose_cylinder);
+                edge_id++;
             }
         }
 
-        
-        
-        BAAssocate.clear();
+        int tmp_vetex_id1 = 1, tmp_vetex_id2 = 2;
+        int tmp_edge_id = 3;
+
+        g2o::VertexSE3 * vSE3_w = new g2o::VertexSE3();
+        Eigen::Matrix3d tmpR=Eigen::Matrix3d::Identity();
+        Eigen::Vector3d tmpt=Eigen::Vector3d::Zero();
+        vSE3_w->setEstimate(g2o::SE3Quat(tmpR, tmpt));
+        vSE3_w->setId(tmp_vetex_id1);
+        vSE3_w->setFixed(false);
+        optimizer.addVertex(vSE3_w);
+
+        g2o::VertexPointXYZ * vMP_w = new g2o::VertexPointXYZ();
+        Eigen::Vector3d tmpp=Eigen::Vector3d::Zero();
+        vMP_w->setEstimate(tmpp);
+        vMP_w->setId(tmp_vetex_id2);
+        vMP_w->setFixed(false);
+        optimizer.addVertex(vMP_w);
+
+        g2o::EdgeSE3PointXYZ * edge_pose_cylinder = new g2o::EdgeSE3PointXYZ();
+        edge_pose_cylinder->setId(tmp_edge_id);
+        edge_pose_cylinder->setParameterId(0, 0);
+        edge_pose_cylinder->setVertex(0, dynamic_cast<g2o::VertexSE3*>(optimizer.vertex(tmp_vetex_id1)));
+        edge_pose_cylinder->setVertex(1, dynamic_cast<g2o::VertexPointXYZ*>(optimizer.vertex(tmp_vetex_id2)));
+        Eigen::Vector3d local_measurement = Eigen::Vector3d::Zero();
+        edge_pose_cylinder->setMeasurement(local_measurement);
+        optimizer.addEdge(edge_pose_cylinder);
+
+
+        cout << "**************optimization begin***********" << endl;
+        optimizer.initializeOptimization();
+        optimizer.optimize(10);
+        cout << "**************optimization end***********" << endl;
+        cout << "get ans after optimize " << endl;
+        // for(int landmark_id = 1; landmark_id < vertex_pole_id; ++landmark_id){
+        //     g2o::VertexPointXYZ* landmark_res = static_cast<g2o::VertexPointXYZ*>(optimizer.vertex(landmark_id));
+        //     auto pole_cons_to_update = global_map[vertexid2poleid[landmark_id]];
+        //     pole_cons_to_update->update_clear(landmark_res->estimate());
+        // }
+        // for(int pose_id = baassocate.size()+1; pose_id < vertex_pose_id; ++pose_id){
+        //     g2o::VertexSE3* pose_res = static_cast<g2o::VertexSE3*>(optimizer.vertex(pose_id));
+        //     *trajectory[vertexid2poseid[pose_id]]->odom = pose_res->estimate();
+        //     if(last_pose_vertex_id == pose_id){
+        //         *lastPoseType->odom = pose_res->estimate();
+        //     }
+        // }
+        cout << "clear the memory !" << endl;
+        cout << "clear ba assocate cache !" << endl;
+        // BAAssocate.clear();
+        cout << "clear ba id cache!" << endl;
         BAAssocateInd.clear();
+        cout << "end" << endl;
+    }
+    pcl::PointCloud<PointType>::Ptr getPoseVec(){
+        pcl::PointCloud<PointType>::Ptr ans(new pcl::PointCloud<PointType>());
+        for(auto&p:trajectory){
+            PointType tmp;
+            tmp.x = p.second->odom->translation()[0];
+            tmp.y = p.second->odom->translation()[1];
+            tmp.z = p.second->odom->translation()[2];
+            ans->emplace_back(tmp);
+        }
+        return ans;
     }
 };
 
@@ -823,40 +958,49 @@ void exitSavedata(){
     TicToc showBatime;
     auto baassocate = cylinderManager.getBAAssocate();
     string saveBase = "/home/qh/ins_map_temp/cylinderMap/";
-    pcl::PointCloud<PointType>::Ptr path_node(new pcl::PointCloud<PointType>());
-    pcl::PointCloud<PointType>::Ptr assline_cylinder(new pcl::PointCloud<PointType>());
-    pcl::PointCloud<PointType>::Ptr assline(new pcl::PointCloud<PointType>());
-    pcl::PointCloud<PointType>::Ptr assline_ori(new pcl::PointCloud<PointType>());
-    pcl::PointCloud<PointType>::Ptr assline_lcc(new pcl::PointCloud<PointType>());
+    // pcl::PointCloud<PointType>::Ptr path_node(new pcl::PointCloud<PointType>());
+    // pcl::PointCloud<PointType>::Ptr assline_cylinder(new pcl::PointCloud<PointType>());
+    // pcl::PointCloud<PointType>::Ptr assline(new pcl::PointCloud<PointType>());
+    // pcl::PointCloud<PointType>::Ptr assline_ori(new pcl::PointCloud<PointType>());
+    // pcl::PointCloud<PointType>::Ptr assline_lcc(new pcl::PointCloud<PointType>());
     
-    for(auto&perba:baassocate){
-        for(size_t i = 0; i < perba->measurement_vec->size(); ++i){
-            auto&pose=*(*perba->pose_vec)[i];
-            auto&cylinder=(*perba->measurement_vec)[i];
-            int label_id = perba->pole_id;
-            PointType cc, oc;
-            cc.x = cylinder->center[0],cc.y = cylinder->center[1],cc.z = cylinder->center[2];
-            oc.x = pose.odom->translation()[0],oc.y = pose.odom->translation()[1],oc.z = pose.odom->translation()[2];
-            // printf("get cc %f,%f,%f  oc %f,%f,%f\n", cc.x, cc.y, cc.z, oc.x, oc.y, oc.z);
-            *assline += *createLineCLoud(cc, oc);
-            *assline_cylinder += *CylinderParameter::generateCylinderCloud(*cylinder);
-            *assline_ori += *(cylinder->ori_cloud);
-            PointType lcc;
-            lcc.x=cylinder->A[0],lcc.y=cylinder->A[1],lcc.z=cylinder->A[2];
-            lcc.intensity = label_id, lcc.label = label_id;
-            // lcc.intensity = cylinder->
-            assline_lcc->emplace_back(lcc);
-        }
-    }
-    for(auto&p:odompath){
-        path_node->emplace_back(p);   
-    }
-    if(!path_node->empty()) pcl::io::savePCDFileASCII(saveBase+"path_node.pcd", *path_node);
-    if(!assline_cylinder->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_cylinder.pcd", *assline_cylinder);
-    if(!assline->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate.pcd", *assline);
-    if(!assline_ori->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_ori.pcd", *assline_ori);
-    if(!assline_lcc->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_lcc.pcd", *assline_lcc);
-    printf("show Ba time %f\n", showBatime.toc());
+    // for(auto&perba:baassocate){
+    //     for(size_t i = 0; i < perba->measurement_vec->size(); ++i){
+    //         auto&pose=*(*perba->pose_vec)[i];
+    //         auto&cylinder=(*perba->measurement_vec)[i];
+    //         int label_id = perba->pole_id;
+    //         PointType cc, oc;
+    //         cc.x = cylinder->center[0],cc.y = cylinder->center[1],cc.z = cylinder->center[2];
+    //         oc.x = pose.odom->translation()[0],oc.y = pose.odom->translation()[1],oc.z = pose.odom->translation()[2];
+    //         // printf("get cc %f,%f,%f  oc %f,%f,%f\n", cc.x, cc.y, cc.z, oc.x, oc.y, oc.z);
+    //         *assline += *createLineCLoud(cc, oc);
+    //         *assline_cylinder += *CylinderParameter::generateCylinderCloud(*cylinder);
+    //         *assline_ori += *(cylinder->ori_cloud);
+    //         PointType lcc;
+    //         lcc.x=cylinder->A[0],lcc.y=cylinder->A[1],lcc.z=cylinder->A[2];
+    //         lcc.intensity = label_id, lcc.label = label_id;
+    //         // lcc.intensity = cylinder->
+    //         assline_lcc->emplace_back(lcc);
+    //     }
+    // }
+    // for(auto&p:odompath){
+    //     path_node->emplace_back(p);   
+    // }
+    // if(!path_node->empty()) pcl::io::savePCDFileASCII(saveBase+"path_node.pcd", *path_node);
+    // if(!assline_cylinder->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_cylinder.pcd", *assline_cylinder);
+    // if(!assline->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate.pcd", *assline);
+    // if(!assline_ori->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_ori.pcd", *assline_ori);
+    // if(!assline_lcc->empty()) pcl::io::savePCDFileASCII(saveBase+"BA_assocate_lcc.pcd", *assline_lcc);
+    // printf("show Ba time %f\n", showBatime.toc());
+
+    auto before_odom_cloud = cylinderManager.getPoseVec();
+    cout << "update pose start" << endl;
+    cylinderManager.updatepose();
+    cout << "update pose end  " << endl;
+    auto after_odom_cloud = cylinderManager.getPoseVec();
+    cout << "save update result" << endl;
+    if(!before_odom_cloud->empty()) pcl::io::savePCDFileASCII(saveBase+"before_odom.pcd", *before_odom_cloud);
+    if(!after_odom_cloud->empty()) pcl::io::savePCDFileASCII(saveBase+"after_odom.pcd", *after_odom_cloud);
     cout << "data saved" << endl;
 }
 
@@ -871,14 +1015,14 @@ std::queue<sensor_msgs::PointCloud2ConstPtr> laserCloudMsgQueue;
 ros::Publisher pub_pcl_cluster_frame, pub_pcl_interest, pub_pcl_map, pub_ba_map;
 image_transport::Publisher imgPub;
 std::vector<bool>  interest_labels;
-std::vector<pcl::PointCloud<PointType>::Ptr> last_cluster_cloud, now_cluster_cloud;
+// std::vector<pcl::PointCloud<PointType>::Ptr> last_cluster_cloud, now_cluster_cloud;
 std::vector<LineParameter::Ptr> last_cluster_parameter_line, now_cluster_parameter_line;
 std::vector<CylinderParameter::Ptr> now_cluster_parameter_cylinder, last_cluster_parameter_cylinder;
 std::vector<pcl::PointCloud<PointType>::Ptr> laserCloudArray;
 ///////////////////////////////////////////////////////////
 std::vector<bool> getInterest(std::string file_name);
 pcl::PointCloud<PointType>::Ptr GetFilteredInterestSerial(
-    pcl::PointCloud<PointType>::Ptr raw_pcl_, vector<bool> &interestLabel);
+    pcl::PointCloud<PointType>::Ptr raw_pcl_, vector<bool> &interestLabel, double&feel_range);
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &rec);
 void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& odom);
 void laserOdomHandler(nav_msgs::Odometry odom);
@@ -915,17 +1059,29 @@ int main(int argc, char** argv){
         if (laserOdomQueue.empty() || laserCloudMsgQueue.empty())
             continue;
         if (abs(laserOdomQueue.front().header.stamp.toSec() - laserCloudMsgQueue.front()->header.stamp.toSec()) < 0.05)
-        {
+        {   
+            static int frame_count = 1;
             process(laserCloudMsgQueue.front(), laserOdomQueue.front());
+            frame_count++;
+            if(frame_count >= 10) break;
             laserCloudMsgQueue.pop();
             laserOdomQueue.pop();
-            last_cluster_cloud.swap(now_cluster_cloud);
+            // last_cluster_cloud.swap(now_cluster_cloud);
             last_cluster_parameter_line.swap(now_cluster_parameter_line);
             last_cluster_parameter_cylinder.swap(now_cluster_parameter_cylinder);
         }
         loop.sleep();
     }
-    // exitSavedata();
+    exitSavedata();
+    getchar();
+    cout << "1" << endl;
+    getchar();
+    cout << "2" << endl;
+    getchar();
+    cout << "3" << endl;
+    getchar();
+    cout << "4" << endl;
+    getchar();
     return 0;
 }
 
@@ -982,7 +1138,8 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*rec_point, *rec_point, indices);
     if(rec_point->points.empty()) return;
-    auto points_interest_serial = GetFilteredInterestSerial(rec_point, interest_labels);
+    double feel_range = -DBL_MAX;
+    auto points_interest_serial = GetFilteredInterestSerial(rec_point, interest_labels, feel_range);
     if( points_interest_serial!=nullptr && points_interest_serial->points.empty()) return;
 
     // 发布语义兴趣点
@@ -1021,10 +1178,10 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     }
     std::cout << "cluster: " << classes.size() << std::endl;
     //每一个key都要计算一波点云，计算一波框框，然后存到点云中去
-    vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud;
+    // vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud;
     vector<LineParameter::Ptr> cluster_parameter;
     vector<CylinderParameter::Ptr> cluster_parameter2;
-    vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud_frame;
+    // vector<pcl::PointCloud<PointType>::Ptr> cluster_cloud_frame;
     int cluster_label = 0;
     for(unordered_map<int, int>::iterator it = classes.begin(); it != classes.end(); it++)
     {
@@ -1035,29 +1192,29 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
             if(cluster_index[i] == it->first)
             {
                 points_interest_serial->points[i].label = cluster_label;
-                // pointAssociateToT(points_interest_serial->points[i], tmp_r_w_curr, tmp_t_w_curr);
                 tempCloud->emplace_back(points_interest_serial->points[i]);
             }
         }
-        cluster_cloud.emplace_back(tempCloud);
+        // cluster_cloud.emplace_back(tempCloud);
         //计算这部分点云的PCA并画框框
-        Eigen::Vector4d min, max;
+        // Eigen::Vector4d min, max;
         LineParameter::Ptr line(new LineParameter(tempCloud));
         CylinderParameter::Ptr cylinder(new CylinderParameter(tempCloud, line));
+        if(!cylinder->valid) continue;
         cluster_label++;
         cluster_parameter.emplace_back(line);
         cluster_parameter2.emplace_back(cylinder);
-        cluster_cloud_frame.emplace_back(tempCloud);
+        // cluster_cloud_frame.emplace_back(tempCloud);
     }
     // 更新当前的点云与参数
-    now_cluster_cloud.swap(cluster_cloud);
+    // now_cluster_cloud.swap(cluster_cloud);
     now_cluster_parameter_line.swap(cluster_parameter);
     now_cluster_parameter_cylinder.swap(cluster_parameter2);
 
 
     // 将当前点云变换到世界系下
     pcl::PointCloud<PointType>::Ptr points_cluster_frame(new pcl::PointCloud<PointType>());
-    for(auto&p:cluster_cloud_frame) *points_cluster_frame += *p;
+    for(auto&p:points_interest_serial->points) points_cluster_frame->emplace_back(p);
     for(auto&p:points_cluster_frame->points){
         pointAssociateToT(p, tmp_r_w_curr, tmp_t_w_curr);
     }
@@ -1069,8 +1226,8 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     // 柱面可视化参数
     pcl::PointCloud<PointType>::Ptr visual_cloud_cylinder(new pcl::PointCloud<PointType>());
     for(auto&cylinder:now_cluster_parameter_cylinder){
-        auto cylinder_w = cylinder->translate(tmp_r_w_curr, tmp_t_w_curr);
-        auto shape_cloud = CylinderParameter::generateCylinderCloud(*cylinder_w);
+        cylinder->translate(tmp_r_w_curr, tmp_t_w_curr);
+        auto shape_cloud = CylinderParameter::generateCylinderCloud(*cylinder);
         *visual_cloud_cylinder += *shape_cloud;
     }
     visual_cloud_cylinder->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
@@ -1078,7 +1235,7 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     cylinder_pub.publish(visual_cloud_cylinder);
 
     cout << "find match" << endl;
-    // cylinderManager.addNewLandmark(now_cluster_parameter_cylinder, timestamp, odom);
+    cylinderManager.addNewLandmark(now_cluster_parameter_cylinder, timestamp, odom, feel_range);
     cout << "get match " << endl;
     auto baassocate = cylinderManager.getBAAssocate();
     cout << "get ba assocate " << baassocate.size() << endl;
@@ -1180,8 +1337,6 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
         //     parameters[3] = 1.0f;
         // }
     }
-
-    printf("get semantic constraint %f ms\n", time_rg.toc());
     static int frameCount = 0;
     frameCount++;
 
@@ -1214,7 +1369,7 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     br.sendTransform(tf::StampedTransform(transform, ros::Time().fromSec(timestamp), "map", "odom"));
 
 
-    if (frameCount % 20== 0){
+    if (frameCount % 5 == 0 && false){
         TicToc showBatime;
         pcl::PointCloud<PointType>::Ptr showBaCloud(new pcl::PointCloud<PointType>());
         for(auto&perba:baassocate){
@@ -1234,6 +1389,8 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
         showBaCloud->header.frame_id = "map";
         pub_ba_map.publish(showBaCloud);
     }
+
+    printf("get semantic constraint %f ms\n", time_rg.toc());
 }
 
 
@@ -1311,7 +1468,7 @@ std::vector<bool> getInterest(std::string file_name)
 }
 
 pcl::PointCloud<PointType>::Ptr GetFilteredInterestSerial(
-    pcl::PointCloud<PointType>::Ptr raw_pcl_, vector<bool> &interestLabel)
+    pcl::PointCloud<PointType>::Ptr raw_pcl_, vector<bool> &interestLabel, double&feel_range)
 {
     int valid_labels = 0;
     vector<int> interestLabelId(interestLabel.size(), 0);
@@ -1333,6 +1490,8 @@ pcl::PointCloud<PointType>::Ptr GetFilteredInterestSerial(
             if (interestLabel[p.label & 0xFFFF])
             {
                 interested->points.emplace_back(p);
+                double tdis = sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
+                feel_range = max(feel_range, tdis);
             }
             else
             {

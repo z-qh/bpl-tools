@@ -3,7 +3,7 @@ project(lso)
 
 add_compile_options(-std=c++17)
 
-##
+# #
 find_package(catkin REQUIRED COMPONENTS
         roscpp
         std_msgs
@@ -19,27 +19,28 @@ find_package(catkin REQUIRED COMPONENTS
         nav_msgs
 )
 
-##octomap
-#find_package(octomap REQUIRED)
-#include_directories(${ocotmap_INCLUDE_DIRS})
+# #octomap
+# find_package(octomap REQUIRED)
+# include_directories(${ocotmap_INCLUDE_DIRS})
 
-## opencv
+# # opencv
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-## pcl
+# # pcl
 find_package(PCL REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})
 
-## ceres
+# # ceres
 find_package(Ceres REQUIRED)
 include_directories(${Ceres_INCLUDE_DIRS})
 
-## g2o
+# # g2o
 find_package(g2o REQUIRED)
 find_package(Eigen3 REQUIRED)
-#find_package(csparse REQUIRED)
-#include_directories(${CSPARSE_INCLUDE_DIR})
+
+# find_package(csparse REQUIRED)
+# include_directories(${CSPARSE_INCLUDE_DIR})
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${G2O_INCLUDE_DIR})
 include_directories("/usr/include/suitesparse")
@@ -53,22 +54,22 @@ SET(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal
         g2o_solver_dense g2o_stuff
         g2o_types_sclam2d g2o_parser
         g2o_solver_pcg g2o_types_data
-        g2o_types_sim3 cxsparse )
+        g2o_types_sim3 cxsparse)
 
-## GTSAM
+# # GTSAM
 find_package(GTSAM REQUIRED) # Uses installed package
 include_directories(${GTSAM_INCLUDE_DIR})
 set(GTSAM_LIBRARIES gtsam)
 find_package(GTSAMCMakeTools)
 
-## glog
+# # glog
 find_package(Gflags)
 find_package(Glog)
 include_directories(${GFLAGS_INCLUDE_DIRS} ${GLOG_INCLUDE_DIRS})
 
-##
+# #
 
-## LIBS
+# # LIBS
 set(lso_EXTERN_INCLUDES
         ${OpenCV_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
@@ -85,9 +86,9 @@ set(lso_EXTERN_LIBS
         ${CERES_LIBRARIES}
         ${G2O_LIBS}
         gtsam
-        )
+)
 
-##
+# #
 generate_messages(
         DEPENDENCIES
         geometry_msgs
@@ -95,7 +96,7 @@ generate_messages(
         nav_msgs
 )
 
-##
+# #
 catkin_package(
         CATKIN_DEPENDS
         message_runtime
@@ -106,24 +107,23 @@ catkin_package(
 )
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-
-##Geometry
+# #Geometry
 add_library(Geometry SHARED src/Geometry.cpp)
 target_link_libraries(Geometry ${lso_EXTERN_LIBS})
 target_include_directories(Geometry PUBLIC include ${lso_EXTERN_INCLUDES})
-##Cluster CVC
+
+# #Cluster CVC
 add_library(cvc SHARED src/ClusterCVC.cpp)
 target_link_libraries(cvc ${lso_EXTERN_LIBS})
-target_include_directories(cvc PUBLIC include ${lso_EXTERN_INCLUDES} )
+target_include_directories(cvc PUBLIC include ${lso_EXTERN_INCLUDES})
 
 #
 set(lso_IN_LIBS
         Geometry
         cvc
-        )
+)
 
-## demo for test
-#add_executable(test1 src/test1.cpp)
-#target_link_libraries(test1 ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
-##
-
+# # demo for test
+# add_executable(test1 src/test1.cpp)
+# target_link_libraries(test1 ${lso_EXTERN_LIBS} ${lso_IN_LIBS})
+# #

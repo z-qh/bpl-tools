@@ -5,6 +5,6 @@
     </node>
     <arg name="rviz" default="true" />
     <group if="$(arg rviz)">
-        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find bpltool)/rviz/plane.rviz" />
+        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d /home/qh/qh_ws/src/bpl-tools/bpltool/src/rviz/plane.rviz" />
     </group>
 </launch>

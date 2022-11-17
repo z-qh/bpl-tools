@@ -276,9 +276,15 @@ target_link_libraries(pole_debug ${bpl_LIBS})
 target_compile_options(pole_debug PRIVATE -g)
 
 # #
+add_executable(testsc src/source/testsc.cpp)
+target_link_libraries(testsc ${bpl_LIBS})
+target_compile_options(testsc PUBLIC -g -O0)
+
+# #
 add_executable(plane src/source/plane.cpp)
 target_link_libraries(plane ${bpl_LIBS})
 
 # #
 add_executable(mytest src/source/mytest.cpp)
-target_link_libraries(mytest ${bpl_LIBS})
+target_link_libraries(mytest )
+target_compile_options(mytest PRIVATE -g)

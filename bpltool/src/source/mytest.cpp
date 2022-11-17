@@ -1,38 +1,44 @@
-#include <iostream> 
+#include <ext/pb_ds/assoc_container.hpp>
+#include <ext/pb_ds/trie_policy.hpp>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
 #include <vector>
-#include <algorithm>
 using namespace std;
+using namespace __gnu_pbds;
 
-uint32_t findMissing(vector<vector<uint32_t>> numbers) {
-    for(int i = 0;i < numbers.size();i++)
+string binaryAdd(string A, string B)
+{
+    string res;
+    int acc = 0;
+    int ai = A.size() - 1;
+    int bi = B.size() - 1;
+    for (; ai >= 0 || bi >= 0;)
     {
-        if((i&1) != numbers[i][0])
-            return i;
+        int a, b;
+        if (ai < 0)
+            a = 0, b = B[bi];
+        else if (bi < 0)
+            b = 0, a = A[ai];
+        else 
+            b = B[bi], a=A[ai];
+        int now = b - '0' + a - '0' + acc;
+        acc = now / 2;
+        now = now % 2;
+        res.push_back(now + '0');
+        ai--, bi--;
     }
-    return numbers.size();
-}
-vector<vector<uint32_t>> generate_data(vector<uint32_t>&d){
-    vector<vector<uint32_t>> data;
-    for(auto p:d){
-        vector<uint32_t> tmp(32, 0);
-        for(int i = 0; i < 32; ++i){
-            tmp[i] = (p >> i) & 1;
-        }
-        data.emplace_back(move(tmp));
+    while (acc != 0)
+    {
+        res.push_back(acc % 2 + '0');
+        acc /= 2;
     }
-    return data;
+    return res;
 }
 
-int main(){
-    cout << " test " << endl;
-    vector<uint32_t> full{0,1,2,3,4,5,6,7};
-    vector<uint32_t> lack{0,1,2,3,4,5,7};
-    auto data = generate_data(lack);
-    for(auto&p:data){
-        for(auto&a:p)cout << a << " ";
-        cout << endl;
-    }
-    cout << endl;
-    cout << findMissing(data) << endl;
+int main()
+{
+    cout << binaryAdd("101", "100") << endl;
     return 0;
 }

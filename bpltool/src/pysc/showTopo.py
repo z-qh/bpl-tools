@@ -1,15 +1,9 @@
-import math
-import pickle
-import time
-import numpy as np
-import sys
-import random
-from global_judge_generate import Vertex, Posi
-from make_sc_example import ScanContext
+import Base
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from mpl_toolkits.axes_grid1.inset_locator import TransformedBbox, BboxPatch, BboxConnector
+
 
 def mark_inset2(parent_axes, inset_axes, loc1a=1, loc1b=1, loc2a=2, loc2b=2, **kwargs):
     rect = TransformedBbox(inset_axes.viewLim, parent_axes.transData)
@@ -25,6 +19,7 @@ def mark_inset2(parent_axes, inset_axes, loc1a=1, loc1b=1, loc2a=2, loc2b=2, **k
     p2.set_clip_on(False)
 
     return pp, p1, p2
+
 
 if __name__ == "__main__":
 
@@ -45,13 +40,6 @@ if __name__ == "__main__":
         px = pc.position.y
         py = pc.position.x
         points = np.hstack((points, np.array((px, py)).astype(np.float32).reshape(2, 1)))
-        e1x = pf.position.y
-        e1y = pf.position.x
-        fedges = np.hstack((fedges, np.array((px, e1x, py, e1y)).astype(np.float32).reshape(2, 2)))
-        if pn is None: continue
-        e2x = pn.position.y
-        e2y = pn.position.x
-        nedges = np.hstack((nedges, np.array((px, e2x, py, e2y)).astype(np.float32).reshape(2, 2)))
 
     fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(24, 13.5))
     ax.scatter(points[0], points[1], marker="o", s=10, color="black", label='Vertex')

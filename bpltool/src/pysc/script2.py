@@ -12,16 +12,16 @@ import os
 import time as ttime
 
 
-def getPR():
+def getPR(top_=10, gdis_=3.0):
     """
     进行验证， 目前有 Daquan17 对 Daquan19 的相似度矩阵 用来检验阴阳 并且TopoMap是有位姿的可以检验真假
     参数整定之后最好的参数是 0.87 0.90 生成的地图
     """
 
-    sim_map_list = [0.87, 0.90, 0.95]
+    sim_map_list = [0.90]
     sim_recall_list = [0.1, 0.2, 0.3, 0.4, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
-    acc_pr_path = "/home/qh/YES/dlut/Daquan17/acc_pr.pkl"
-    app_pr_path = "/home/qh/YES/dlut/Daquan17/app_pr.pkl"
+    acc_pr_path = "/home/qh/YES/dlut/Daquan17/acc_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
+    app_pr_path = "/home/qh/YES/dlut/Daquan17/app_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
     accPR = {}
     appPR = {}
     if os.path.isfile(acc_pr_path) and os.path.isfile(app_pr_path):
@@ -48,7 +48,7 @@ def getPR():
                                                         base_topo=acc_tmp_topo,
                                                         full_topo=acc_full_topo,
                                                         connect=acc_full_topo_connect, sim=sim_recall,
-                                                        top=10, gdis=3.0)
+                                                        top=top_, gdis=gdis_)
                 tmp_acc_pr_list.append(acc_tmp_pr)
             accPR[sim_map] = tmp_acc_pr_list
         if appPR.get(sim_map) is None:
@@ -61,7 +61,7 @@ def getPR():
                                                         base_topo=app_tmp_topo,
                                                         full_topo=app_full_topo,
                                                         connect=app_full_topo_connect, sim=sim_recall,
-                                                        top=10, gdis=3.0)
+                                                        top=top_, gdis=gdis_)
                 tmp_app_pr_list.append(app_tmp_pr)
             appPR[sim_map] = tmp_app_pr_list
         print("Get {:.2f}-TopoMap get Recall Cost:{:.2f}s".format(sim_map, ttime.time() - start_time))
@@ -72,12 +72,11 @@ def getPR():
     return accPR, appPR
 
 
-
 if __name__ == "__main__":
-    accpr, apppr = getPR()
-
+    top, gids = 5, 5.0
+    accpr, apppr = getPR(top, gids)
     Base.plot_muliti_pr(accpr, apppr, row_size_=1,
-                        title="2021-01-17-Bag: ours VS appearance-based-method",
-                        save_path="/home/qh/YES/dlut/Daquan17/Test2.png")
+                        title="Validation2: ours VS appearance-based-method",
+                        save_path="/home/qh/YES/dlut/Daquan17/TestTop{:d}G{:.1f}.png".format(top, gids))
 
     print("123")

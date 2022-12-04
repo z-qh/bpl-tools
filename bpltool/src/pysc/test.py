@@ -11,117 +11,137 @@ import open3d
 import math
 from collections import defaultdict
 import pickle
+from numpy import trapz
 
 
-def GetAreaPointCloud2(voxel_dict, boundary, x_resolution, y_resolution, z_resolution):
-    tmp_points = np.zeros((0, 3), dtype=np.float32)
-    sy = int(math.ceil(boundary[0] / x_resolution))
-    ey = int(math.ceil(boundary[1] / x_resolution))
-    sx = int(math.ceil(boundary[2] / y_resolution))
-    ex = int(math.ceil(boundary[3] / y_resolution))
-    sz = int(math.ceil(boundary[4] / z_resolution))
-    ez = int(math.ceil(boundary[5] / z_resolution))
-    for k in range(sz, ez):
-        for i in range(sx, ex):
-            for j in range(sy, ey):
-                key = "{:d} {:d} {:d}".format(i, j, k)
-                voxel = voxel_dict.get(key)
-                if voxel is not None:
-                    tmp_points = np.row_stack((tmp_points, voxel))
-    return tmp_points
 
 
-# # 为了画比较容易理解的流程图
-def A():
-    global point_cloud1, point_cloud2, sc1, asc1, sc2, asc2, point_cloudmid, acc_cloud, bound3, bound2, bound1
-    accmap = Base.GetVoxelMap(cloud_path=None,
-                              path="/home/qh/YES/dlut/Daquan19/acc_global_voxel_map.pkl",
-                              x_res=1.0, y_res=1.0, z_res=1.5)
-    pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
-    bag = rosbag.Bag("/home/qh/YES/dlut/2021-01-19-11-10-53DaQuanL.bag")
-    bag_clouds = bag.read_messages("/lslidar_point_cloud")
-    traj = np.zeros((0, 3), dtype=np.float32)
-    count = 0
-    for topic, msg, rtime in bag_clouds:
-        now_time = rtime.to_sec()
-        ind = Base.BinFind(pose_vec_data, now_time, 0, pose_vec_data.shape[0] - 1)
-        if ind == -1:
-            continue
-        if count < 6094:
-            count += 1
-            continue
-        if count > 6490:
-            break
-        lidar = pc2.read_points(msg)
-        p_ = pose_vec_data[ind, 1:4].reshape((3, 1))
-        traj = np.row_stack((traj, p_.reshape((1, 3))))
-        r_ = Rotation.from_quat(pose_vec_data[ind, [5, 6, 7, 4]]).as_matrix().astype(np.float64)
-        points = np.array(list(lidar))
-        boundary = Base.getBound(points)
-        if count == 6094:
-            point_cloud1 = points[:, 0:3]
-            sc1 = Base.genTopoSC(Base.TopoNode(count, p_, r_, boundary, now_time), points, ch=5)
-            topo_cloud = Base.GetAreaPointCloud(accmap.voxel_dict, p_, boundary, accmap.x_resolution,
-                                                accmap.y_resolution, accmap.z_resolution)
-            topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
-            asc1 = Base.genTopoSC(Base.TopoNode(count, p_, r_, boundary, now_time), topo_cloud)
-        if count == 6292:
-            point_cloudmid = points[:, 0:3]
-        if count == 6490:
-            point_cloud2 = points[:, 0:3]
-            sc2 = Base.genTopoSC(Base.TopoNode(count, p_, r_, boundary, now_time), points, ch=5)
-            topo_cloud = Base.GetAreaPointCloud(accmap.voxel_dict, p_, boundary, accmap.x_resolution,
-                                                accmap.y_resolution, accmap.z_resolution)
-            topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
-            asc2 = Base.genTopoSC(Base.TopoNode(count, p_, r_, boundary, now_time), topo_cloud)
-        count += 1
-    return point_cloud1, point_cloud2, point_cloudmid, sc1, sc2, asc1, asc2
+def plot_muliti_pr2(acc_pr_list, app_pr_list, save_path=None, row_size_=2, title=None, vis=True):
+    parameter_size = len(acc_pr_list)
+    row_size = row_size_
+    col_size = int(math.ceil(parameter_size / row_size))
+    fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+    linestyles = ["solid", "dotted", "dashdot"]
+    titles = ["Extra dataset1 validation", "Extra dataset2 validation"]
+    for ind in range(len(acc_pr_list)):
+        acc_pr = acc_pr_list[ind]
+        app_pr = app_pr_list[ind]
+        title_label = "ours-method VS appearance-based-method"
+        if title is not None:
+            title_label = title
+        fig.suptitle(title_label, fontsize=25)
+        for i, key in enumerate(acc_pr):
+            # # ACC
+            row = i // col_size + 1
+            col = i - (row - 1) * col_size + 1
+            ax = plt.subplot(row_size, col_size, ind + 1)
+            ax.set_aspect('equal', adjustable='box')
+            if col == 1:
+                plt.ylabel("precision", fontsize=16)
+            plt.xlim(0, 1.1)
+            plt.ylim(0, 1.1)
+            recall = []
+            precision = []
+            sim = []
+            recall.append(1.0)
+            precision.append(0.0)
+            sim.append(0.0)
+            acc_vertex_size = 0
+            for pr in acc_pr[key]:
+                if pr[1] == 0 or pr[2] == 0:
+                    continue
+                sim.append(pr[0])
+                precision.append(pr[1])
+                recall.append(pr[2])
+                acc_vertex_size = pr[3]
+            recall.append(0.0)
+            precision.append(1.0)
+            sim.append(1.0)
+            acc_area = -trapz(precision, recall, dx=0.001)
+            plt.plot(recall, precision, lw="2", color="black", label="ours", alpha=1.0, linestyle="dashed")
+            plt.scatter(recall, precision, marker="o", s=10, color="black")
+            # for a, b, c in zip(recall, precision, sim):
+            #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
+            # # APP
+            recall = []
+            precision = []
+            sim = []
+            recall.append(1.0)
+            precision.append(0.0)
+            sim.append(0.0)
+            app_vertex_size = 0
+            for pr in app_pr[key]:
+                if pr[1] == 0 or pr[2] == 0:
+                    continue
+                sim.append(pr[0])
+                precision.append(pr[1])
+                recall.append(pr[2])
+                app_vertex_size = pr[3]
+            recall.append(0.0)
+            precision.append(1.0)
+            sim.append(1.0)
+            app_area = -trapz(precision, recall, dx=0.001)
+            plt.plot(recall, precision, lw="2", color="gray", label="appearance-based", alpha=1.0, linestyle="solid")
+            plt.scatter(recall, precision, marker="o", s=10, color="gray", alpha=0.9)
+            # for a, b, c in zip(recall, precision, sim):
+            #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
+            ax.legend(loc="best")
+            plt.xlabel("recall", fontsize=16)
+            detail = "\nours vertex size:{:d}\nappearance-based vertex:{:d}\ncount reduce {:.1f}%\n\nours area under " \
+                     "curve:{:.2f}%\nappearance-based area under curve:{:.2f}%\nperformance improved by {:.2}%".\
+                format(acc_vertex_size, app_vertex_size, (app_vertex_size - acc_vertex_size) / app_vertex_size * 100.0, acc_area*100, app_area*100, (acc_area-app_area)/app_area*100)
+            plt.text(0.5, 0.4, detail, ha="center", fontsize=12)
+            plt.title(titles[ind], fontsize=15)
+        for i in range(row_size * col_size):
+            if i < parameter_size:
+                continue
+            else:
+                ax = plt.subplot(row_size, col_size, i + 1)
+                ax.axis('off')
+    if save_path is not None:
+        plt.savefig(save_path, dpi=1200, transparent=True)
+    if vis:
+        plt.show()
+    plt.close()
 
 
 if __name__ == "__main__":
-    # pc1, pc2, pcmid, sc1, sc2, asc1, asc2 = A()
-    # pcd1 = open3d.geometry.PointCloud()
-    # pcd1.points = open3d.utility.Vector3dVector(pc1)
-    # open3d.io.write_point_cloud("/home/qh/YES/dlut/Daquan19/vis/pc1.pcd", pcd1)
-    # pcd2 = open3d.geometry.PointCloud()
-    # pcd2.points = open3d.utility.Vector3dVector(pc2)
-    # open3d.io.write_point_cloud("/home/qh/YES/dlut/Daquan19/vis/pc2.pcd", pcd2)
-    # pcdmid = open3d.geometry.PointCloud()
-    # pcdmid.points = open3d.utility.Vector3dVector(pcmid)
-    # open3d.io.write_point_cloud("/home/qh/YES/dlut/Daquan19/vis/pcmid.pcd", pcdmid)
-    # pickle.dump(sc1, open("/home/qh/YES/dlut/Daquan19/vis/sc1.pkl", "wb"))
-    # pickle.dump(sc2, open("/home/qh/YES/dlut/Daquan19/vis/sc2.pkl", "wb"))
-    # pickle.dump(asc1, open("/home/qh/YES/dlut/Daquan19/vis/asc1.pkl", "wb"))
-    # pickle.dump(asc2, open("/home/qh/YES/dlut/Daquan19/vis/asc2.pkl", "wb"))
-    # Base.plot_multiple_sc(sc1.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/sc1.png", vis=False)
-    # Base.plot_multiple_sc(sc2.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/sc2.png", vis=False)
-    # Base.plot_multiple_sc(asc1.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/asc1.png", vis=False)
-    # Base.plot_multiple_sc(asc2.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/asc2.png", vis=False)
-    # sc1 = pickle.load(open("/home/qh/YES/dlut/Daquan19/vis/sc1.pkl", "rb"))
-    # sc2 = pickle.load(open("/home/qh/YES/dlut/Daquan19/vis/sc2.pkl", "rb"))
-    # bound_all = (
-    #     min(sc1.position[0] + sc1.boundary[0], sc2.position[0] + sc2.boundary[0]),
-    #     max(sc1.position[0] + sc1.boundary[1], sc2.position[0] + sc2.boundary[1]),
-    #     min(sc1.position[1] + sc1.boundary[2], sc2.position[1] + sc2.boundary[2]),
-    #     max(sc1.position[1] + sc1.boundary[3], sc2.position[1] + sc2.boundary[3]),
-    #     min(sc1.position[2] + sc1.boundary[4], sc2.position[2] + sc2.boundary[4]),
-    #     max(sc1.position[2] + sc1.boundary[5], sc2.position[2] + sc2.boundary[5])
-    # )
-    #
-    # accmap = Base.GetVoxelMap(cloud_path=None,
-    #                           path="/home/qh/YES/dlut/Daquan19/acc_global_voxel_map.pkl",
-    #                           x_res=1.0, y_res=1.0, z_res=1.5)
-    # aa = Base.GetAreaPointCloud(accmap.voxel_dict, sc1.position, sc1.boundary, accmap.x_resolution, accmap.y_resolution, accmap.z_resolution)
-    # bb = Base.GetAreaPointCloud(accmap.voxel_dict, sc2.position, sc2.boundary, accmap.x_resolution, accmap.y_resolution, accmap.z_resolution)
-    # #
-    # pcd = open3d.geometry.PointCloud()
-    # pcd.points = open3d.utility.Vector3dVector(aa)
-    # # open3d.io.write_point_cloud("/home/qh/YES/dlut/Daquan19/vis/acc1.pcd", pcd)
-    # pcd2 = open3d.geometry.PointCloud()
-    # pcd2.points = open3d.utility.Vector3dVector(bb)
-    # open3d.io.write_point_cloud("/home/qh/YES/dlut/Daquan19/vis/acc2.pcd", pcd2)
-    # # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
-    # open3d.visualization.draw_geometries([pcd])
+    # pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
+    # acc_full_topo_info = Base.GetAccFullTopoInfo(pose_vec=pose_vec_data,
+    #                                              bag_file="/home/qh/YES/dlut/2021-01-19-11-10-53DaQuanL.bag",
+    #                                              lidar_topic="/lslidar_point_cloud")
+    # map = Base.GetVoxelMap(cloud_path="/home/qh/YES/dlut/Daquan19/liosave/GlobalMapDS.pcd",
+    #                        path="/home/qh/YES/dlut/Daquan19/acc_global_voxel_map.pkl",
+    #                        x_res=1.0, y_res=1.0, z_res=1.5)
+    # acc_full_topo = Base.GetAccFullTopo(accmap=map,
+    #                                     topo_info=acc_full_topo_info)
 
-    pcd = open3d.io.read_point_cloud("/home/qh/YES/dlut/Daquan19/vis/acc2.pcd")
-    open3d.visualization.draw_geometries([pcd])
+    # aa = pickle.load(open("/home/qh/YES/dlut/Daquan19/vis/19-600TonoNodeAcc.pkl", "rb"))
+    # Base.plot_multiple_sc(aa.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/19-600Acc.png")
+    # bb = pickle.load(open("/home/qh/YES/dlut/Daquan19/vis/19-600TopoNode.pkl", "rb"))
+    # Base.plot_multiple_sc(bb.SCs, save_path="/home/qh/YES/dlut/Daquan19/vis/19-600.png")
+
+    # top_, gdis_ = 5, 5.0
+    # sim_map_list = [0.90]
+    # acc_pr_path_16 = "/home/qh/YES/dlut/Daquan16/acc_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
+    # app_pr_path_16 = "/home/qh/YES/dlut/Daquan16/app_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
+    # acc_pr_path_17 = "/home/qh/YES/dlut/Daquan17/acc_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
+    # app_pr_path_17 = "/home/qh/YES/dlut/Daquan17/app_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)
+    #
+    # acc_pr_load16 = pickle.load(open(acc_pr_path_16, "rb"))
+    # app_pr_load16 = pickle.load(open(app_pr_path_16, "rb"))
+    # acc_pr_load17 = pickle.load(open(acc_pr_path_17, "rb"))
+    # app_pr_load17 = pickle.load(open(app_pr_path_17, "rb"))
+    #
+    # acc_pr = []
+    # app_pr = []
+    # acc_pr.append(acc_pr_load16)
+    # acc_pr.append(acc_pr_load17)
+    # app_pr.append(app_pr_load16)
+    # app_pr.append(app_pr_load17)
+    #
+    # plot_muliti_pr2(acc_pr, app_pr, row_size_=1, save_path="/home/qh/12345.png")
+
+
+
+    print(123)

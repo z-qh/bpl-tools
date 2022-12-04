@@ -11,6 +11,70 @@ import math
 from collections import defaultdict
 import pickle
 import time as ttime
+from numpy import trapz
+
+
+
+def plot_muliti_pr2(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=True):
+    parameter_size = len(acc_pr)
+    row_size = row_size_
+    col_size = int(math.ceil(parameter_size / row_size))
+    fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+    title_label = "ours-method VS appearance-based-method"
+    if title is not None:
+        title_label = title
+    fig.suptitle(title_label, fontsize=25)
+    for i, key in enumerate(acc_pr):
+        # # ACC
+        row = i // col_size + 1
+        col = i - (row - 1) * col_size + 1
+        ax = plt.subplot(row_size, col_size, i + 1)
+        ax.set_aspect('equal', adjustable='box')
+        if col == 1:
+            plt.ylabel("precision", fontsize=16)
+        plt.xlim(0, 1.1)
+        plt.ylim(0, 1.1)
+        recall = []
+        precision = []
+        sim = []
+        recall.append(1.0)
+        precision.append(0.0)
+        sim.append(0.0)
+        acc_vertex_size = 0
+        for pr in acc_pr[key]:
+            if pr[1] == 0 or pr[2] == 0:
+                continue
+            sim.append(pr[0])
+            precision.append(pr[1])
+            recall.append(pr[2])
+            acc_vertex_size = pr[3]
+        recall.append(0.0)
+        precision.append(1.0)
+        sim.append(1.0)
+        plt.plot(recall, precision, lw="2", color="black", alpha=0.9)
+        plt.scatter(recall, precision, marker="o", s=10, color="black")
+        area = -trapz(precision, recall, dx=0.001)
+
+        # for a, b, c in zip(recall, precision, sim):
+        #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
+        # ax.legend(loc="best")
+        plt.xlabel("recall", fontsize=16)
+        detail = "\nVertex size:{:d}\nArea under curve:{:.2f}%".\
+            format(acc_vertex_size, area*100)
+        plt.text(0.5, 0.4, detail, ha="center", fontsize=12)
+        plt.title("Threshold: {:.2f}".format(key), fontsize=15)
+
+    for i in range(row_size * col_size):
+        if i < parameter_size:
+            continue
+        else:
+            ax = plt.subplot(row_size, col_size, i + 1)
+            ax.axis('off')
+    if save_path is not None:
+        plt.savefig(save_path, dpi=600, transparent=True)
+    if vis:
+        plt.show()
+    plt.close()
 
 
 def getPR():
@@ -81,5 +145,9 @@ def getPR():
 if __name__ == "__main__":
     accPR, appPR = getPR()
 
-    Base.plot_muliti_pr(accPR, appPR,save_path="/home/qh/YES/dlut/Daquan19/ParameterSetting2.png")
+    # Base.plot_muliti_pr(accPR, appPR, save_path="/home/qh/YES/dlut/Daquan19/ParameterSetting2.png",
+    #                     title="Multiple Similarity Threshold Topology Map PR Curve")
+
+    plot_muliti_pr2(accPR, appPR, save_path="/home/qh/1234.png",
+                        title="Multiple Similarity Threshold Topology Map PR Curve")
     print("0.90")

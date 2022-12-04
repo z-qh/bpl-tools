@@ -663,19 +663,20 @@ def GetAccFullTopo(accmap=None, topo_info=None, acc_fulltopo_path=None):
         topo_cloud = GetAreaPointCloud(accmap.voxel_dict, now_topo_info.position, now_topo_info.boundary,
                                        accmap.x_resolution, accmap.y_resolution, accmap.z_resolution)
         topo_cloud = TransInvPointCloud(topo_cloud, now_topo_info.rotation, now_topo_info.position)
+        accfullTopo.append(genTopoSC(now_topo_info, topo_cloud, ch=3))
         if count % 100 == 0:
             used_time += ttime.time() - start_time
             print("BulidTopo :{:.2f}% Cost:{:.2f}s Total:{:.2f}s".format(count / len(topo_info) * 100,
                                                                          ttime.time() - start_time,
                                                                          used_time))
             start_time = ttime.time()
-        accfullTopo.append(genTopoSC(now_topo_info, topo_cloud, ch=3))
         # pcd = open3d.geometry.PointCloud()
         # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
         # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
         # open3d.visualization.draw_geometries([pcd, axis_pcd])
         # plot_multiple_sc(accfullTopo[-1].SCs, save_path=None)
-    pickle.dump(accfullTopo, open(acc_fulltopo_path, "wb"))
+    if acc_fulltopo_path is not None:
+        pickle.dump(accfullTopo, open(acc_fulltopo_path, "wb"))
     return accfullTopo
 
 
@@ -918,7 +919,7 @@ def plot_pr(pr_list, path=None, vis=True):
     plt.close()
 
 
-def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
+def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=True):
     parameter_size = len(acc_pr)
     row_size = row_size_
     col_size = int(math.ceil(parameter_size / row_size))
@@ -926,7 +927,7 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
     title_label = "ours-method VS appearance-based-method"
     if title is not None:
         title_label = title
-    fig.suptitle(title_label)
+    fig.suptitle(title_label, fontsize=25)
     for i, key in enumerate(acc_pr):
         # # ACC
         row = i // col_size + 1
@@ -934,10 +935,9 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
         ax = plt.subplot(row_size, col_size, i + 1)
         ax.set_aspect('equal', adjustable='box')
         if col == 1:
-            plt.ylabel("precision", fontsize=10)
+            plt.ylabel("precision", fontsize=16)
         plt.xlim(0, 1.1)
         plt.ylim(0, 1.1)
-        plt.title("ours {:.2f}-Map".format(key), fontsize=15)
         recall = []
         precision = []
         sim = []
@@ -956,7 +956,7 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
         precision.append(1.0)
         sim.append(1.0)
         plt.plot(recall, precision, lw="2", color="lime", label="ours", alpha=0.9)
-        plt.scatter(recall, precision, marker="o", s=10, color="black", label="app")
+        plt.scatter(recall, precision, marker="o", s=10, color="black")
         # for a, b, c in zip(recall, precision, sim):
         #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
         # # APP
@@ -978,16 +978,16 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
         precision.append(1.0)
         sim.append(1.0)
         plt.plot(recall, precision, lw="2", color="silver", label="appearance-based", alpha=0.9)
-        plt.scatter(recall, precision, marker="o", s=10, color="gray", label="app", alpha=0.9)
+        plt.scatter(recall, precision, marker="o", s=10, color="gray", alpha=0.9)
         # for a, b, c in zip(recall, precision, sim):
         #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
         ax.legend(loc="best")
-        plt.xlabel(
-            "recall\nours vertex size:{:d}\n"
-            "appearance-based vertex:{:d}\n"
-            "reduce {:.1f}%".format(acc_vertex_size,
-                                    app_vertex_size,
-                                    (app_vertex_size - acc_vertex_size) / app_vertex_size * 100.0), fontsize=10)
+        plt.xlabel("recall", fontsize=16)
+        detail = "\nours vertex size:{:d}\nappearance-based vertex:{:d}\ncount reduce {:.1f}%".\
+            format(acc_vertex_size, app_vertex_size, (app_vertex_size - acc_vertex_size) / app_vertex_size * 100.0)
+        plt.text(0.5, 0.4, detail, ha="center", fontsize=12)
+        plt.title("Threshold: {:.2f}".format(key), fontsize=15)
+
     for i in range(row_size * col_size):
         if i < parameter_size:
             continue
@@ -996,7 +996,8 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None):
             ax.axis('off')
     if save_path is not None:
         plt.savefig(save_path, dpi=600, transparent=True)
-    plt.show()
+    if vis:
+        plt.show()
     plt.close()
 
 # -------------------------------- Precision And Recall ------------------------------

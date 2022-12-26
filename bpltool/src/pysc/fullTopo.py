@@ -52,7 +52,7 @@ def plot_trajectory2(traj_list, save_path=None):
                 continue
             else:
                 mileage += np.linalg.norm(traj[i - 1, 1:4] - traj[i, 1:4])
-        mile_msg = ", {:.2f}Km".format(mileage/1000.0)
+        mile_msg = ", {:.2f}Km".format(mileage / 1000.0)
         ax.plot(posiy, posix, linestyle=linestyles[ind],
                 linewidth=1.0,
                 color=color_list[ind],
@@ -71,7 +71,7 @@ def plot_trajectory2(traj_list, save_path=None):
 
 
 if __name__ == "__main__":
-    # """
+    """ 显示画图三圈轨迹
     pose_vec_data16 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan16/liosave/sam2.txt")
     pose_vec_data17 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan17/liosave/sam2.txt")
     pose_vec_data19 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
@@ -85,15 +85,14 @@ if __name__ == "__main__":
     # acc_sim = "/home/qh/YES/dlut/Daquan19/topo_map/acc_sim_{:.2f}.pkl".format(0.90)
     # acc_tmp_topo = Base.GenTopoNodeBySim(path=acc_sim)
     # ShowTopoMap2(acc_full_topo, acc_tmp_topo, path="/home/qh/123.png")
-    # """
+    """
 
     """
-    # # Completion the half connect matrix
+    # # Completion the half connect matrix 补全上三角矩阵
     # Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/acc_connect.pkl")
     # Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/app_connect.pkl")
     """
 
-    """
     # Daquan19 的 A19 和 B19 的生成
     # # get pose and time x y z
     pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
@@ -104,9 +103,13 @@ if __name__ == "__main__":
                                                  lidar_topic="/lslidar_point_cloud",
                                                  acc_full_topo_info_path="/home/qh/YES/dlut/Daquan19/acc_full_topo_info.pkl")
     # # generate acc full voxel map
-    map = Base.GetVoxelMap(cloud_path="/home/qh/YES/dlut/Daquan19/liosave/GlobalMapDS.pcd",
-                           path="/home/qh/YES/dlut/Daquan19/acc_global_voxel_map.pkl",
-                           x_res=1.0, y_res=1.0, z_res=1.5)
+    map = Base.GetVoxelMap(path="/home/qh/YES/dlut/Daquan19")
+
+    axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
+    # open3d.visualization.draw_geometries([map.pcd, axis_pcd, lines_pcd, center_pcd])
+    # open3d.visualization.draw_geometries([map.pcd, axis_pcd, delete_pcd, center_pcd])
+    open3d.visualization.draw_geometries([axis_pcd, map.delete_pcd])
+    """
     # # generate acc full topo node
     acc_full_topo = Base.GetAccFullTopo(accmap=map,
                                         topo_info=acc_full_topo_info,
@@ -155,25 +158,23 @@ if __name__ == "__main__":
                                                  bag_file="/home/qh/YES/dlut/2021-01-16-DaQuan.bag",
                                                  lidar_topic="/lslidar_point_cloud",
                                                  acc_full_topo_info_path="/home/qh/YES/dlut/Daquan16/acc_full_topo_info.pkl")
-    acc_map = Base.GetVoxelMap(cloud_path="/home/qh/YES/dlut/Daquan16/liosave/GlobalMapDS.pcd",
-                               path="/home/qh/YES/dlut/Daquan16/acc_global_voxel_map.pkl",
-                               x_res=1.0, y_res=1.0, z_res=1.5)
+    acc_map = Base.GetVoxelMap(path="/home/qh/YES/dlut/Daquan16")
     acc_full_topo = Base.GetAccFullTopo(accmap=acc_map,
                                         topo_info=acc_full_topo_info,
                                         acc_fulltopo_path="/home/qh/YES/dlut/Daquan16/acc_full_topo.pkl")
     # # connect to 19
-    # full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
-    # acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
-    #                                                         connect_path="/home/qh/YES/dlut/Daquan16/acc_connect16.pkl")
+    full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
+    acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
+                                                            connect_path="/home/qh/YES/dlut/Daquan16/acc_connect16.pkl")
     # generate app full topo
-    # app_full_topo = Base.GetAppFullTopo(pose_vec=pose_vec_data,
-    #                                                bag_file="/home/qh/YES/dlut/2021-01-16-DaQuan.bag",
-    #                                                lidar_topic="/lslidar_point_cloud",
-    #                                                app_full_topo_path="/home/qh/YES/dlut/Daquan16/app_full_topo.pkl", ch=4)
+    app_full_topo = Base.GetAppFullTopo(pose_vec=pose_vec_data,
+                                                   bag_file="/home/qh/YES/dlut/2021-01-16-DaQuan.bag",
+                                                   lidar_topic="/lslidar_point_cloud",
+                                                   app_full_topo_path="/home/qh/YES/dlut/Daquan16/app_full_topo.pkl", ch=4)
     # # connect to 19
-    # full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
-    # app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
-    #                                                         connect_path="/home/qh/YES/dlut/Daquan16/app_connect16.pkl")
+    full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
+    app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
+                                                            connect_path="/home/qh/YES/dlut/Daquan16/app_connect16.pkl")
     """
 
     """
@@ -184,25 +185,23 @@ if __name__ == "__main__":
                                                  bag_file="/home/qh/YES/dlut/2021-01-17-11-12-10.bag",
                                                  lidar_topic="/lslidar_point_cloud",
                                                  acc_full_topo_info_path="/home/qh/YES/dlut/Daquan17/acc_full_topo_info.pkl")
-    acc_map = Base.GetVoxelMap(cloud_path="/home/qh/YES/dlut/Daquan17/liosave/GlobalMapDS.pcd",
-                               path="/home/qh/YES/dlut/Daquan17/acc_global_voxel_map.pkl",
-                               x_res=1.0, y_res=1.0, z_res=1.5)
+    acc_map = Base.GetVoxelMap(path="/home/qh/YES/dlut/Daquan17")
     acc_full_topo = Base.GetAccFullTopo(accmap=acc_map,
                                         topo_info=acc_full_topo_info,
                                         acc_fulltopo_path="/home/qh/YES/dlut/Daquan17/acc_full_topo.pkl")
     # # connect to 19
-    # full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
-    # acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
-    #                                                         connect_path="/home/qh/YES/dlut/Daquan17/acc_connect17.pkl")
+    full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
+    acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
+                                                            connect_path="/home/qh/YES/dlut/Daquan17/acc_connect17.pkl")
     # generate app full topo
-    # app_full_topo = Base.GetAppFullTopo(pose_vec=pose_vec_data,
-    #                                                bag_file="/home/qh/YES/dlut/2021-01-17-11-12-10.bag",
-    #                                                lidar_topic="/lslidar_point_cloud",
-    #                                                app_full_topo_path="/home/qh/YES/dlut/Daquan17/app_full_topo.pkl", ch=4)
+    app_full_topo = Base.GetAppFullTopo(pose_vec=pose_vec_data,
+                                                   bag_file="/home/qh/YES/dlut/2021-01-17-11-12-10.bag",
+                                                   lidar_topic="/lslidar_point_cloud",
+                                                   app_full_topo_path="/home/qh/YES/dlut/Daquan17/app_full_topo.pkl", ch=4)
     # # connect to 19
-    # full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
-    # app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
-    #                                                         connect_path="/home/qh/YES/dlut/Daquan17/app_connect17.pkl")
+    full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
+    app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
+                                                            connect_path="/home/qh/YES/dlut/Daquan17/app_connect17.pkl")
     """
 
     """

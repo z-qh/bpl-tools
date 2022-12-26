@@ -1,3 +1,4 @@
+#-*- coding: utf-8 -*-
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +11,7 @@ from collections import defaultdict
 import pickle
 import os
 import time as ttime
+
 
 
 def getPR(top_=10, gdis_=3.0):
@@ -76,7 +78,7 @@ if __name__ == "__main__":
     top, gids = 5, 5.0
     accpr, apppr = getPR(top, gids)
     Base.plot_muliti_pr(accpr, apppr, row_size_=1,
-                        title="Validation1: ours VS appearance-based-method",
-                        save_path="/home/qh/YES/dlut/Daquan16/TestTop{:d}G{:.1f}.png".format(top, gids))
+                        title=u"validition1")
+                        # save_path="/home/qh/YES/dlut/Daquan16/TestTop{:d}G{:.1f}1.png".format(top, gids)))
 
     print("123")

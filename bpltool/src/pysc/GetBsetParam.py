@@ -13,8 +13,15 @@ import pickle
 import time as ttime
 from numpy import trapz
 
+"""
+本文件主要实现参数整定，只利用某个包自己的数据
+累积的参数整点，用累积的不同的地图来获取PR画图，找最好
+外观的参数整定，用外观的不同的地图来获取PR画图，找最好
+某些画图的需求也在这里实现
+"""
 
 
+# 画图保存函数
 def plot_muliti_pr2(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=True):
     parameter_size = len(acc_pr)
     row_size = row_size_
@@ -59,8 +66,8 @@ def plot_muliti_pr2(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis
         #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
         # ax.legend(loc="best")
         plt.xlabel("recall", fontsize=16)
-        detail = "\nVertex size:{:d}\nArea under curve:{:.2f}%".\
-            format(acc_vertex_size, area*100)
+        detail = "\nVertex size:{:d}\nArea under curve:{:.2f}%". \
+            format(acc_vertex_size, area * 100)
         plt.text(0.5, 0.4, detail, ha="center", fontsize=12)
         plt.title("Threshold: {:.2f}".format(key), fontsize=15)
 
@@ -149,5 +156,5 @@ if __name__ == "__main__":
     #                     title="Multiple Similarity Threshold Topology Map PR Curve")
 
     plot_muliti_pr2(accPR, appPR, save_path="/home/qh/1234.png",
-                        title="Multiple Similarity Threshold Topology Map PR Curve")
-    print("0.90")
+                    title="Multiple Similarity Threshold Topology Map PR Curve")
+    print("acc=0.87 app=0.90")

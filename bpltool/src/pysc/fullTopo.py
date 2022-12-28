@@ -9,7 +9,16 @@ import math
 from collections import defaultdict
 import pickle
 
+"""
+本文件主要完成：
+数据包voxelmap的生成，
+累积方法拓扑节点数据生成，描述子相似度矩阵，若干阈值拓扑地图的生成
+外观方法的拓扑节点数据生成，描述子相似度矩阵，若干阈值拓扑地图的生成
+某些绘图需求也在这里面实现
+"""
 
+
+# 保存截图用函数
 def ShowTopoMap2(full_topo, topo_nodes_ind, path=None, vis=True):
     points = np.zeros((3, 0), dtype=np.float32)
     for ind in range(len(topo_nodes_ind)):
@@ -31,6 +40,7 @@ def ShowTopoMap2(full_topo, topo_nodes_ind, path=None, vis=True):
     plt.close()
 
 
+# 保存截图用函数
 def plot_trajectory2(traj_list, save_path=None):
     # traj : time x y z tw tx ty tz
     color_list = ["black", "black", "black", "black", "black", "black"]
@@ -93,7 +103,8 @@ if __name__ == "__main__":
     # Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/app_connect.pkl")
     """
 
-    # Daquan19 的 A19 和 B19 的生成
+    """
+    # Daquan19 的 累积19 和 外观19 的生成 并生成相似度矩阵 并生成若干阈值拓扑地图
     # # get pose and time x y z
     pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
 
@@ -103,15 +114,9 @@ if __name__ == "__main__":
                                                  lidar_topic="/lslidar_point_cloud",
                                                  acc_full_topo_info_path="/home/qh/YES/dlut/Daquan19/acc_full_topo_info.pkl")
     # # generate acc full voxel map
-    map = Base.GetVoxelMap(path="/home/qh/YES/dlut/Daquan19")
-
-    axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
-    # open3d.visualization.draw_geometries([map.pcd, axis_pcd, lines_pcd, center_pcd])
-    # open3d.visualization.draw_geometries([map.pcd, axis_pcd, delete_pcd, center_pcd])
-    open3d.visualization.draw_geometries([axis_pcd, map.delete_pcd])
-    """
+    map19 = Base.GetVoxelMap(path="/home/qh/YES/dlut/Daquan19")
     # # generate acc full topo node
-    acc_full_topo = Base.GetAccFullTopo(accmap=map,
+    acc_full_topo = Base.GetAccFullTopo(accmap=map19,
                                         topo_info=acc_full_topo_info,
                                         acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
     # # get acc full topo connect mat
@@ -151,7 +156,7 @@ if __name__ == "__main__":
     """
 
     """
-    # Daqaun16 用于验证测试 首先生成fullnode 然后针对A19 B19生成相似度矩阵
+    # Daqaun16 用于验证测试 首先生成fullnode 然后针对 累积19 外观19 生成相似度矩阵
     pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan16/liosave/sam2.txt")
     # # generate acc full topo
     acc_full_topo_info = Base.GetAccFullTopoInfo(pose_vec=pose_vec_data,
@@ -162,7 +167,7 @@ if __name__ == "__main__":
     acc_full_topo = Base.GetAccFullTopo(accmap=acc_map,
                                         topo_info=acc_full_topo_info,
                                         acc_fulltopo_path="/home/qh/YES/dlut/Daquan16/acc_full_topo.pkl")
-    # # connect to 19
+    # # 累积 connect to 19
     full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
     acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
                                                             connect_path="/home/qh/YES/dlut/Daquan16/acc_connect16.pkl")
@@ -171,14 +176,14 @@ if __name__ == "__main__":
                                                    bag_file="/home/qh/YES/dlut/2021-01-16-DaQuan.bag",
                                                    lidar_topic="/lslidar_point_cloud",
                                                    app_full_topo_path="/home/qh/YES/dlut/Daquan16/app_full_topo.pkl", ch=4)
-    # # connect to 19
+    # # 外观 connect to 19
     full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
     app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
                                                             connect_path="/home/qh/YES/dlut/Daquan16/app_connect16.pkl")
     """
 
     """
-    # Daqaun17 用于验证测试 首先生成fullnode 然后针对A19 B19生成相似度矩阵
+    # Daqaun17 用于验证测试 首先生成fullnode 然后针对 累积19 外观19 生成相似度矩阵
     pose_vec_data = Base.GetPoseVec("/home/qh/YES/dlut/Daquan17/liosave/sam2.txt")
     # # generate acc full topo
     acc_full_topo_info = Base.GetAccFullTopoInfo(pose_vec=pose_vec_data,
@@ -189,7 +194,7 @@ if __name__ == "__main__":
     acc_full_topo = Base.GetAccFullTopo(accmap=acc_map,
                                         topo_info=acc_full_topo_info,
                                         acc_fulltopo_path="/home/qh/YES/dlut/Daquan17/acc_full_topo.pkl")
-    # # connect to 19
+    # # 累积 connect to 19
     full_topo_base_acc = Base.GetAccFullTopo(acc_fulltopo_path="/home/qh/YES/dlut/Daquan19/acc_full_topo.pkl")
     acc_full_topo_connect_acc = Base.GetFullTopoConnectInfo(full_topo=acc_full_topo, full_topo_base=full_topo_base_acc,
                                                             connect_path="/home/qh/YES/dlut/Daquan17/acc_connect17.pkl")
@@ -198,7 +203,7 @@ if __name__ == "__main__":
                                                    bag_file="/home/qh/YES/dlut/2021-01-17-11-12-10.bag",
                                                    lidar_topic="/lslidar_point_cloud",
                                                    app_full_topo_path="/home/qh/YES/dlut/Daquan17/app_full_topo.pkl", ch=4)
-    # # connect to 19
+    # # 外观 connect to 19
     full_topo_base_app = Base.GetAppFullTopo(app_full_topo_path="/home/qh/YES/dlut/Daquan19/app_full_topo.pkl")
     app_full_topo_connect_app = Base.GetFullTopoConnectInfo(full_topo=app_full_topo, full_topo_base=full_topo_base_app,
                                                             connect_path="/home/qh/YES/dlut/Daquan17/app_connect17.pkl")

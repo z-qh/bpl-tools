@@ -13,13 +13,15 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial.kdtree import KDTree
 import matplotlib.pyplot as plt
 import collections
+import glob
 
-global_down_sample_size = 0.5
+global_down_sample_size = 0.2
 
 np.set_printoptions(suppress=True, precision=5, threshold=sys.maxsize, linewidth=sys.maxsize)
 
 
 # -------------------------------- Scan Context --------------------------------
+# 描述子生成支撑函数，计算点的角度
 def xy2theta(x, y):
     if x >= 0 and y >= 0:
         theta = 180 / np.pi * np.arctan(y / x)
@@ -31,7 +33,7 @@ def xy2theta(x, y):
         theta = 360 - ((180 / np.pi) * np.arctan((-y) / x))
     return theta
 
-
+# 描述子提取支撑函数，计算点的行列索引
 def pt2rs(point, gap_ring, gap_sector, num_ring, num_sector):
     x = point[0]
     y = point[1]
@@ -48,7 +50,7 @@ def pt2rs(point, gap_ring, gap_sector, num_ring, num_sector):
         idx_ring = num_ring - 1
     return int(idx_ring), int(idx_sector)
 
-
+# 描述子生成支撑函数 提取描述子矩阵
 def ptcloud2sc(ptcloud, num_sector, num_ring, min_length, max_length, lidar_hei):
     num_points = ptcloud.shape[0]
     gap_ring = max_length / num_ring
@@ -72,7 +74,7 @@ def ptcloud2sc(ptcloud, num_sector, num_ring, min_length, max_length, lidar_hei)
     sc = np.amax(sc_storage, axis=0)
     return sc
 
-
+# 描述子提取支撑函数，获取bin点云或者整理现有点云
 def load_velo_scan(cloud_data, path, channle):
     if cloud_data is not None:
         ptcloud_xyz = cloud_data.reshape((-1, channle))
@@ -84,7 +86,7 @@ def load_velo_scan(cloud_data, path, channle):
     else:
         print("Neither numpy data nor cloud path !")
 
-
+# 生成给定参数和点云的描述子
 def genSCs(cloud_data, path, channle, ring_res, sector_res, min_dis, max_dis, lidar_hei,
            downcell_size, viz=False):
     ptcloud_xyz = load_velo_scan(cloud_data, path, channle)
@@ -104,7 +106,7 @@ def genSCs(cloud_data, path, channle, ring_res, sector_res, min_dis, max_dis, li
         scan_context_array.append(sc)
     return scan_context_array
 
-
+# 画多个描述子的图像，通常SCs只有一个描述子
 def plot_multiple_sc(SCs, save_path=None, vis=True):
     if len(SCs) == 1:
         fig, axes = plt.subplots(nrows=1)
@@ -126,7 +128,7 @@ def plot_multiple_sc(SCs, save_path=None, vis=True):
     plt.close()
 
 
-# The higher the score, the more similar the scene
+# 使用numpy的言简意赅计算相似度版本函数
 def SimilarityOrigin(sc1, sc2):
     num_sectors = sc1.shape[1]
     # repeate to move 1 columns
@@ -153,7 +155,7 @@ def SimilarityOrigin(sc1, sc2):
     sim = max(sim_for_each_cols)
     return sim
 
-
+# 模拟使用最简单的函数而不是numpy函数来计算相似度
 def SimilaritySimple(sc1, sc2):
     hei = sc1.shape[0]
     wid = sc1.shape[1]
@@ -197,7 +199,7 @@ def SimilaritySimple(sc1, sc2):
         if temp_vec[i, 0] > val[0, 0]:
             val[0, 0] = temp_vec[i, 0]
 
-
+# 使用Numba加速计算两个描述子之间的相似度
 @numba.jit(nopython=True)
 def SimilarityNumba(sc1, sc2):
     num_rings = sc1.shape[0]
@@ -219,18 +221,19 @@ def SimilarityNumba(sc1, sc2):
     sim = max(sim_for_each_cols)
     return sim
 
-
+# 计算相似度矩阵需要的CUDA和kernel的大小和参数
 COLUMN_SIZE: int = 80
 GRID_BLOCKX_SEIZ: int = 1024
 GRID_BLOCKY_SIEZ: int = 1024
 BLOCK_THREAD_SIZE: int = 1024
 BLOCK_THREAD_VOXEL_LEN: int = int(math.sqrt(BLOCK_THREAD_SIZE))
 
-
 # The size of the calculated matrix determined here
 # 512  x 512  x 1024 =  268435456 = 16384^2 : 16384 topo nodes
 # 1024 x 1024 x 1024 = 1073741824 = 32768^2 : 32768 topo nodes
 
+# 计算一个描述子列表自己和自己的相似度矩阵，输入是数据
+# 需要指定输出矩阵的需要计算的位置
 @cuda.jit
 def UpperTriangleDotArea(data, dest, xs, xe, ys, ye):
     # data 1W X 40 X 80
@@ -291,7 +294,8 @@ def UpperTriangleDotArea(data, dest, xs, xe, ys, ye):
     dest[tx, ty] = temp_out[0, 0]
     cuda.syncthreads()
 
-
+# 给定两个描述子的集合，计算一个相似度矩阵，是一个上三角矩阵
+# 输入是两个参数和全零的相似度矩阵作为结果来保存，两个矩阵分别要计算的起始和终止位置
 @cuda.jit
 def UpperTriangleDotArea2(data1, data2, dest, xs, xe, ys, ye):
     # data 1W X 40 X 80
@@ -347,7 +351,7 @@ def UpperTriangleDotArea2(data1, data2, dest, xs, xe, ys, ye):
     dest[tx, ty] = temp_out[0, 0]
     cuda.syncthreads()
 
-
+# 描述子基础数据结构
 class ScanContext:
     viz = False
     downcell_size = 1.0
@@ -370,6 +374,7 @@ class ScanContext:
 
 
 # -------------------------------- Down Sample  --------------------------------
+# 点云的下采样
 def DownSamplePointCloud(input, output, ds=global_down_sample_size):
     # input = "/home/qh/YES/dlut/Daquan/liosave/GlobalMap.pcd"
     # output = "/home/qh/YES/dlut/Daquan/liosave/GlobalMapDS.pcd"
@@ -383,17 +388,21 @@ def DownSamplePointCloud(input, output, ds=global_down_sample_size):
 
 # -------------------------------- Topo Node --------------------------------
 
+# 按照旋转矩阵和平移矩阵，旋转平移点云
 @numba.jit(nopython=True)
 def TransPointCloud(point_cloud, r_, t_):
-    return (np.dot(r_.astype(np.float32), point_cloud.transpose()[0:3, :]) + t_.astype(np.float32)).transpose()
+    return (np.dot(r_.astype(np.float64),
+                   point_cloud.transpose()[0:3, :].astype(np.float64)) + t_.astype(np.float64)) \
+        .astype(np.float32).transpose()
 
-
+# 按照旋转矩阵和平移矩阵，逆旋转平移点云
 @numba.jit(nopython=True)
 def TransInvPointCloud(point_cloud, r_, t_):
-    return (
-        np.dot(r_.transpose().astype(np.float32), point_cloud.transpose()[0:3, :] - t_.astype(np.float32))).transpose()
+    return (np.dot(r_.transpose().astype(np.float64),
+                   point_cloud.transpose()[0:3, :].astype(np.float64)) - t_.astype(np.float64)) \
+        .astype(np.float32).transpose()
 
-
+# 拓扑点基本数据结构 有位姿 边界 时间戳 描述子 ID等信息
 class TopoNode:
     id = -1
     position = np.zeros((3, 1), dtype=np.float64)
@@ -401,7 +410,6 @@ class TopoNode:
     rotation = np.zeros((3, 3), dtype=np.float64)
     time = -1
     SCs = []
-    edge = []
 
     def __init__(self, id_, p_, r_, bound_, time_):
         self.id = id_
@@ -410,7 +418,7 @@ class TopoNode:
         self.boundary = bound_
         self.time = time_
 
-
+# 获取点云的边界
 def getBound(point_cloud):
     minx = min(point_cloud[:, 0])
     maxx = max(point_cloud[:, 0])
@@ -420,7 +428,7 @@ def getBound(point_cloud):
     maxz = max(point_cloud[:, 2])
     return minx, maxx, miny, maxy, minz, maxz
 
-
+# 完善拓扑点的描述子信息，拓扑点已有位置和时间戳等信息
 def genTopoSC(topo_node, point_cloud, ch=3):
     topo_node.SCs = ScanContext(channle=ch, cloud_data=point_cloud, path=None).SCs
     return topo_node
@@ -429,7 +437,7 @@ def genTopoSC(topo_node, point_cloud, ch=3):
 # -------------------------------- Topo Node --------------------------------
 
 # -------------------------------- Voxel Map --------------------------------
-
+# 激光投影参数
 N_SCAN = 0
 Horizon_SCAN = 0
 low_angle = 0
@@ -446,18 +454,28 @@ segment_valid_point_num = 0
 segment_valid_line_num = 0
 mount_angle = 0
 GroundSegInitFlag = False
+down_l = -1
+up_l = -1
 
-
+# 激光投影参数
 def SetParameter(nscan=32, hscan=2000,
-                 low_ang=-16.5, up_ang=10,
+                 low_ang=-16.5, up_ang=10.0,
                  ground_ind=15, min_range=5.0,
-                 segment_theta_d=30.0):
+                 segment_theta_d=30.0,
+                 down_lines=-1, up_lines=-1):
     global segment_alpha_x, segment_alpha_y, low_angle, up_angle, N_SCAN, Horizon_SCAN
     global ang_res_x, ang_res_y, ground_scan_ind, segment_theta
     global segment_valid_point_num, segment_valid_line_num, sensor_minimum_range, mount_angle
     global GroundSegInitFlag
+    global down_l, up_l
     N_SCAN = nscan
     Horizon_SCAN = hscan
+    down_l = down_lines
+    up_l = up_lines
+    if down_lines == -1:
+        down_l = 0
+    if up_lines == -1:
+        up_l = N_SCAN
     low_angle = low_ang
     up_angle = up_ang
     ang_res_x = 360.0 / Horizon_SCAN
@@ -473,7 +491,7 @@ def SetParameter(nscan=32, hscan=2000,
     mount_angle = 0
     GroundSegInitFlag = True
 
-
+# 地面点分割
 @numba.jit(nopython=True)
 def labelComponents(queue_ind_x, queue_ind_y,
                     all_pushed_ind_x, all_pushed_ind_y,
@@ -539,21 +557,12 @@ def labelComponents(queue_ind_x, queue_ind_y,
         for i_ in range(all_pushed_ind_size):
             label_mat[all_pushed_ind_x[i_], all_pushed_ind_y[i_]] = 999999
 
-
+# 对地面点进行分割，只获取非地面店中平滑的激光点作为射线
 @numba.jit(nopython=True)
 def GetSelectRay(local_points, n_sec=6, surf_threshold=0.1):
     if not GroundSegInitFlag:
         print("Please Init First!")
         return
-    #
-    start_orientation = -np.arctan2(local_points[0, 1], local_points[0, 0])
-    end_orientation = -np.arctan2(local_points[-1, 1], local_points[-1, 0]) + 2 * np.pi
-    if end_orientation - start_orientation > 3 * np.pi:
-        end_orientation -= 2 * np.pi
-    elif end_orientation - start_orientation < np.pi:
-        end_orientation += 2 * np.pi
-    orientation_diff = end_orientation - start_orientation
-    #
     range_mat = np.full((N_SCAN, Horizon_SCAN), fill_value=np.nan, dtype=np.float32)
     ground_mat = np.zeros((N_SCAN, Horizon_SCAN), dtype=np.int8)
     label_mat = np.zeros((N_SCAN, Horizon_SCAN), dtype=np.int32)
@@ -563,7 +572,7 @@ def GetSelectRay(local_points, n_sec=6, surf_threshold=0.1):
         this_point = local_points[i, :]
         vertical_angle = np.arctan2(this_point[2], np.sqrt(this_point[0] ** 2 + this_point[1] ** 2)) * 180 / np.pi
         row_idn = int((vertical_angle - low_angle) / ang_res_y)
-        if row_idn < 0 or row_idn >= N_SCAN:
+        if row_idn < down_l or row_idn >= up_l:
             continue
         horizon_angle = np.arctan2(this_point[0], this_point[1]) * 180 / np.pi
         column_idn = int(-round((horizon_angle - 90.0) / ang_res_x) + Horizon_SCAN / 2)
@@ -665,7 +674,7 @@ def GetSelectRay(local_points, n_sec=6, surf_threshold=0.1):
     #             ground_point_size += 1
     # return none_ground_points[:none_ground_points_size, :], ground_point[:ground_point_size, :]
     #
-    per_sec_szie = 15
+    per_sec_szie = 20
     ray_mat = np.zeros((N_SCAN * n_sec * per_sec_szie, 3), dtype=np.float32)
     ray_size = 0
     for i_ in range(N_SCAN):
@@ -687,7 +696,42 @@ def GetSelectRay(local_points, n_sec=6, surf_threshold=0.1):
                     s_ind += 1
     return ray_mat[0:ray_size]
 
+# 仅仅使用分区域的方法来完成点云射线的下采样，0.5就是两倍下采样，需要用到激光本身参数
+@numba.jit(nopython=True)
+def GetSelectRayFull(local_points, down_sample=0.5):
+    full_cloud = np.full((N_SCAN * Horizon_SCAN, 3), fill_value=np.nan, dtype=np.float32)
+    cloud_size = local_points.shape[0]
+    ans_cloud = np.zeros((N_SCAN * Horizon_SCAN, 3), dtype=np.float32)
+    for i in range(cloud_size):
+        this_point = local_points[i, :]
+        vertical_angle = np.arctan2(this_point[2], np.sqrt(this_point[0] ** 2 + this_point[1] ** 2)) * 180 / np.pi
+        row_idn = int((vertical_angle - low_angle) / ang_res_y)
+        if row_idn < down_l or row_idn >= up_l:
+            continue
+        horizon_angle = np.arctan2(this_point[0], this_point[1]) * 180 / np.pi
+        column_idn = int(-round((horizon_angle - 90.0) / ang_res_x) + Horizon_SCAN / 2)
+        if column_idn >= Horizon_SCAN:
+            column_idn -= Horizon_SCAN
+        if column_idn < 0 or column_idn >= Horizon_SCAN:
+            continue
+        range_ = np.linalg.norm(this_point)
+        if range_ < sensor_minimum_range:
+            continue
+        index = column_idn + row_idn * Horizon_SCAN
+        full_cloud[index, :] = this_point
+    step = int(1 / down_sample)
+    # any_nan_count = np.sum(np.any(np.isnan(full_cloud), axis=1))
+    ans_count = 0
+    for i_ in range(N_SCAN):
+        for j_ in range(0, Horizon_SCAN, step):
+            index = j_ + i_ * Horizon_SCAN
+            if np.any(np.isnan(full_cloud[index, :])):
+                continue
+            ans_cloud[ans_count, :] = full_cloud[index, :]
+            ans_count += 1
+    return ans_cloud[0:ans_count, :]
 
+# 计算若干点之间平面的法向量
 @numba.jit(nopython=True)
 def CalculateNormal(points):
     mean = np.zeros((3,), dtype=np.float32)
@@ -709,33 +753,16 @@ def CalculateNormal(points):
         return None
     return eig_m[:, 2].astype(np.float32)
 
-
-@numba.jit(nopython=True)
-def DisAngle(norm, ray_point):
-    ray = ray_point / np.linalg.norm(ray_point)
-    ang_dis = np.degrees(np.arccos(np.dot(norm, ray)))
-    if ang_dis > 90:
-        return 180 - ang_dis
-    return ang_dis
-
-
+# 点找到对应的栅格
 @numba.jit(nopython=True)
 def Posi2Ind(point, voxel_size):
     return int(point[0] // voxel_size), int(point[1] // voxel_size), int(point[2] // voxel_size)
 
-
+# 用栅格的中心点来代替真实的激光点，完成点云的下采样
 def CenterVoxel(voxle_ind, voxel_size):
     return (voxle_ind * voxel_size + (voxle_ind + 1) * voxel_size) / 2
 
-
-def visitor(voxel, voxel_map: collections.defaultdict, delete_voxel_map: collections.defaultdict):
-    if voxel not in voxel_map:
-        return True
-    voxel_map.pop(voxel)
-    delete_voxel_map[voxel] = 2
-    return True
-
-
+# 光线的遍历算法，找到线段对应的触碰到的栅格
 @numba.jit(nopython=True)
 def walk_voxels(start, end, voxel_size):
     direction = (end[0] - start[0], end[1] - start[1], end[2] - start[2])
@@ -853,39 +880,7 @@ def walk_voxels(start, end, voxel_size):
         voxel_list.append((x, y, z))
     return voxel_list
 
-
-def GetSelectRayPointsNew(local_points, sec=6, lines=32, scans=2000, low_angle=-16.5, up_angle=10.0, near=5):
-    points_list = collections.defaultdict(list)
-    angle_factor = (lines - 1) / (up_angle - low_angle)
-    for p_ind in range(local_points.shape[0]):
-        angle = np.arctan(
-            local_points[p_ind, 1] / np.sqrt(local_points[p_ind, 0] ** 2 + local_points[p_ind, 2] ** 2))
-        scan_id = int(((angle * 180 / np.pi) - low_angle) * angle_factor + 0.5)
-        if scan_id >= lines or scans < 0:
-            continue
-        [scan_id].append(p_ind)
-    for ring_ind, ring_points in enumerate(points_list):
-        for p_ind in range(near, len(ring_points) - near):
-            now_p = ring_points[p_ind + 1]
-            next_p = ring_points[p_ind + 1]
-            n_diff = np.linalg.norm(local_points[now_p, :] - local_points[next_p, :])
-            if n_diff > 0.1:
-                d1 = np.linalg.norm(local_points[now_p, :])
-                d2 = np.linalg.norm(local_points[next_p, :])
-                if d1 > d2:
-                    w_diss = np.linalg.norm(local_points[now_p, :] - d2 / d1 * local_points[next_p, :])
-                    if w_diss < 0.1:
-                        p_ind += near
-                        continue
-                else:
-                    w_diss = np.linalg.norm(local_points[now_p, :] - d2 / d3 * local_points[next_p, :])
-                    if w_diss < 0.1:
-                        p_ind += near
-                        continue
-
-    return None
-
-
+# 使用非占据空间来进行动态障碍剔除，需要对射线进行筛选，帅选后的射线比较稀疏，存在一些不统一的问题，泛用性差
 class VoxelMap:
     def __init__(self, origin_pcd_file, save_path, bin_list, voxel_size=0.1):
         # On DS PCD
@@ -942,6 +937,10 @@ class VoxelMap:
                     print("Bulid Voxel Map {:.2f}% Cost {:.2f}s".format(i / self.origin_point_cloud.shape[0] * 100,
                                                                         ttime.time() - start_time))
                     start_time = ttime.time()
+            del self.origin_pcd
+            del self.origin_kd_tree
+            del self.origin_point_cloud
+            print("Voxel Map Cost Mem {:.2f} MB".format(sys.getsizeof(self.voxel_map) / 1024 / 1024))
         else:
             print("No Origin Data Found!")
 
@@ -949,21 +948,6 @@ class VoxelMap:
         if not os.path.isfile(self.voxel_map_file):
             pickle.dump(self.voxel_map, open(self.voxel_map_file, "wb"))
             print("Save Voxel Map!")
-        if not os.path.isfile(self.pcd_file):
-            voxel_map_size = len(self.voxel_map)
-            self.point_cloud = np.zeros((voxel_map_size, 3), dtype=np.float32)
-            start_time = ttime.time()
-            for i, key in enumerate(self.voxel_map):
-                self.point_cloud[i, :] = CenterVoxel(np.array(key), self.voxel_size)
-                if i % 100000 == 0:
-                    print("Build New Kdtree Map {:.2f}% Cost{:.2f}s".format(i / voxel_map_size * 100,
-                                                                            ttime.time() - start_time))
-                    start_time = ttime.time()
-            self.pcd = open3d.geometry.PointCloud()
-            self.pcd.points = open3d.utility.Vector3dVector(self.point_cloud)
-            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
-            open3d.io.write_point_cloud(self.pcd_file, self.pcd)
-            print("Save PCD, Gen KD-Tree And PointCloud For Using Out")
         if not os.path.isfile(self.delete_pcd_file):
             if self.delete_voxel_map is None:
                 print("Please Do Ray Handle!")
@@ -981,6 +965,23 @@ class VoxelMap:
             self.delete_pcd.points = open3d.utility.Vector3dVector(delete_points)
             open3d.io.write_point_cloud(self.delete_pcd_file, self.delete_pcd)
             print("Save Bad PCD")
+            del self.delete_pcd
+            del self.delete_voxel_map
+        if not os.path.isfile(self.pcd_file):
+            voxel_map_size = len(self.voxel_map)
+            self.point_cloud = np.zeros((voxel_map_size, 3), dtype=np.float32)
+            start_time = ttime.time()
+            for i, key in enumerate(self.voxel_map):
+                self.point_cloud[i, :] = CenterVoxel(np.array(key), self.voxel_size)
+                if i % 100000 == 0:
+                    print("Build New Kdtree Map {:.2f}% Cost{:.2f}s".format(i / voxel_map_size * 100,
+                                                                            ttime.time() - start_time))
+                    start_time = ttime.time()
+            self.pcd = open3d.geometry.PointCloud()
+            self.pcd.points = open3d.utility.Vector3dVector(self.point_cloud)
+            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
+            open3d.io.write_point_cloud(self.pcd_file, self.pcd)
+            print("Save PCD, Gen KD-Tree And PointCloud For Using Out")
 
     def GetAreaPointCloud(self, center, boundary):
         serach_radius = max(boundary)
@@ -1010,11 +1011,15 @@ class VoxelMap:
                 local_points = local_points[~np.isnan(local_points).any(axis=1)]
                 # """
                 if not GroundSegInitFlag:
-                    SetParameter(nscan=32, hscan=2000,
-                                 low_ang=-16.5, up_ang=10,
-                                 ground_ind=15, min_range=5.0,
-                                 segment_theta_d=40.0)
-                select_points = GetSelectRay(local_points, n_sec=10, surf_threshold=0.2)
+                    print("Please Set Seg Parameter First!")
+                    exit(0)
+                    # SetParameter(nscan=32, hscan=2000,
+                    #              low_ang=-16.5, up_ang=10,
+                    #              ground_ind=15, min_range=5.0,
+                    #              segment_theta_d=40.0,
+                    #              down_lines=-1, up_lines=-1)
+                # select_points = GetSelectRay(local_points, n_sec=10, surf_threshold=0.5)
+                select_points = GetSelectRayFull(local_points, down_sample=0.5)
                 select_points = TransPointCloud(select_points, bin_r_, bin_p_)
                 self.ray_list.append((bin_p_, select_points))
                 ray_count += select_points.shape[0]
@@ -1029,7 +1034,7 @@ class VoxelMap:
         if os.path.isfile(self.delete_pcd_file):
             print("Already Rayed! Delete the file to restart:")
             print(self.delete_pcd_file)
-            self.pcd = open3d.io.read_point_cloud(self.delete_pcd_file)
+            self.delete_pcd = open3d.io.read_point_cloud(self.delete_pcd_file)
             return
         total_rays_count = 0
         for ray_center, ray_mat in self.ray_list:
@@ -1039,20 +1044,43 @@ class VoxelMap:
         total_frame = len(self.ray_list)
         start_time = ttime.time()
         self.delete_voxel_map = collections.defaultdict(int)
+        tmp_full_delete_voxel_map = collections.defaultdict(int)
         for ray_center, ray_mat in self.ray_list:
             for ind in range(ray_mat.shape[0]):
                 vis_voxel = walk_voxels(ray_center.reshape((3,)), ray_mat[ind, :], self.voxel_size)
                 for v_ind in range(0, len(vis_voxel) - 5):
-                    visitor(vis_voxel[v_ind], self.voxel_map, self.delete_voxel_map)
+                    tmp_full_delete_voxel_map[vis_voxel[v_ind]] = 1
             handle_frame_count += 1
             if handle_frame_count % 200 == 0:
                 print("Handle Ray {:.2f}% Cost {:.2f}s".format(handle_frame_count / total_frame * 100,
                                                                ttime.time() - start_time))
                 start_time = ttime.time()
+        start_time = ttime.time()
+        handle_voxel_count = 0
+        for ind, voxel in enumerate(tmp_full_delete_voxel_map):
+            if voxel in self.voxel_map:
+                self.voxel_map.pop(voxel)
+                self.delete_voxel_map[voxel] = 1
+            handle_voxel_count += 1
+            if handle_voxel_count % 2000000 == 0:
+                print("Handle Voxel {:.2f}% Cost {:.2f}s".format(
+                    handle_voxel_count / len(tmp_full_delete_voxel_map) * 100,
+                    ttime.time() - start_time))
+                start_time = ttime.time()
+        print("Tmp Total Voxel Map Cost Mem {:.2f} MB".format(sys.getsizeof(tmp_full_delete_voxel_map) / 1024 / 1024))
+        print("Voxel Map Cost Mem {:.2f} MB".format(sys.getsizeof(self.voxel_map) / 1024 / 1024))
+        print("Delete Voxel Map Cost Mem {:.2f} MB".format(sys.getsizeof(self.delete_voxel_map) / 1024 / 1024))
+        del self.ray_list
+        del tmp_full_delete_voxel_map
         return
 
-
+# 使用比例法，统计每个栅格击中和击穿的计数，通过计数来删除击中占比小的栅格，来删除动态障碍
+class VoxelMap2:
+    def __init__(self):
 # -------------------------------- Voxel Map --------------------------------
+
+# -------------------------------- Functions --------------------------------
+# 获取点云bin的路径和对应的位姿，打包成一一对应输出
 def GetBinList(bin_dir, bin_times_file, pose_vec_file, save_path=None):
     if save_path is not None and os.path.isfile(save_path):
         bin_info = pickle.load(open(save_path, "rb"))
@@ -1074,7 +1102,7 @@ def GetBinList(bin_dir, bin_times_file, pose_vec_file, save_path=None):
         pickle.dump(bin_info, open(save_path, "wb"))
     return bin_info
 
-
+# 获取某个数据包的bin和位姿，利用总体点云地图PCD来建立voxelmap并删除动态障碍
 def GetVoxelMap(path=None):
     # path = "/home/qh/YES/dlut/Daquan19"
     if path is not None and os.path.isdir(path):
@@ -1089,8 +1117,21 @@ def GetVoxelMap(path=None):
     print("ERROR when get parameter!")
     return None
 
+# 获取某个数据包的bin和位姿，利用点云bin和位姿来建立voxelmap并统计栅格击中和击穿的字数来删除动态障碍
+def GetVoxelMap2(path=None):
+    if path is not None and os.path.isdir(path):
+        bin_list = GetBinList(bin_dir=os.path.join(path, "bin"),
+                              bin_times_file=os.path.join(path, "timestamp"),
+                              pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
+                              save_path=os.path.join(path, "bin_info.pkl"))
+        map1x = VoxelMap2(save_path=path,
+                          bin_list=bin_list)
+        return map1x
+    print("ERROR when get parameter!")
+    return None
 
-#
+
+# 给定若干条轨迹列表，画出每条轨迹和位姿点
 def plot_trajectory(traj_list, save_path=None):
     # traj : time x y z tw tx ty tz
     color_list = ["gray", "red", "gold", "green", "blue", "pink"]
@@ -1115,15 +1156,14 @@ def plot_trajectory(traj_list, save_path=None):
     plt.show()
     plt.close()
 
-
-# -------------------------------- Ours Method ------------------------------
+# 给定位姿文件，获取特定形式的位姿，Daquan的三个文件都是如此组织的
 def GetPoseVec(pose_file=None, skip=2):
     # "/home/qh/YES/dlut/Daquan/liosave/sam2.txt"
     # time x y z tw tx ty tz
     pose_vec = np.loadtxt(pose_file, skiprows=skip)
     return pose_vec
 
-
+# 使用时间戳进行二分查找 找到某个戳对应的bin将位姿对应起来
 def BinFind(pose_vec, x, l, r):
     if r >= l:
         mid = int(l + (r - l) / 2)
@@ -1136,7 +1176,7 @@ def BinFind(pose_vec, x, l, r):
     else:
         return -1
 
-
+# 使用Bag信息，获取每一帧点云的边界，和位姿时间戳等信息，建立完成的关键帧的信息，为后面填塞描述子提供基础
 def GetAccFullTopoInfo(pose_vec=None,
                        bag_file=None,
                        lidar_topic=None,
@@ -1176,7 +1216,7 @@ def GetAccFullTopoInfo(pose_vec=None,
     pickle.dump(accfullTopoInfo, open(acc_full_topo_info_path, "wb"))
     return accfullTopoInfo
 
-
+# 使用前面已经有了关键信息的描述子信息列表，用voxelmap地图来完成点云的累积，再填充描述子
 def GetAccFullTopo(accmap=None, topo_info=None, acc_fulltopo_path=None):
     if acc_fulltopo_path is not None and os.path.isfile(acc_fulltopo_path):
         start_time = ttime.time()
@@ -1211,7 +1251,7 @@ def GetAccFullTopo(accmap=None, topo_info=None, acc_fulltopo_path=None):
         pickle.dump(accfullTopo, open(acc_fulltopo_path, "wb"))
     return accfullTopo
 
-
+# 对完整的拓扑节点列表计算相似度矩阵
 def GetFullTopoConnectInfo(full_topo=None, full_topo_base=None, connect_path=None):
     if connect_path is not None and os.path.isfile(connect_path):
         start_time = ttime.time()
@@ -1257,7 +1297,7 @@ def GetFullTopoConnectInfo(full_topo=None, full_topo_base=None, connect_path=Non
         print("GPU 1060 slover cvonnect info :{:.2f}s".format(ttime.time() - start_time))
         return gpu_ans
 
-
+# 补全上三角矩阵
 def TopoConnectCompletion(path):
     data = pickle.load(open(path, "rb"))
     data_size = data.shape[0]
@@ -1266,7 +1306,7 @@ def TopoConnectCompletion(path):
             data[i, j] = data[j, i]
     pickle.dump(data, open(path, "wb"))
 
-
+# 根据相似度矩阵和描述子列表来生成指定阈值的拓扑地图
 def GenTopoNodeBySim(full_topo=None, full_topo_connect=None, sim_threshold=0, path=None):
     if path is not None and os.path.isfile(path):
         start_time = ttime.time()
@@ -1293,12 +1333,7 @@ def GenTopoNodeBySim(full_topo=None, full_topo_connect=None, sim_threshold=0, pa
         pickle.dump(topo_node_ind, open(path, "wb"))
     return topo_node_ind
 
-
-# -------------------------------- Ours Method ------------------------------
-
-
-# -------------------------------- Appearance Method ------------------------------
-
+# 生成appearance-based的完整关键帧节点
 def GetAppFullTopo(pose_vec=None,
                    bag_file=None,
                    lidar_topic=None,
@@ -1341,14 +1376,11 @@ def GetAppFullTopo(pose_vec=None,
     return appearance_fullTopoInfo
 
 
-# -------------------------------- Appearance Method ------------------------------
-
-# -------------------------------- Density Method ------------------------------
-
+# 计算两个拓扑节点之间的距离
 def TopoNodeDistance(t1, t2):
     return np.linalg.norm(t1.position - t2.position)
 
-
+# 生成density-based的拓扑地图
 def GenTopoNodeByDensity(app_full_topo, density):
     topo_node_ind = []
     tree_data = np.zeros((0, 3), dtype=np.float32)
@@ -1364,12 +1396,10 @@ def GenTopoNodeByDensity(app_full_topo, density):
             topo_node_ind.append(ind)
             tree_data = np.row_stack((tree_data, now_node.position))
     return topo_node_ind
-
-
-# -------------------------------- Density Method ------------------------------
+# -------------------------------- Functions --------------------------------
 
 # -------------------------------- Show Topo Map ------------------------------
-
+# 画出某一条拓扑地图
 def ShowTopoMap(full_topo, topo_nodes_ind, path=None, vis=True):
     points = np.zeros((3, 0), dtype=np.float32)
     for ind in range(len(topo_nodes_ind)):
@@ -1391,6 +1421,7 @@ def ShowTopoMap(full_topo, topo_nodes_ind, path=None, vis=True):
 # -------------------------------- Show Topo Map ------------------------------
 
 # -------------------------------- Precision And Recall ------------------------------
+# 给定检验参数-真值距离和topK，遍历 full_topo 中的拓扑节点进行检验 需要full_base_topo的原因是base_topo只记录了节点ID（省内存）
 def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, connect, sim, top=10, gdis=3.0):
     tp, fp, tn, fn = 0, 0, 0, 0
     base_topo = np.array(base_topo)
@@ -1431,7 +1462,7 @@ def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, connect, sim, to
         return sim, 0, 0, len(base_topo), top, gdis
     return sim, tp / (tp + fp), tp / (tp + fn), len(base_topo), top, gdis
 
-
+# 绘制PR列表中的数据为曲线
 def plot_pr(pr_list, path=None, vis=True):
     recall = []
     precision = []
@@ -1451,7 +1482,7 @@ def plot_pr(pr_list, path=None, vis=True):
         plt.show()
     plt.close()
 
-
+# 绘制多条PR曲线
 def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=True):
     parameter_size = len(acc_pr)
     row_size = row_size_

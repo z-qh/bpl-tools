@@ -12,6 +12,13 @@ import pickle
 import os
 import time as ttime
 
+"""
+本文件主要用于验证根据最优参数的拓扑地图的一个性能，
+用另外几圈的参数来验证拓扑地图的准确率召回率
+验证累积拓扑地图的PR曲线
+验证外观拓扑地图的PR曲线
+某些保存图片结果的函数也在这里
+"""
 
 
 def getPR(top_=10, gdis_=3.0):
@@ -19,7 +26,6 @@ def getPR(top_=10, gdis_=3.0):
     进行验证， 目前有 Daquan16 对 Daquan19 的相似度矩阵 用来检验阴阳 并且TopoMap是有位姿的可以检验真假
     参数整定之后最好的参数是 0.87 0.90 生成的地图
     """
-
     sim_map_list = [0.90]
     sim_recall_list = [0.1, 0.2, 0.3, 0.4, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
     acc_pr_path = "/home/qh/YES/dlut/Daquan16/acc_prTop{:d}G{:.1f}.pkl".format(top_, gdis_)

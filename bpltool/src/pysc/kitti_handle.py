@@ -18,7 +18,6 @@ import time as ttime
 
 """
 
-
 N_SCAN = 64
 Horizon_SCAN = 1800
 low_angle = -24.8
@@ -112,7 +111,7 @@ def GetVoxelMap():
     gt_2_laser_T = np.array((gt_2_laser), dtype=np.float64).reshape((4, 4))
     bin_info = []
     for ind in range(0, len(bin_to_use)):
-    # for ind in range(500, 1000):
+        # for ind in range(500, 1000):
         T_ = np.row_stack((pose_vec[ind].reshape((3, 4)), np.array([0, 0, 0, 1])))
         T_ = np.dot(np.dot(gt_2_laser_T.transpose(), T_), gt_2_laser_T)
         p_ = T_[0:3, 3:4]
@@ -130,7 +129,36 @@ def GetVoxelMap():
                               bin_list=bin_info)
 
 
+def TestHitAndCrossPer():
+    pose_vec_file = "/home/qh/YES/kitti/07/poses.txt"
+    pose_vec = np.loadtxt(pose_vec_file)
+    bin_dir = "/home/qh/YES/kitti/07/velodyne"
+    bin_to_use = sorted(glob.glob(bin_dir + '/*.bin'))
+    gt_2_laser = [0, -1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0, 1]
+    gt_2_laser_T = np.array((gt_2_laser), dtype=np.float64).reshape((4, 4))
+    bin_info = []
+    for ind in range(0, len(bin_to_use)):
+        # for ind in range(500, 1000):
+        T_ = np.row_stack((pose_vec[ind].reshape((3, 4)), np.array([0, 0, 0, 1])))
+        T_ = np.dot(np.dot(gt_2_laser_T.transpose(), T_), gt_2_laser_T)
+        p_ = T_[0:3, 3:4]
+        r_ = T_[0:3, 0:3]
+        bin_file = bin_to_use[ind]
+        bin_info.append((0, ind, bin_file, p_, r_))
+    Base.SetParameter(nscan=64, hscan=1800,
+                      low_ang=-24.8, up_ang=2.0,
+                      ground_ind=50, min_range=5.0,
+                      segment_theta_d=10.0,
+                      down_lines=10, up_lines=55)
+    path = "/home/qh/kitti/07"
+    map1x = Base.VoxelMap2(save_path=path,
+                           bin_list=bin_info,
+                           hit_thres=0.05)
+
+
 if __name__ == "__main__":
     # handleCloud()
-    GetVoxelMap()
+    # GetVoxelMap()
+    print(123)
+    TestHitAndCrossPer()
     print(123)

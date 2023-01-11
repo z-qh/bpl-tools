@@ -64,7 +64,7 @@ def GetBinList(bin_dir, bin_times_file, pose_vec_file, save_path=None):
 
 # 获取某个数据包的bin和位姿，利用总体点云地图PCD来建立voxelmap并删除动态障碍
 def GetAccFullTopo(path):
-    # path = "/home/qh/YES/dlut/Daquan19"
+    # path = "/home/dlut/zqh/dlut/Daquan19"
     acc_full_topo_path = os.path.join(path, "acc_full_topo.pkl")
     if os.path.isfile(acc_full_topo_path):
         acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
@@ -96,7 +96,7 @@ def GetAccFullTopo(path):
         tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
         acc_full_topo.append(tmp_topo_node)
         if ind % report_size == 0:
-            print("Gen Acc Topo Node {:.2f}% Cost {:.2f}s".format(ind/handle_size*100, ttime.time()-start_time))
+            print("Gen Acc Topo Node {:.2f}% Cost {:.2f}s".format(ind / handle_size * 100, ttime.time() - start_time))
             start_time = ttime.time()
     if len(acc_full_topo) != 0:
         pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
@@ -125,7 +125,6 @@ def GetAppFullTopo(path):
         boundary = Base.getBound(points)
         tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), points, ch=3)
         app_full_topo.append(tmp_topo_node)
-        Base.plot_multiple_sc(tmp_topo_node.SCs, None)
     if len(app_full_topo) != 0:
         pickle.dump(app_full_topo, open(app_full_topo_path, "wb"))
         print("Save Acc Topo Node!")
@@ -134,39 +133,38 @@ def GetAppFullTopo(path):
 
 if __name__ == "__main__":
     """ 显示画图三圈轨迹
-    pose_vec_data16 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan16/liosave/sam2.txt")
-    pose_vec_data17 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan17/liosave/sam2.txt")
-    pose_vec_data19 = Base.GetPoseVec("/home/qh/YES/dlut/Daquan19/liosave/sam2.txt")
+    pose_vec_data16 = Base.GetPoseVec("/home/dlut/zqh/dlut/Daquan16/liosave/sam2.txt")
+    pose_vec_data17 = Base.GetPoseVec("/home/dlut/zqh/dlut/Daquan17/liosave/sam2.txt")
+    pose_vec_data19 = Base.GetPoseVec("/home/dlut/zqh/dlut/Daquan19/liosave/sam2.txt")
     """
 
     """
     # # Completion the half connect matrix 补全上三角矩阵
-    Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/acc_connect.pkl")
-    Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/app_connect.pkl")
+    Base.TopoConnectCompletion("/home/dlut/zqh/dlut/Daquan19/acc_connect.pkl")
+    Base.TopoConnectCompletion("/home/dlut/zqh/dlut/Daquan19/app_connect.pkl")
     """
 
     # """
     # Daquan19 的 累积19 和 外观19 的完整拓扑节点生成 并生成相似度矩阵
     # 19 累积
-    acc_full_topo19 = GetAccFullTopo("/home/qh/YES/dlut/Daquan19")
-    # save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat.pkl"
+    acc_full_topo19 = GetAccFullTopo("/home/dlut/zqh/dlut/Daquan19")
+    # save_path = "/home/dlut/zqh/dlut/Daquan19/acc_sim_mat.pkl"
     # acc_full_topo19_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19, save_path, None)
     # 19 外观
-    exit(0)
-    app_full_topo19 = GetAppFullTopo("/home/qh/YES/dlut/Daquan19")
-    # save_path = "/home/qh/YES/dlut/Daquan19/app_sim_mat.pkl"
+    app_full_topo19 = GetAppFullTopo("/home/dlut/zqh/dlut/Daquan19")
+    # save_path = "/home/dlut/zqh/dlut/Daquan19/app_sim_mat.pkl"
     # app_full_topo19_sim_mat = Base.GetSimMatrixTo19(app_full_topo19, save_path, None)
     # """
 
     # """
     # Daqaun16 用于验证测试 首先生成 fullnode 然后针对 累积19 外观19 生成相似度矩阵
     # 16 累积
-    acc_full_topo16 = GetAccFullTopo("/home/qh/YES/dlut/Daquan16")
-    # save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat.pkl"
+    acc_full_topo16 = GetAccFullTopo("/home/dlut/zqh/dlut/Daquan16")
+    # save_path = "/home/dlut/zqh/dlut/Daquan16/acc_sim_mat.pkl"
     # acc_full_topo16_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19, save_path, acc_full_topo16)
     # 16 外观
-    app_full_topo16 = GetAppFullTopo("/home/qh/YES/dlut/Daquan16")
-    # save_path = "/home/qh/YES/dlut/Daquan16/app_sim_mat.pkl"
+    app_full_topo16 = GetAppFullTopo("/home/dlut/zqh/dlut/Daquan16")
+    # save_path = "/home/dlut/zqh/dlut/Daquan16/app_sim_mat.pkl"
     # app_full_topo16_sim_mat = Base.GetSimMatrixTo19(app_full_topo19, save_path, app_full_topo16)
     # """
 
@@ -174,19 +172,19 @@ if __name__ == "__main__":
     # Daqaun17 用于验证测试 首先生成 fullnode 然后针对 累积19 外观19 生成相似度矩阵
 
     # 17 累积
-    acc_full_topo17 = GetAccFullTopo("/home/qh/YES/dlut/Daquan17")
-    # save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat.pkl"
+    acc_full_topo17 = GetAccFullTopo("/home/dlut/zqh/dlut/Daquan17")
+    # save_path = "/home/dlut/zqh/dlut/Daquan17/acc_sim_mat.pkl"
     # acc_full_topo17_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19, save_path, acc_full_topo17)
 
     # 17 外观
-    app_full_topo17 = GetAppFullTopo("/home/qh/YES/dlut/Daquan17")
-    # save_path = "/home/qh/YES/dlut/Daquan17/app_sim_mat.pkl"
+    app_full_topo17 = GetAppFullTopo("/home/dlut/zqh/dlut/Daquan17")
+    # save_path = "/home/dlut/zqh/dlut/Daquan17/app_sim_mat.pkl"
     # app_full_topo17_sim_mat = Base.GetSimMatrixTo19(app_full_topo19, save_path, app_full_topo17)
     # """
 
     """
     # 并生成若干阈值拓扑地图 并找到最优参数 进行检验
-    set_path = "/home/qh/YES/dlut/Daquan19"
+    set_path = "/home/dlut/zqh/dlut/Daquan19"
     sim_list = [0.70, 0.75, 0.78, 0.80, 0.83, 0.85, 0.87, 0.88, 0.89, 0.90,
                 0.91, 0.92, 0.93, 0.94, 0.95]
     sim_recall_list = [0.1, 0.2, 0.3, 0.4, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
@@ -266,10 +264,10 @@ if __name__ == "__main__":
         acc_17_pr_list.append(acc_16_pr)
         app_16_pr_list.append(app_16_pr)
         app_17_pr_list.append(app_17_pr)
-    pickle.dump(acc_16_pr_list, open("/home/qh/YES/dlut/acc_16_val.pkl", "wb"))
-    pickle.dump(acc_17_pr_list, open("/home/qh/YES/dlut/acc_17_val.pkl", "wb"))
-    pickle.dump(app_16_pr_list, open("/home/qh/YES/dlut/app_16_val.pkl", "wb"))
-    pickle.dump(app_17_pr_list, open("/home/qh/YES/dlut/app_17_val.pkl", "wb"))
+    pickle.dump(acc_16_pr_list, open("/home/dlut/zqh/dlut/acc_16_val.pkl", "wb"))
+    pickle.dump(acc_17_pr_list, open("/home/dlut/zqh/dlut/acc_17_val.pkl", "wb"))
+    pickle.dump(app_16_pr_list, open("/home/dlut/zqh/dlut/app_16_val.pkl", "wb"))
+    pickle.dump(app_17_pr_list, open("/home/dlut/zqh/dlut/app_17_val.pkl", "wb"))
     """
 
     print(123)

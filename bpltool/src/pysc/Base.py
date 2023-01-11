@@ -44,6 +44,8 @@ def pt2rs(point, gap_ring, gap_sector, num_ring, num_sector):
     idx_sector = np.divmod(theta, gap_sector)[0]
     if idx_ring >= num_ring:
         idx_ring = num_ring - 1
+    if idx_sector >= num_sector:
+        idx_sector = num_sector - 1
     return int(idx_ring), int(idx_sector)
 
 
@@ -92,6 +94,7 @@ def genSCs(cloud_data, path, channle, ring_res, sector_res, min_dis, max_dis, li
     # print("The number of original points: " + str(ptcloud_xyz.shape))
     pcd = open3d.geometry.PointCloud()
     pcd.points = open3d.utility.Vector3dVector(ptcloud_xyz)
+    # downpcd = open3d.geometry.voxel_down_sample(pcd, voxel_size=downcell_size)
     downpcd = pcd.voxel_down_sample(voxel_size=downcell_size)
     ptcloud_xyz_downed = np.asarray(downpcd.points)
     # print("The number of downsampled points: " + str(ptcloud_xyz_downed.shape))
@@ -385,7 +388,8 @@ def DownSamplePointCloud(input, output, ds=global_down_sample_size):
     # input = "/home/qh/YES/dlut/Daquan/liosave/GlobalMap.pcd"
     # output = "/home/qh/YES/dlut/Daquan/liosave/GlobalMapDS.pcd"
     point_cloud = open3d.io.read_point_cloud(input)
-    point_cloud_ds = point_cloud.voxel_down_sample(voxel_size=ds)
+    point_cloud_ds = open3d.geometry.voxel_down_sample(point_cloud, voxel_size=ds)
+    # point_cloud_ds = point_cloud.voxel_down_sample(voxel_size=ds)
     open3d.io.write_point_cloud(output, point_cloud_ds)
 
 
@@ -396,18 +400,27 @@ def DownSamplePointCloud(input, output, ds=global_down_sample_size):
 
 # 按照旋转矩阵和平移矩阵，旋转平移点云
 @numba.jit(nopython=True)
-def TransPointCloud(point_cloud, r_, t_):
-    return (np.dot(r_.astype(np.float64),
-                   point_cloud.transpose()[0:3, :].astype(np.float64)) + t_.astype(np.float64)) \
-        .astype(np.float32).transpose()
+def TransPointCloud(points, r_, t_):
+    T_ = np.eye(4, dtype=np.float64)
+    T_[0:3, 0:3] = r_
+    T_[0:3, 3:4] = t_
+    return np.dot(T_.astype(np.float64),
+                  np.vstack((points.transpose().astype(np.float64),
+                             np.ones((1, points.shape[0]),
+                                     dtype=np.float64))))[0:3, :].transpose()
 
 
 # 按照旋转矩阵和平移矩阵，逆旋转平移点云
 @numba.jit(nopython=True)
-def TransInvPointCloud(point_cloud, r_, t_):
-    return (np.dot(r_.transpose().astype(np.float64),
-                   point_cloud.transpose()[0:3, :].astype(np.float64)) - t_.astype(np.float64)) \
-        .astype(np.float32).transpose()
+def TransInvPointCloud(points, r_, t_):
+    T_ = np.eye(4)
+    T_[0:3, 0:3] = r_
+    T_[0:3, 3:4] = t_
+    T_ = np.linalg.inv(T_)
+    return np.dot(T_.astype(np.float64),
+                  np.vstack((points.transpose().astype(np.float64),
+                             np.ones((1, points.shape[0]),
+                                     dtype=np.float64))))[0:3, :].transpose()
 
 
 # 拓扑点基本数据结构 有位姿 边界 时间戳 描述子 ID等信息
@@ -1205,7 +1218,7 @@ class VoxelMap2:
         proc_count = 0
         for _, _, bin_file, bin_p, bin_r in self.bin_list:
             l_points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
-            l_points = GetInRange(l_points, 5, 100, 10, 60)
+            l_points = GetInRange(l_points, min_dis=5, max_dis=100, d_l=10, u_l=60)
             g_points = TransPointCloud(l_points, bin_r, bin_p)
             for i in range(g_points.shape[0]):
                 point = g_points[i, :]
@@ -1288,6 +1301,7 @@ class VoxelMap2:
 
 # 对完整的拓扑节点列表计算相似度矩阵
 def GetSimMatrixTo19(full_topo_19, connect_path, full_topo_another=None):
+    cuda.select_device(1)
     if os.path.isfile(connect_path):
         sim_matrix = pickle.load(open(connect_path, "rb"))
         return sim_matrix
@@ -1365,7 +1379,7 @@ def GenTopoNodeBySim(full_topo=None, sim_mat=None, sim_threshold=0, path=None):
         if max_pass_sim < sim_threshold:
             topo_node_ind.append(ind)
         if ind % report_size == 0:
-            print("Gen Topo Map : {:.2f}% Cost:{:.2f}s".format(ind / handle_size  * 100, ttime.time() - start_time))
+            print("Gen Topo Map : {:.2f}% Cost:{:.2f}s".format(ind / handle_size * 100, ttime.time() - start_time))
     if path is not None:
         pickle.dump(topo_node_ind, open(path, "wb"))
     return topo_node_ind

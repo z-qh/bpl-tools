@@ -91,10 +91,11 @@ typedef pcl::PointXYZI  PointType;
 // HDL-32E
 extern const int N_SCAN = 32;
 extern const int Horizon_SCAN = 1800;
-extern const float ang_res_x = 360.0/Horizon_SCAN;
-extern const float ang_res_y = 41.333/float(N_SCAN-1);
-extern const float ang_bottom = 16.6+0.1;
+extern const float ang_res_x = 360.0/float(Horizon_SCAN);
+extern const float ang_res_y = 41.33/float(N_SCAN-1);
+extern const float ang_bottom = 30.67;
 extern const int groundScanInd = 20;
+
 
 //extern const bool loopClosureEnableFlag = true;	        //闭环检测标志位
 extern const double mappingProcessInterval = 0.1;//map建图间隔控制，曾经是3hz--0.3秒

@@ -576,6 +576,7 @@ def GetAccFullTopo(accmap=None, topo_info=None, acc_fulltopo_path=None, load=Fal
         # pcd = open3d.geometry.PointCloud()
         # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
         # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
+        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
         # open3d.visualization.draw_geometries([pcd, axis_pcd])
         # plot_multiple_sc(accfullTopo[-1].SCs, save_path=None)
     pickle.dump(accfullTopo, open(acc_fulltopo_path, "wb"))

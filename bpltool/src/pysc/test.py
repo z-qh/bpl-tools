@@ -17,28 +17,15 @@ from numpy import trapz
 import glob
 
 if __name__ == "__main__":
-    bag_path_16 = "/home/qh/YES/dlut/2021-01-17-11-12-10.bag"
-    topic = "/lslidar_point_cloud"
-    bag16 = rosbag.Bag(bag_path_16)
-    path_save_bin = "/home/qh/YES/dlut/Daquan17/bin"
-    bag_data = bag16.read_messages(topic)
-    ind = 0
-    f = open("/home/qh/YES/dlut/Daquan17/timestamp", "w")
-    info = bag16.get_type_and_topic_info()
-    print("Total {:d} Frames".format(info.topics["/lslidar_point_cloud"].message_count))
-    handle_size = info.topics["/lslidar_point_cloud"].message_count
-    report_size = handle_size // 100 if handle_size // 100 != 0 else 1
-    start_time = time.time()
-    for topic, msg, t, in bag_data:
-        lidar = pc2.read_points(msg)
-        points = np.array(list(lidar)).astype(np.float32)
-        points = points[~np.isnan(points).any(axis=1)]
-        bin_file = os.path.join(path_save_bin, "{:06d}.bin".format(ind))
-        points.tofile(bin_file)
-        f.write("{:f}\n".format(t.to_sec()))
-        if ind % report_size == 0:
-            print("Gen Bin {:.2f}% Cost {:.2f}s".format(ind / handle_size * 100, time.time()-start_time))
-            start_time = time.time()
-        ind += 1
-    f.close()
+    dir = "/home/qh/YES/oxford/2019-01-10-12-32-52-radar-oxford-10k_Velodyne_HDL-32E_Left_Pointcloud/2019-01-10-12-32-52-radar-oxford-10k/velodyne_left"
+    bin_files = sorted(glob.glob(dir + "/*.bin"))
+    for bin_file in bin_files:
+        pc = np.fromfile(bin_file, dtype=np.float32).reshape((4, -1))[0:3, :].transpose()
+        pcd = open3d.geometry.PointCloud()
+        pcd.points = open3d.utility.Vector3dVector(pc)
+        open3d.visualization.draw_geometries([pcd])
+        print(123)
     print(123)
+
+
+

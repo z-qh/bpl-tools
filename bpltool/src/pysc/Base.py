@@ -9,6 +9,8 @@ import os
 import time as ttime
 import matplotlib.pyplot as plt
 import collections
+from scipy.integrate import trapz
+from matplotlib.patches import FancyArrowPatch
 
 global_down_sample_size = 0.2
 
@@ -373,7 +375,8 @@ class ScanContext:
     max_dis = 100
     SCs = []
 
-    def __init__(self, channle, cloud_data=None, path=None):
+    def __init__(self, channle, cloud_data=None, path=None, lidar_height=0):
+        self.lidar_height = 2.0 if lidar_height == 0 else lidar_height
         self.SCs = genSCs(cloud_data, path, channle, self.ring_res, self.sector_res, self.min_dis, self.max_dis,
                           self.lidar_height,
                           self.downcell_size)
@@ -385,8 +388,6 @@ class ScanContext:
 # -------------------------------- Down Sample  --------------------------------
 # 点云的下采样
 def DownSamplePointCloud(input, output, ds=global_down_sample_size):
-    # input = "/home/qh/YES/dlut/Daquan/liosave/GlobalMap.pcd"
-    # output = "/home/qh/YES/dlut/Daquan/liosave/GlobalMapDS.pcd"
     point_cloud = open3d.io.read_point_cloud(input)
     point_cloud_ds = open3d.geometry.voxel_down_sample(point_cloud, voxel_size=ds)
     # point_cloud_ds = point_cloud.voxel_down_sample(voxel_size=ds)
@@ -423,6 +424,13 @@ def TransInvPointCloud(points, r_, t_):
                                      dtype=np.float64))))[0:3, :].transpose()
 
 
+@numba.jit(nopython=True)
+def rmmm(points, hl):
+    mask = points[:, 2] > hl
+    points = points[~mask]
+    return points
+
+
 # 拓扑点基本数据结构 有位姿 边界 时间戳 描述子 ID等信息
 class TopoNode:
     id = -1
@@ -452,8 +460,8 @@ def getBound(point_cloud):
 
 
 # 完善拓扑点的描述子信息，拓扑点已有位置和时间戳等信息
-def genTopoSC(topo_node, point_cloud, ch=3):
-    topo_node.SCs = ScanContext(channle=ch, cloud_data=point_cloud, path=None).SCs
+def genTopoSC(topo_node, point_cloud, ch=3, lh=0):
+    topo_node.SCs = ScanContext(channle=ch, cloud_data=point_cloud, path=None, lidar_height=lh).SCs
     return topo_node
 
 
@@ -1293,6 +1301,53 @@ class VoxelMap2:
         return tmp_point
 
 
+# 不删除动态障碍物的地图
+class VoxelMap3_Load:
+    def __init__(self, save_path, voxel_size=0.1):
+        self.pcd = None
+        self.kd_tree = None
+        self.point_cloud = None
+        self.voxel_size = voxel_size
+        self.voxel_map = None
+        self.raw_voxem_map_file = os.path.join(save_path, "VM2_raw.pkl")
+        self.raw_pcd_file = os.path.join(save_path, "VM3_raw.pcd")
+        if os.path.isfile(self.raw_pcd_file):
+            print("Load Raw Pcd, Delete It to Regenerate!")
+            self.pcd = open3d.io.read_point_cloud(self.raw_pcd_file)
+            self.pcd = self.pcd.voxel_down_sample(voxel_size=1.0)
+            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
+            self.point_cloud = np.array(self.pcd.points)
+        elif os.path.isfile(self.raw_voxem_map_file):
+            print("Load Raw Data, Delete It to Regenerate!")
+            print(self.raw_voxem_map_file)
+            self.voxel_map = pickle.load(open(self.raw_voxem_map_file, "rb"))
+            raw_points = np.zeros((len(self.voxel_map), 3), dtype=np.float32)
+            handle_size = len(self.voxel_map)
+            report_size = handle_size // 50 if handle_size // 50 != 0 else 1
+            start_time = ttime.time()
+            for i, voxel in enumerate(self.voxel_map):
+                raw_points[i, :] = CenterVoxel(np.array(voxel), voxel_size=self.voxel_size)
+                if i % report_size == 0:
+                    print("Handle Raw Voxel {:.2f}% Cost {:.2f}s".format(i / handle_size * 100,
+                                                                         ttime.time() - start_time))
+                    start_time = ttime.time()
+            del self.voxel_map
+            self.pcd = open3d.geometry.PointCloud()
+            self.pcd.points = open3d.utility.Vector3dVector(raw_points)
+            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
+            self.point_cloud = np.array(self.pcd.points)
+            open3d.io.write_point_cloud(self.raw_pcd_file, self.pcd)
+        else:
+            print("No Raw Voxel Data!")
+            exit(0)
+
+    def GetAreaPointCloud(self, center, boundary):
+        serach_radius = max(boundary)
+        _, p_ind, _ = self.kd_tree.search_radius_vector_3d(np.array(center), serach_radius)
+        tmp_point = self.point_cloud[p_ind, :]
+        return tmp_point
+
+
 # -------------------------------- Voxel Map --------------------------------
 
 
@@ -1301,10 +1356,10 @@ class VoxelMap2:
 
 # 对完整的拓扑节点列表计算相似度矩阵
 def GetSimMatrixTo19(full_topo_19, connect_path, full_topo_another=None):
-    cuda.select_device(1)
     if os.path.isfile(connect_path):
         sim_matrix = pickle.load(open(connect_path, "rb"))
         return sim_matrix
+    cuda.select_device(0)
     if full_topo_another is None:
         start_time = ttime.time()
         total_line = len(full_topo_19)
@@ -1345,13 +1400,33 @@ def GetSimMatrixTo19(full_topo_19, connect_path, full_topo_another=None):
         return gpu_ans
 
 
-# 补全上三角矩阵
-def TopoConnectCompletion(path):
-    data = pickle.load(open(path, "rb"))
+@numba.jit(nopython=True)
+def CompleteUpTriangle(data):
+    data_size = data.shape[0]
+    for i in range(0, data_size):
+        for j in range(0, i):
+            data[j, i] = data[i, j]
+
+
+@numba.jit(nopython=True)
+def CompleteDownTriangle(data):
     data_size = data.shape[0]
     for i in range(0, data_size):
         for j in range(0, i):
             data[i, j] = data[j, i]
+
+
+# 补全上三角矩阵
+def TopoConnectCompletion(path):
+    data = pickle.load(open(path, "rb"))
+    if data[0, 1] == 0:
+        print("Complete Up Triangle!")
+        CompleteUpTriangle(data)
+    elif data[1, 0] == 0:
+        print("Complete Down Triangle!")
+        CompleteDownTriangle(data)
+    else:
+        print("Already Complete!")
     pickle.dump(data, open(path, "wb"))
 
 
@@ -1360,7 +1435,7 @@ def GenTopoNodeBySim(full_topo=None, sim_mat=None, sim_threshold=0, path=None):
     if path is not None and os.path.isfile(path):
         start_time = ttime.time()
         topo_node_ind = pickle.load(open(path, "rb"))
-        print("Load topo map: {:.2f}s".format(ttime.time() - start_time))
+        print("Load topo map: {:.2f}s {:d}".format(ttime.time() - start_time, len(topo_node_ind)))
         return topo_node_ind
     if full_topo is None or sim_mat is None:
         print("Param Wrong!")
@@ -1394,10 +1469,10 @@ def TopoNodeDistance(t1, t2):
 
 # -------------------------------- Precision And Recall ------------------------------
 # 给定检验参数-真值距离和topK，遍历 full_topo 中的拓扑节点进行检验 需要full_base_topo的原因是base_topo只记录了节点ID（省内存）
-def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, sim_mat, sim, top=10, gdis=3.0):
+def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, sim_mat, sim, top=10, gdis=3.0, info="", topo_num=-1):
     tp, fp, tn, fn = 0, 0, 0, 0
     base_topo = np.array(base_topo)
-    topo_connect = sim_mat[base_topo, :]
+    topo_connect = sim_mat[:, base_topo]
     his_points = []
     for hind in base_topo:
         hnode = full_base_topo[hind]
@@ -1405,10 +1480,14 @@ def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, sim_mat, sim, to
     pcd = open3d.geometry.PointCloud()
     pcd.points = open3d.utility.Vector3dVector(his_points)
     tree = open3d.geometry.KDTreeFlann(pcd)
-    for now_node_id in range(len(full_topo)):
-        now_node = full_topo[now_node_id]
-        sim_ok = np.where(topo_connect[now_node_id] > sim)[0]
-        sim_ok_val = topo_connect[now_node_id, sim_ok]
+    for now_node_ind in range(len(full_topo)):
+        # 先找先验地图中
+        # 先找先验地图中相似度满足阈值的，再找其中最相近的前N个，
+        # 没有满足阈值的：这个点范围内没有先验地图点为TN，有先验地图点为FN
+        # 相似度最大的N个：如果任一在范围内TP，都不在范围内FP
+        now_node = full_topo[now_node_ind]
+        sim_ok = np.where(topo_connect[now_node_ind] > sim)[0]
+        sim_ok_val = topo_connect[now_node_ind, sim_ok]
         sort_sim_ok = (-sim_ok_val).argsort()
         max_sim = sort_sim_ok[0:top]
         global_sim_id = base_topo[sim_ok[max_sim]].reshape((1, -1))
@@ -1431,8 +1510,20 @@ def GetPrecisionAndRecall(full_base_topo, base_topo, full_topo, sim_mat, sim, to
             if not tpflag:
                 fp += 1
     if tp == 0:
-        return sim, 0, 0, top, gdis
-    return sim, tp / (tp + fp), tp / (tp + fn), top, gdis
+        precision = 0
+        recall = 0
+    else:
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+    return {
+        "info": info,
+        "recall_sim": sim,
+        "precision": precision,
+        "recall": recall,
+        "top": top,
+        "turth dis": gdis,
+        "topo num": topo_num
+    }
 
 
 # -------------------------------- Precision And Recall ------------------------------
@@ -1467,16 +1558,65 @@ def plot_trajectory(traj_list, save_path=None):
 
 # 画出某一条拓扑地图
 def ShowTopoMap(full_topo, topo_nodes_ind, path=None, vis=True):
+    if path is not None and os.path.isfile(path):
+        return None
+    fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(24, 13.5))
+    points = np.zeros((3, 0), dtype=np.float32)
+    id_list = []
+    for ind in range(len(topo_nodes_ind)):
+        node = full_topo[topo_nodes_ind[ind]]
+        points = np.column_stack((points, node.position))
+        id_list.append(ind)
+    ax.scatter(points[1], points[0], marker="o", s=3, color="black", label='Vertex')
+    plt.plot(points[1], points[0], linewidth=1, markersize=1, color='gray', alpha=0.5, zorder=0, label="edge")
+    ax.set_aspect(1)
+    ax.legend(loc='upper left')
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    if path is not None:
+        plt.savefig(path, dpi=600, transparent=True)
+    if vis:
+        plt.show()
+    plt.close()
+
+
+def ShowTopoMapByDensity(full_topo, topo_nodes_ind, path=None, vis=True):
     points = np.zeros((3, 0), dtype=np.float32)
     for ind in range(len(topo_nodes_ind)):
         node = full_topo[topo_nodes_ind[ind]]
         points = np.column_stack((points, node.position))
     fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(24, 13.5))
-    ax.scatter(points[1], points[0], marker="o", s=10, color="black", label='Vertex')
-    ax.set_aspect(1)
-    ax.legend(loc='upper left')
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(points.transpose())
+    # open3d.visualization.draw_geometries([pcd])
+    kdtree = open3d.geometry.KDTreeFlann(pcd)
+    density = []
+    for ind in range(len(topo_nodes_ind)):
+        node = full_topo[topo_nodes_ind[ind]]
+        now_p = node.position
+        aa = kdtree.search_radius_vector_3d(now_p, 10.0)
+        density.append(aa[0] / 10.0)
+    cmap = "jet"
+    sc = ax.scatter(points[1], points[0], c=density, cmap=cmap)
+    plt.plot(points[1], points[0], linewidth=1, markersize=1, color='gray', alpha=0.5, zorder=-1)
+    cbar = plt.colorbar(sc)
+    cbar.set_label('Density')
+    scale_length = 100  # 比例尺长度为 10 米
+    scale_pos_x = -1200  # 比例尺位置的 x 坐标
+    scale_pos_y = -200  # 比例尺位置的 y 坐标
+
+    # 绘制比例尺线段
+    arrow_style = FancyArrowPatch(
+        (scale_pos_x, scale_pos_y),  # 起点
+        (scale_pos_x + scale_length, scale_pos_y),  # 终点
+        arrowstyle='|-|',  # 箭头样式，表示为竖线和横线
+        mutation_scale=4,  # 箭头大小
+        linewidth=2,  # 线宽
+        color='black',  # 线条颜色
+        linestyle='solid'  # 线型
+    )
+    plt.gca().add_patch(arrow_style)
+    plt.axis('equal')
     if path is not None:
         plt.savefig(path, dpi=600, transparent=True)
     if vis:
@@ -1490,9 +1630,9 @@ def plot_pr(pr_list, path=None, vis=True):
     precision = []
     sim = []
     for pr in pr_list:
-        sim.append(pr[0])
-        precision.append(pr[1])
-        recall.append(pr[2])
+        sim.append(pr['recall_sim'])
+        precision.append(pr['precision'])
+        recall.append(pr['recall'])
     fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(8, 4.5))
     ax.plot(recall, precision, lw="5", color="black")
     plt.xlim(0, 1.1)
@@ -1505,9 +1645,35 @@ def plot_pr(pr_list, path=None, vis=True):
     plt.close()
 
 
+def plot_acc_app_pr(acc_pr, app_pr, path=None, vis=True):
+    acc_recall, app_recall = [], []
+    acc_precision, app_precision = [], []
+    acc_sim, app_sim = [], []
+    for pr in acc_pr:
+        acc_sim.append(pr['recall_sim'])
+        acc_precision.append(pr['precision'])
+        acc_recall.append(pr['recall'])
+    for pr in app_pr:
+        app_sim.append(pr['recall_sim'])
+        app_precision.append(pr['precision'])
+        app_recall.append(pr['recall'])
+    fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(8, 4.5))
+    ax.plot(acc_recall, acc_precision, lw="5", color="green", label="acc")
+    ax.plot(app_recall, app_precision, lw="5", color="blue", label="app")
+    ax.legend(loc="best")
+    plt.xlim(0, 1.1)
+    plt.ylim(0, 1.1)
+    ax.set_aspect('equal', adjustable='box')
+    if path is not None:
+        plt.savefig(path, dpi=600, transparent=True)
+    if vis:
+        plt.show()
+    plt.close()
+
+
 # 绘制多条PR曲线
-def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=True):
-    parameter_size = len(acc_pr)
+def plot_muliti_pr_acc(acc_pr_dic, save_path=None, row_size_=2, title=None, vis=True):
+    parameter_size = len(acc_pr_dic)
     row_size = row_size_
     col_size = int(math.ceil(parameter_size / row_size))
     fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
@@ -1515,66 +1681,40 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=
     if title is not None:
         title_label = title
     fig.suptitle(title_label, fontsize=25)
-    for i, key in enumerate(acc_pr):
+    for i, key in enumerate(acc_pr_dic):
         # # ACC
-        row = i // col_size + 1
-        col = i - (row - 1) * col_size + 1
-        ax = plt.subplot(row_size, col_size, i + 1)
-        ax.set_aspect('equal', adjustable='box')
-        if col == 1:
-            plt.ylabel("precision", fontsize=16)
-        plt.xlim(0, 1.1)
-        plt.ylim(0, 1.1)
-        recall = []
-        precision = []
-        sim = []
-        recall.append(1.0)
-        precision.append(0.0)
-        sim.append(0.0)
-        acc_vertex_size = 0
-        for pr in acc_pr[key]:
-            if pr[1] == 0 or pr[2] == 0:
-                continue
-            sim.append(pr[0])
-            precision.append(pr[1])
-            recall.append(pr[2])
-            acc_vertex_size = pr[3]
-        recall.append(0.0)
-        precision.append(1.0)
-        sim.append(1.0)
-        plt.plot(recall, precision, lw="2", color="lime", label="ours", alpha=0.9)
-        plt.scatter(recall, precision, marker="o", s=10, color="black")
-        # for a, b, c in zip(recall, precision, sim):
-        #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
-        # # APP
-        recall = []
-        precision = []
-        sim = []
-        recall.append(1.0)
-        precision.append(0.0)
-        sim.append(0.0)
-        app_vertex_size = 0
-        for pr in app_pr[key]:
-            if pr[1] == 0 or pr[2] == 0:
-                continue
-            sim.append(pr[0])
-            precision.append(pr[1])
-            recall.append(pr[2])
-            app_vertex_size = pr[3]
-        recall.append(0.0)
-        precision.append(1.0)
-        sim.append(1.0)
-        plt.plot(recall, precision, lw="2", color="silver", label="appearance-based", alpha=0.9)
-        plt.scatter(recall, precision, marker="o", s=10, color="gray", alpha=0.9)
-        # for a, b, c in zip(recall, precision, sim):
-        #     plt.text(a, b, c, ha='center', va='bottom', fontsize=10)
-        ax.legend(loc="best")
-        plt.xlabel("recall", fontsize=16)
-        detail = "\nours vertex size:{:d}\nappearance-based vertex:{:d}\ncount reduce {:.1f}%". \
-            format(acc_vertex_size, app_vertex_size, (app_vertex_size - acc_vertex_size) / app_vertex_size * 100.0)
-        plt.text(0.5, 0.4, detail, ha="center", fontsize=12)
-        plt.title("Threshold: {:.2f}".format(key), fontsize=15)
-
+        if True:
+            row = i // col_size + 1
+            col = i - (row - 1) * col_size + 1
+            ax = plt.subplot(row_size, col_size, i + 1)
+            ax.set_aspect('equal', adjustable='box')
+            if col == 1:
+                plt.ylabel("precision", fontsize=16)
+            plt.xlim(0, 1.1)
+            plt.ylim(0, 1.1)
+            recall = []
+            precision = []
+            sim = []
+            recall.append(1.0)
+            precision.append(0.0)
+            sim.append(0.0)
+            topo_num = 0
+            for pr in acc_pr_dic[key]:
+                if pr['precision'] == 0 or pr['recall'] == 0:
+                    continue
+                sim.append(pr['recall_sim'])
+                precision.append(pr['precision'])
+                recall.append(pr['recall'])
+                topo_num = pr['topo num']
+            recall.append(0.0)
+            precision.append(1.0)
+            sim.append(1.0)
+            auc = trapz(precision, recall, dx=0.00001)
+            plt.plot(recall, precision, lw="2", color="lime", label="ours {:d} {:.5f}".format(topo_num, auc), alpha=0.9)
+            plt.scatter(recall, precision, marker="o", s=10, color="black")
+            ax.legend(loc="best")
+            plt.xlabel("recall", fontsize=16)
+            plt.title("Threshold: {:.2f}".format(key), fontsize=15)
     for i in range(row_size * col_size):
         if i < parameter_size:
             continue
@@ -1586,5 +1726,84 @@ def plot_muliti_pr(acc_pr, app_pr, save_path=None, row_size_=2, title=None, vis=
     if vis:
         plt.show()
     plt.close()
+
+
+def plot_muliti_pr_app(app_pr_dic, save_path=None, row_size_=2, title=None, vis=True):
+    parameter_size = len(app_pr_dic)
+    row_size = row_size_
+    col_size = int(math.ceil(parameter_size / row_size))
+    fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+    title_label = "ours-method VS appearance-based-method"
+    if title is not None:
+        title_label = title
+    fig.suptitle(title_label, fontsize=25)
+    for i, key in enumerate(app_pr_dic):
+        # # APP
+        if True:
+            row = i // col_size + 1
+            col = i - (row - 1) * col_size + 1
+            ax = plt.subplot(row_size, col_size, i + 1)
+            ax.set_aspect('equal', adjustable='box')
+            if col == 1:
+                plt.ylabel("precision", fontsize=16)
+            plt.xlim(0, 1.1)
+            plt.ylim(0, 1.1)
+            recall = []
+            precision = []
+            sim = []
+            recall.append(1.0)
+            precision.append(0.0)
+            sim.append(0.0)
+            topo_num = 0
+            for pr in app_pr_dic[key]:
+                if pr['precision'] == 0 or pr['recall'] == 0:
+                    continue
+                sim.append(pr['recall_sim'])
+                precision.append(pr['precision'])
+                recall.append(pr['recall'])
+                topo_num = pr['topo num']
+            recall.append(0.0)
+            precision.append(1.0)
+            sim.append(1.0)
+            auc = trapz(precision, recall, dx=0.00001)
+            plt.plot(recall, precision, lw="2", color="silver", label="a-b {:d} {:.5f}".format(topo_num, auc),
+                     alpha=0.9)
+            plt.scatter(recall, precision, marker="o", s=10, color="gray", alpha=0.9)
+            ax.legend(loc="best")
+            plt.xlabel("recall", fontsize=16)
+            plt.title("Threshold: {:.2f}".format(key), fontsize=15)
+    for i in range(row_size * col_size):
+        if i < parameter_size:
+            continue
+        else:
+            ax = plt.subplot(row_size, col_size, i + 1)
+            ax.axis('off')
+    if save_path is not None:
+        plt.savefig(save_path, dpi=600, transparent=True)
+    if vis:
+        plt.show()
+    plt.close()
+
+
+def GetPrData(pr_list):
+    recall = []
+    precision = []
+    sim = []
+    recall.append(1.0)
+    precision.append(0.0)
+    sim.append(0.0)
+    topo_num = 0
+    for pr in pr_list:
+        if pr['precision'] == 0 or pr['recall'] == 0:
+            continue
+        sim.append(pr['recall_sim'])
+        precision.append(pr['precision'])
+        recall.append(pr['recall'])
+        topo_num = pr['topo num']
+    recall.append(0.0)
+    precision.append(1.0)
+    sim.append(1.0)
+    auc = trapz(precision, recall, dx=0.00001)
+    return recall, precision, auc, topo_num
 
 # -------------------------------- Show Fun --------------------------------

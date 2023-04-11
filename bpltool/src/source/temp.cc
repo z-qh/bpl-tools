@@ -20,7 +20,7 @@
 
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
-
+#include <filesystem>
 
 using namespace std;
 
@@ -362,13 +362,150 @@ void generateO1(ros::Publisher& pubOdom, ros::Publisher& pubCloud){
 
 }
 
-int main(int argc, char** argv){
-    ros::init(argc, argv, "temp");
-    ros::NodeHandle nh;
+pcl::PointCloud<pcl::PointXYZ>::Ptr removeFullZeroPointCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr in){
+    pcl::PointCloud<pcl::PointXYZ>::Ptr res(new pcl::PointCloud<pcl::PointXYZ>());
+    for(auto&p:in->points){
+        if(p.x == 0 && p.y == 0 && p.z == 0){
+            continue;
+        }
+        res->push_back(p);
+    }
+    return res;
+} 
 
-    ros::Publisher pubOdom = nh.advertise<nav_msgs::Odometry>("/temp", 1);
-    ros::Publisher pubCloud = nh.advertise<sensor_msgs::PointCloud2>("tempcloud", 1);
-    // generateDaquanLast(pubOdom, pubCloud);
-    generateO1(pubOdom, pubCloud);
+
+pcl::PointCloud<pcl::PointXYZL>::Ptr getCloudAndLabelBin(string bin, string label){
+    ifstream binfile;
+    binfile.open(bin, ios::in | ios::binary);
+    binfile.seekg(0, ios::beg);
+    ifstream labelfile;
+    labelfile.open(label, ios::in | ios::binary);
+    labelfile.seekg(0, ios::beg);
+    pcl::PointCloud<pcl::PointXYZL>::Ptr points (new pcl::PointCloud<pcl::PointXYZL>);
+    for (int j = 0; binfile.good() && !binfile.eof() && labelfile.good() && !labelfile.eof(); j++) {
+        pcl::PointXYZL point;
+        float none_use;
+        binfile.read((char *) &point.x, 3*sizeof(float));
+        binfile.read((char *) &none_use, sizeof(float));
+        uint32_t labelValue = 0;
+        labelfile.read((char *) &labelValue, sizeof(uint32_t));
+        point.label = labelValue & 0xFFFF;
+        points->push_back(point);
+        if ((binfile.eof() && !labelfile.eof()) || (!binfile.eof() && labelfile.eof()))
+        {
+            cout << "wrong file " << endl;
+            getchar();
+        }
+
+    }
+    binfile.close();
+    labelfile.close();
+    return points;
+}
+
+pcl::PointCloud<pcl::PointXYZL>::Ptr getCloudAndLabel(string bin, string label){
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr Zpoints (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPCDFile(bin, *Zpoints);
+    auto opoints = removeFullZeroPointCloud(Zpoints);
+
+    pcl::PointCloud<pcl::PointXYZL>::Ptr lpoints (new pcl::PointCloud<pcl::PointXYZL>);
+    lpoints->resize(opoints->points.size());
+    ifstream labelfile;
+    filesystem::path lpath(label);
+    std::uintmax_t label_size = filesystem::file_size(lpath) / sizeof(uint32_t);
+    labelfile.open(label, ios::in | ios::binary);
+    labelfile.seekg(0, ios::beg);
+    if(opoints->points.size() != label_size){
+        cout << "wrong file " << endl;
+        cout << "pcd: " << opoints->points.size() << bin << endl;
+        cout << "label: " << label_size << label << endl;
+        getchar();
+        exit(0);
+    }
+    for (int i = 0; i < label_size; ++i){
+        uint32_t labelValue = 0;
+        labelfile.read((char *) &labelValue, sizeof(uint32_t));
+        lpoints->points[i].x = opoints->points[i].x;
+        lpoints->points[i].y = opoints->points[i].y;
+        lpoints->points[i].z = opoints->points[i].z;
+        lpoints->points[i].label = labelValue;
+    }
+    labelfile.close();
+    cout << "get " << lpoints->size() << " points" << endl;
+
+    return lpoints;
+}
+
+void combinexyz_l(){
+    vector<string> pcd_path_vec, lab_path_vec, des_paht_vec;
+    // pcd_path_vec.push_back("/home/qh/YES/dlut/Daquan16/ip/com_pc");
+    // lab_path_vec.push_back("/home/qh/YES/dlut/Daquan16/ip/label");
+    // des_paht_vec.push_back("/home/qh/YES/dlut/Daquan16/ip");
+
+    // pcd_path_vec.push_back("/home/qh/YES/dlut/Daquan16/nconv/com_pc");
+    // lab_path_vec.push_back("/home/qh/YES/dlut/Daquan16/nconv/label");
+    // des_paht_vec.push_back("/home/qh/YES/dlut/Daquan16/nconv");
+
+    // pcd_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/ip/com_pc");
+    // lab_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/ip/label");
+    // des_paht_vec.push_back("/home/qh/YES/jgxy/jgxy1/ip");
+
+    // pcd_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/nconv/com_pc");
+    // lab_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/nconv/label");
+    // des_paht_vec.push_back("/home/qh/YES/jgxy/jgxy1/nconv");
+
+    // pcd_path_vec.push_back("/home/qh/YES/dlut/Daquan16/ori_pc");
+    // lab_path_vec.push_back("/home/qh/YES/dlut/Daquan16/label_com");
+    // des_paht_vec.push_back("/home/qh/YES/dlut/Daquan16/ori_spc");
+
+    // pcd_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/ori_pc");
+    // lab_path_vec.push_back("/home/qh/YES/jgxy/jgxy1/label_com");
+    // des_paht_vec.push_back("/home/qh/YES/jgxy/jgxy1/ori_spc");
+
+
+    pcd_path_vec.push_back("/home/qh/kitti/08/velodyne");
+    lab_path_vec.push_back("/home/qh/kitti/08/labels");
+    des_paht_vec.push_back("/home/qh/kitti/08/depth_com/label_ori_pc");
+    
+
+    for(int i = 0; i < pcd_path_vec.size(); ++i){
+        string pcd_path = pcd_path_vec[i];
+        string lab_path = lab_path_vec[i];
+        string des_paht = des_paht_vec[i];
+        for (auto& file : filesystem::directory_iterator(pcd_path))
+        {
+            // 如果文件后缀名为.pcd，则输出文件路径
+            if (file.path().extension() == ".bin")
+            {
+                auto pcd_file = filesystem::path(file.path().string());
+                int a = stoi(file.path().stem());
+                cout << a << endl;
+                if(a % 100 != 0) continue;
+                auto lab_file = filesystem::path(lab_path + "/" + file.path().stem().string() + ".label");
+                auto des_file = filesystem::path(des_paht + "/" + file.path().stem().string() + ".pcd");
+                if(filesystem::exists(pcd_file) && filesystem::exists(lab_file) && !filesystem::exists(des_file)){
+                    auto tmpCloud = getCloudAndLabelBin(pcd_file.string(), lab_file.string());
+                    pcl::io::savePCDFile(des_file.string(), *tmpCloud);
+                }else if(filesystem::exists(des_file)){
+                    cout << "exist" << endl;
+                    cout << "des: " << des_file.string() << endl;
+                }
+                else{
+                    cout << "error" << endl;
+                    cout << "pcd: " << pcd_file.string() << endl;
+                    cout << "lab: " << lab_file.string() << endl;
+                    cout << "des: " << des_file.string() << endl;
+                }
+                
+            }
+        }
+    }
+
+}
+
+int main(int argc, char** argv){
+    combinexyz_l();
+    // rosbag::Bag Daquan16("/home/qh/YES/dlut/2021-01-16-DaQuan.bag", rosbag::BagMode::Read);
     return 0;
 }

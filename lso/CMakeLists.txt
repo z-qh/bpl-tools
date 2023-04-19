@@ -60,7 +60,6 @@ SET(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal
 find_package(GTSAM REQUIRED) # Uses installed package
 include_directories(${GTSAM_INCLUDE_DIR})
 set(GTSAM_LIBRARIES gtsam)
-find_package(GTSAMCMakeTools)
 
 # # glog
 find_package(Gflags)

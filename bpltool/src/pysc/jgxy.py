@@ -106,7 +106,7 @@ def GetAccFullTopo(path):
     return acc_full_topo
 
 
-def GetAccFullTopoRemoveNone(path):
+def GetAccFullTopoRemoveNoneJ2(path, posi_array):
     # path = "/home/qh/YES/jgxy/jgxy1"
     acc_full_topo_path = os.path.join(path, "acc_full_topo_rn.pkl")
     if os.path.isfile(acc_full_topo_path):
@@ -117,31 +117,28 @@ def GetAccFullTopoRemoveNone(path):
                               bin_times_file=os.path.join(path, "timestamp"),
                               pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
                               save_path=os.path.join(path, "bin_info.pkl"))
-        Base.SetParameter(nscan=32, hscan=2048,
-                          low_ang=-22.5, up_ang=22.5,
-                          ground_ind=15, min_range=5.0,
-                          segment_theta_d=40.0,
-                          down_lines=-1, up_lines=-1)
         map1x = Base.VoxelMap3_Load(save_path=path)
     else:
         print("ERROR when get DataSet!")
         return None
     acc_full_topo = []
-    handle_size = len(bin_list)
-    report_size = handle_size // 50 if handle_size // 50 != 0 else 1
-    start_time = ttime.time()
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(posi_array)
+    kd_tree = open3d.geometry.KDTreeFlann(pcd)
     for n_time, ind, bin_file, p_, r_ in bin_list:
+        count, ind_arr, dis2_arr = kd_tree.search_knn_vector_3d(p_.reshape(-1), 1)
+        if np.sqrt(dis2_arr[0]) > 10:
+            continue
+        else:
+            print('\r', ind, end="")
         points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
         points = points[~np.isnan(points).any(axis=1)]
         boundary = Base.getBound(points)
         topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
         topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
+        # topo_cloud = Base.rmmm(topo_cloud, 0.3)
         tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
         acc_full_topo.append(tmp_topo_node)
-        if ind % report_size == 0:
-            print(
-                "Gen RN Acc Topo Node {:.2f}% Cost {:.2f}s".format(ind / handle_size * 100, ttime.time() - start_time))
-            start_time = ttime.time()
         # Base.plot_multiple_sc(tmp_topo_node.SCs)
         # pcd = open3d.geometry.PointCloud()
         # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
@@ -151,6 +148,47 @@ def GetAccFullTopoRemoveNone(path):
         pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
         print("Save RN Acc Topo Node!")
     return acc_full_topo
+
+
+def GetAccFullTopoRemoveNoneJ1(path):
+    # path = "/home/qh/YES/jgxy/jgxy1"
+    posi_arr_path = os.path.join(path, "dynamic_posi_arr.pkl")
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn.pkl")
+    if os.path.isfile(acc_full_topo_path):
+        posi_array = pickle.load(open(posi_arr_path, "rb"))
+        acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
+        return acc_full_topo, posi_array
+    if os.path.isdir(path):
+        bin_list = GetBinList(bin_dir=os.path.join(path, "bin"),
+                              bin_times_file=os.path.join(path, "timestamp"),
+                              pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
+                              save_path=os.path.join(path, "bin_info.pkl"))
+        map1x = Base.VoxelMap3_Load(save_path=path)
+    else:
+        print("ERROR when get DataSet!")
+        return None
+    acc_full_topo = []
+    posi_array = np.zeros((0, 3), dtype=np.float32)
+    for n_time, ind, bin_file, p_, r_ in bin_list:
+        points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
+        points = points[~np.isnan(points).any(axis=1)]
+        boundary = Base.getBound(points)
+        topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
+        topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
+        # topo_cloud = Base.rmmm(topo_cloud, 0.3)
+        tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
+        acc_full_topo.append(tmp_topo_node)
+        posi_array = np.vstack((posi_array, p_.reshape((1, 3))))
+        # Base.plot_multiple_sc(tmp_topo_node.SCs)
+        # pcd = open3d.geometry.PointCloud()
+        # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
+        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
+        # open3d.visualization.draw_geometries([pcd, axis_pcd])
+    if len(acc_full_topo) != 0:
+        pickle.dump(posi_array, open(posi_arr_path, "wb"))
+        pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
+        print("Save RN Acc Topo Node!")
+    return acc_full_topo, posi_array
 
 
 # 生成appearance-based的完整关键帧节点
@@ -182,13 +220,13 @@ def GetAppFullTopo(path):
 
 if __name__ == "__main__":
 
-    # acc_full_j1_rn = GetAccFullTopoRemoveNone("/home/qh/YES/jgxy/jgxy1")
+    # acc_full_j1_rn, posi_arr = GetAccFullTopoRemoveNoneJ1("/home/qh/YES/jgxy/jgxy1")
     # save_path = "/home/qh/YES/jgxy/jgxy1/acc_sim_mat_rn.pkl"
-    # acc_full_topo_jgxy1_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path)
+    # acc_full_topo_jgxy1_sim_mat_rn = Base.GetSimMatrixTo19(acc_full_j1_rn, save_path)
 
-    # acc_full_j2_rn = GetAccFullTopoRemoveNone("/home/qh/YES/jgxy/jgxy2")
-    # save_path = "/home/qh/YES/jgxy/jgxy1/acc_sim_mat_rn.pkl"
-    # acc_full_topo_jgxy1_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path)
+    # acc_full_j2_rn = GetAccFullTopoRemoveNoneJ2("/home/qh/YES/jgxy/jgxy2", posi_arr)
+    # save_path = "/home/qh/YES/jgxy/jgxy2/acc_sim_mat_rn.pkl"
+    # acc_full_topo_jgxy2_sim_mat_rn = Base.GetSimMatrixTo19(acc_full_j1_rn, save_path, acc_full_j2_rn)
 
     # JGXY1 ACC
     # acc_full_j1 = GetAccFullTopo("/home/qh/YES/jgxy/jgxy1")
@@ -202,13 +240,15 @@ if __name__ == "__main__":
 
     # JGXY2 ACC
     # acc_full_j2 = GetAccFullTopo("/home/qh/YES/jgxy/jgxy2")
-    # save_path = "/home/qh/YES/jgxy/jgxy2/acc_sim_mat.pkl"
-    # acc_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(acc_full_j2, save_path)
+    # save_path = "/home/qh/YES/jgxy/jgxy2/acc_sim_mat_toJ1.pkl"
+    # acc_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path)
+    # acc_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path, acc_full_j2)
 
     # JGXY2 APP
     # app_full_j2 = GetAppFullTopo("/home/qh/YES/jgxy/jgxy2")
-    # save_path = "/home/qh/YES/jgxy/jgxy2/app_sim_mat.pkl"
-    # app_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(app_full_j2, save_path)
+    # save_path = "/home/qh/YES/jgxy/jgxy2/app_sim_mat_toJ1.pkl"
+    # app_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(app_full_j1, save_path)
+    # app_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(app_full_j1, save_path, app_full_j2)
     print(123)
 
     """
@@ -308,11 +348,9 @@ if __name__ == "__main__":
         acc_J2_pr_list = pickle.load(open("/home/qh/YES/jgxy/acc_J2_val.pkl", "rb"))
     else:
         acc_full_j1 = GetAccFullTopo("/home/qh/YES/jgxy/jgxy1")
-        save_path = "/home/qh/YES/jgxy/jgxy1/acc_sim_mat.pkl"
-        acc_full_topo_jgxy1_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path)
         acc_full_j2 = GetAccFullTopo("/home/qh/YES/jgxy/jgxy2")
         save_path = "/home/qh/YES/jgxy/jgxy2/acc_sim_mat_toJ1.pkl"
-        acc_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(acc_full_j2, save_path)
+        acc_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(acc_full_j1, save_path, acc_full_j2)
         set_path = "/home/qh/YES/jgxy/jgxy1"
         best_acc = 0.80
         sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
@@ -332,7 +370,7 @@ if __name__ == "__main__":
             acc_J2_pr_list.append(acc_J2_pr)
             print(acc_J2_pr)
         pickle.dump(acc_J2_pr_list, open("/home/qh/YES/jgxy/acc_J2_val.pkl", "wb"))
-        del acc_full_j1, acc_full_topo_jgxy1_sim_mat
+        del acc_full_j1
         del acc_full_j2, acc_full_topo_jgxy2_sim_mat
     # Base.plot_pr(acc_J2_pr_list)
     # """
@@ -342,11 +380,9 @@ if __name__ == "__main__":
         app_J2_pr_list = pickle.load(open("/home/qh/YES/jgxy/app_J2_val.pkl", "rb"))
     else:
         app_full_j1 = GetAppFullTopo("/home/qh/YES/jgxy/jgxy1")
-        save_path = "/home/qh/YES/jgxy/jgxy1/app_sim_mat.pkl"
-        app_full_topo_jgxy1_sim_mat = Base.GetSimMatrixTo19(app_full_j1, save_path)
         app_full_j2 = GetAppFullTopo("/home/qh/YES/jgxy/jgxy2")
         save_path = "/home/qh/YES/jgxy/jgxy2/app_sim_mat_toJ1.pkl"
-        app_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(app_full_j2, save_path)
+        app_full_topo_jgxy2_sim_mat = Base.GetSimMatrixTo19(app_full_j1, save_path, app_full_j2)
         set_path = "/home/qh/YES/jgxy/jgxy1"
         best_app = 0.75
         sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
@@ -366,7 +402,7 @@ if __name__ == "__main__":
             app_J2_pr_list.append(app_J2_pr)
             print(app_J2_pr)
         pickle.dump(app_J2_pr_list, open("/home/qh/YES/jgxy/app_J2_val.pkl", "wb"))
-        del app_full_j1, app_full_topo_jgxy1_sim_mat
+        del app_full_j1
         del app_full_j2, app_full_topo_jgxy2_sim_mat
     # Base.plot_pr(app_J2_pr_list)
     # """
@@ -399,4 +435,3 @@ if __name__ == "__main__":
     plt.close()
     print(123)
     # """
-

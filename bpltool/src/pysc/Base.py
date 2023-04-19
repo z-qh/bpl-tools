@@ -19,6 +19,7 @@ np.set_printoptions(suppress=True, precision=5, threshold=sys.maxsize, linewidth
 
 # -------------------------------- Scan Context --------------------------------
 # 描述子生成支撑函数，计算点的角度
+@numba.jit(nopython=True)
 def xy2theta(x, y):
     if x >= 0 and y >= 0:
         theta = 180 / np.pi * np.arctan(y / x)
@@ -32,6 +33,7 @@ def xy2theta(x, y):
 
 
 # 描述子提取支撑函数，计算点的行列索引
+@numba.jit(nopython=True)
 def pt2rs(point, gap_ring, gap_sector, num_ring, num_sector):
     x = point[0]
     y = point[1]
@@ -1312,7 +1314,54 @@ class VoxelMap3_Load:
         self.raw_voxem_map_file = os.path.join(save_path, "VM2_raw.pkl")
         self.raw_pcd_file = os.path.join(save_path, "VM3_raw.pcd")
         if os.path.isfile(self.raw_pcd_file):
-            print("Load Raw Pcd, Delete It to Regenerate!")
+            print("Load Raw Pcd File, Delete It to Regenerate!")
+            self.pcd = open3d.io.read_point_cloud(self.raw_pcd_file)
+            self.pcd = self.pcd.voxel_down_sample(voxel_size=1.0)
+            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
+            self.point_cloud = np.array(self.pcd.points)
+        elif os.path.isfile(self.raw_voxem_map_file):
+            print("Load Raw Data, Delete It to Regenerate!")
+            print(self.raw_voxem_map_file)
+            self.voxel_map = pickle.load(open(self.raw_voxem_map_file, "rb"))
+            raw_points = np.zeros((len(self.voxel_map), 3), dtype=np.float32)
+            handle_size = len(self.voxel_map)
+            report_size = handle_size // 50 if handle_size // 50 != 0 else 1
+            start_time = ttime.time()
+            for i, voxel in enumerate(self.voxel_map):
+                raw_points[i, :] = CenterVoxel(np.array(voxel), voxel_size=self.voxel_size)
+                if i % report_size == 0:
+                    print("Handle Raw Voxel {:.2f}% Cost {:.2f}s".format(i / handle_size * 100,
+                                                                         ttime.time() - start_time))
+                    start_time = ttime.time()
+            del self.voxel_map
+            self.pcd = open3d.geometry.PointCloud()
+            self.pcd.points = open3d.utility.Vector3dVector(raw_points)
+            self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)
+            self.point_cloud = np.array(self.pcd.points)
+            open3d.io.write_point_cloud(self.raw_pcd_file, self.pcd)
+        else:
+            print("No Raw Voxel Data!")
+            exit(0)
+
+    def GetAreaPointCloud(self, center, boundary):
+        serach_radius = max(boundary)
+        _, p_ind, _ = self.kd_tree.search_radius_vector_3d(np.array(center), serach_radius)
+        tmp_point = self.point_cloud[p_ind, :]
+        return tmp_point
+
+
+# 不删除动态障碍物的地图
+class VoxelMap4_Load:
+    def __init__(self, save_path, voxel_size=0.1):
+        self.pcd = None
+        self.kd_tree = None
+        self.point_cloud = None
+        self.voxel_size = voxel_size
+        self.voxel_map = None
+        self.raw_voxem_map_file = os.path.join(save_path, "VM2_vm.pkl")
+        self.raw_pcd_file = os.path.join(save_path, "VM2_pcd.pcd")
+        if os.path.isfile(self.raw_pcd_file):
+            print("Load Raw Pcd 4, Delete It to Regenerate!")
             self.pcd = open3d.io.read_point_cloud(self.raw_pcd_file)
             self.pcd = self.pcd.voxel_down_sample(voxel_size=1.0)
             self.kd_tree = open3d.geometry.KDTreeFlann(self.pcd)

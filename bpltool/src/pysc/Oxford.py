@@ -193,6 +193,88 @@ def GetAccFullTopo(path, s, e):
     return acc_full_topo
 
 
+def GetAccFullTopoRemoveNoneO2(path, s, e, RD=False):
+    # path = "/home/qh/YES/oxford/o1"
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn_rd.pkl" if RD else "acc_full_topo_rn.pkl")
+    if os.path.isfile(acc_full_topo_path):
+        acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
+        return acc_full_topo
+    if os.path.isdir(path):
+        bin_list = GetBinList(bin_dir=os.path.join(path, "left_bin"),
+                              pose_file=os.path.join(path, "gps/ins.csv"),
+                              save_path=os.path.join(path, "bin_info.pkl"),
+                              start_time=s, end_time=e)
+        if RD:
+            map1x = Base.VoxelMap4_Load(save_path=path)
+        else:
+            map1x = Base.VoxelMap3_Load(save_path=path)
+    else:
+        print("ERROR when get DataSet!")
+        return None
+    acc_full_topo = []
+    bin_list = bin_list[3350:10400]
+    for n_time, ind, bin_file, p_, r_ in bin_list:
+        print("\r", ind, end="")
+        boundary = (-80, 80, -80, 80, -5, 5)
+        topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
+        topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
+        if not RD:
+            topo_cloud = Base.rmmm(topo_cloud, 2.5)
+        tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
+        acc_full_topo.append(tmp_topo_node)
+
+        # Base.plot_multiple_sc(tmp_topo_node.SCs)
+        # pcd = open3d.geometry.PointCloud()
+        # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
+        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
+        # open3d.visualization.draw_geometries([pcd, axis_pcd])
+    if len(acc_full_topo) != 0:
+        pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
+        print("Save Acc Topo Node!")
+    return acc_full_topo
+
+
+def GetAccFullTopoRemoveNoneO1(path, s, e, RD=False):
+    # path = "/home/qh/YES/oxford/o1"
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn_rd.pkl" if RD else "acc_full_topo_rn.pkl")
+    if os.path.isfile(acc_full_topo_path):
+        acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
+        return acc_full_topo
+    if os.path.isdir(path):
+        bin_list = GetBinList(bin_dir=os.path.join(path, "left_bin"),
+                              pose_file=os.path.join(path, "gps/ins.csv"),
+                              save_path=os.path.join(path, "bin_info.pkl"),
+                              start_time=s, end_time=e)
+        if RD:
+            map1x = Base.VoxelMap4_Load(save_path=path)
+        else:
+            map1x = Base.VoxelMap3_Load(save_path=path)
+    else:
+        print("ERROR when get DataSet!")
+        return None
+    acc_full_topo = []
+    bin_list = bin_list[0:7000]
+    for n_time, ind, bin_file, p_, r_ in bin_list:
+        print("\r", ind, end="")
+        boundary = (-80, 80, -80, 80, -5, 5)
+        topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
+        topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
+        if not RD:
+            topo_cloud = Base.rmmm(topo_cloud, 2.5)
+        tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
+        acc_full_topo.append(tmp_topo_node)
+
+        # Base.plot_multiple_sc(tmp_topo_node.SCs)
+        # pcd = open3d.geometry.PointCloud()
+        # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
+        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
+        # open3d.visualization.draw_geometries([pcd, axis_pcd])
+    if len(acc_full_topo) != 0:
+        pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
+        print("Save Acc Topo Node!")
+    return acc_full_topo
+
+
 # # 生成appearance-based的完整关键帧节点
 def GetAppFullTopo(path, s, e):
     app_full_topo_path = os.path.join(path, "app_full_topo.pkl")
@@ -222,8 +304,72 @@ def GetAppFullTopo(path, s, e):
 
 if __name__ == "__main__":
 
-    # acc_o1_full_topo_rn = GetAccFullTopoRemoveNone("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
-    # acc_o2_full_topo_rn = GetAccFullTopoRemoveNone("/home/qh/YES/oxford/o2", o1_start_time, o1_end_time)
+    """
+    pcd1_file = "/home/qh/YES/oxford/o1/VM3_raw.pcd"
+    pcd1 = open3d.io.read_point_cloud(pcd1_file)
+    pcd1 = pcd1.voxel_down_sample(voxel_size=0.5)
+    open3d.io.write_point_cloud(pcd1_file + "2.pcd", pcd1)
+    del pcd1
+    """
+    """
+    pcd2_file = "/home/qh/YES/oxford/o2/VM3_raw.pcd"
+    pcd2 = open3d.io.read_point_cloud(pcd2_file)
+    pcd2 = pcd2.voxel_down_sample(voxel_size=0.5)
+    open3d.io.write_point_cloud(pcd2_file + "2.pcd", pcd2)
+    del pcd2
+    """
+
+    """
+    fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(24, 13.5))
+
+    bin_listO1 = GetBinList(bin_dir=os.path.join("/home/qh/YES/oxford/o1", "left_bin"),
+                            pose_file=os.path.join("/home/qh/YES/oxford/o1", "gps/ins.csv"),
+                            save_path=os.path.join("/home/qh/YES/oxford/o1", "bin_info.pkl"),
+                            start_time=o1_start_time, end_time=o1_end_time)
+    bin_listO2 = GetBinList(bin_dir=os.path.join("/home/qh/YES/oxford/o2", "left_bin"),
+                            pose_file=os.path.join("/home/qh/YES/oxford/o2", "gps/ins.csv"),
+                            save_path=os.path.join("/home/qh/YES/oxford/o2", "bin_info.pkl"),
+                            start_time=o2_start_time, end_time=o2_end_time)
+    posi_O1 = np.zeros((0, 3), dtype=np.float32)
+    posi_O2 = np.zeros((0, 3), dtype=np.float32)
+    for now_time, pose_ind, bin_file, p_, r_ in bin_listO1:
+        if 0 <= pose_ind < 7000:
+            posi_O1 = np.vstack((posi_O1, p_.reshape(-1)))
+    for now_time, pose_ind, bin_file, p_, r_ in bin_listO2:
+        if 3350 <= pose_ind < 10400:
+            posi_O2 = np.vstack((posi_O2, p_.reshape(-1)))
+    ax.scatter(posi_O1[:, 1], posi_O1[:, 0], marker="*", s=10, c="blue", alpha=0.5)
+    ax.scatter(posi_O2[:, 1], posi_O2[:, 0], marker="o", s=10, c="red", alpha=0.5)
+    for i in range(posi_O2.shape[0]):
+        if i % 100 == 0:
+            plt.text(posi_O2[i, 1] + 0.2, posi_O2[i, 0] + 0.2, '{:d}'.format(i), fontsize=12)
+    ax.set_aspect(1)
+    plt.show()
+    plt.close()
+    """
+
+    """ 动态障碍物对比实验 去除动态障碍物的
+    
+    """
+
+    # """ 动态障碍物对比实验 没去除动态障碍物的
+    # acc_o1_full_topo_rn = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
+    # save_path = "/home/qh/YES/oxford/o1/acc_sim_mat_rn.pkl"
+    # acc_o1_sim_mat_rn = Base.GetSimMatrixTo19(acc_o1_full_topo_rn, save_path)
+
+    # acc_o2_full_topo_rn = GetAccFullTopoRemoveNoneO2("/home/qh/YES/oxford/o2", o2_start_time, o2_end_time)
+    # save_path = "/home/qh/YES/oxford/o2/acc_sim_mat_toO1_rn.pkl"
+    # acc_o2_sim_mat_rn = Base.GetSimMatrixTo19(acc_o1_full_topo_rn, save_path, acc_o2_full_topo_rn)
+
+    # 去除动态障碍物的
+    # acc_o1_full_topo_rn_rd = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time, RD=True)
+    # save_path = "/home/qh/YES/oxford/o1/acc_sim_mat_rn_rd.pkl"
+    # acc_o1_sim_mat_rn_rd = Base.GetSimMatrixTo19(acc_o1_full_topo_rn_rd, save_path)
+
+    # acc_o2_full_topo_rn_rd = GetAccFullTopoRemoveNoneO2("/home/qh/YES/oxford/o2", o2_start_time, o2_end_time, RD=True)
+    # save_path = "/home/qh/YES/oxford/o2/acc_sim_mat_toO1_rn_rd.pkl"
+    # acc_o2_sim_mat_rn_rd = Base.GetSimMatrixTo19(acc_o1_full_topo_rn_rd, save_path, acc_o2_full_topo_rn_rd)
+    # """
 
     """
     # o1 累积
@@ -400,24 +546,210 @@ if __name__ == "__main__":
     """
 
     """
+    # RN ACC 建图整定
+    Base.TopoConnectCompletion("/home/qh/YES/oxford/o1/acc_sim_mat_rn.pkl")
+    acc_o1_full_topo_rn = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
+    save_path = "/home/qh/YES/oxford/o1/acc_sim_mat_rn.pkl"
+    acc_o1_sim_mat_rn = Base.GetSimMatrixTo19(acc_o1_full_topo_rn, save_path)
+    set_path = "/home/qh/YES/oxford/o1"
+    acc_sim_list = [0.40, 0.50, 0.60, 0.65, 0.70, 0.73, 0.75, 0.78, 0.80, 0.83, 0.85, 0.88, 0.90, 0.92, 0.95]
+    sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
+    acc_pr_dic_save = os.path.join(set_path, "topo_map/rn_acc_total_pr.pkl")
+    acc_pr_dic = {}
+    for acc_sim_thre in acc_sim_list:
+        acc_sim = os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(acc_sim_thre))
+        acc_sim_fig = os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.png".format(acc_sim_thre))
+        acc_pr = os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}_pr.pkl".format(acc_sim_thre))
+        acc_tmp_topo = Base.GenTopoNodeBySim(full_topo=acc_o1_full_topo_rn,
+                                             sim_mat=acc_o1_sim_mat_rn,
+                                             sim_threshold=acc_sim_thre,
+                                             path=acc_sim)
+        print("Save Acc Sim:{:.2f}".format(acc_sim_thre))
+        Base.ShowTopoMap(acc_o1_full_topo_rn, acc_tmp_topo, path=acc_sim_fig, vis=False)
+
+        if os.path.isfile(acc_pr):
+            tmp_acc_pr_list = pickle.load(open(acc_pr, "rb"))
+        else:
+            tmp_acc_pr_list = []
+            for sim_recall in sim_recall_list:
+                acc_tmp_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_o1_full_topo_rn,
+                                                        base_topo=acc_tmp_topo,
+                                                        full_topo=acc_o1_full_topo_rn,
+                                                        sim_mat=acc_o1_sim_mat_rn,
+                                                        sim=sim_recall,
+                                                        top=1, gdis=3.0, topo_num=len(acc_tmp_topo),
+                                                        info="Oxford1RN.BuildSim{:.2f}.TopoNum{:d}".format(acc_sim_thre, len(acc_tmp_topo)))
+
+                tmp_acc_pr_list.append(acc_tmp_pr)
+            pickle.dump(tmp_acc_pr_list, open(acc_pr, "wb"))
+        acc_pr_dic[acc_sim_thre] = tmp_acc_pr_list
+        print("ACC PR:\n" + str(tmp_acc_pr_list))
+    if not os.path.isfile(acc_pr_dic_save):
+        pickle.dump(acc_pr_dic, open(acc_pr_dic_save, "wb"))
+    Base.plot_muliti_pr_acc(acc_pr_dic)
+    """  # 0.88
+
+    """
+    # RN RD 建图整定
+    Base.TopoConnectCompletion("/home/qh/YES/oxford/o1/acc_sim_mat_rn_rd.pkl")
+    acc_o1_full_topo_rn_rd = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
+    save_path = "/home/qh/YES/oxford/o1/acc_sim_mat_rn_rd.pkl"
+    acc_o1_sim_mat_rn_rd = Base.GetSimMatrixTo19(acc_o1_full_topo_rn_rd, save_path)
+    set_path = "/home/qh/YES/oxford/o1"
+    acc_sim_list = [0.40, 0.50, 0.60, 0.65, 0.70, 0.73, 0.75, 0.78, 0.80, 0.83, 0.85, 0.88, 0.90, 0.92, 0.95]
+    sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
+    acc_pr_dic_save = os.path.join(set_path, "topo_map/rn_rd_acc_total_pr.pkl")
+    acc_pr_dic = {}
+    for acc_sim_thre in acc_sim_list:
+        acc_sim = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}.pkl".format(acc_sim_thre))
+        acc_sim_fig = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}.png".format(acc_sim_thre))
+        acc_pr = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}_pr.pkl".format(acc_sim_thre))
+        acc_tmp_topo = Base.GenTopoNodeBySim(full_topo=acc_o1_full_topo_rn_rd,
+                                             sim_mat=acc_o1_sim_mat_rn_rd,
+                                             sim_threshold=acc_sim_thre,
+                                             path=acc_sim)
+        print("Save Acc Sim:{:.2f}".format(acc_sim_thre))
+        Base.ShowTopoMap(acc_o1_full_topo_rn_rd, acc_tmp_topo, path=acc_sim_fig, vis=False)
+
+        if os.path.isfile(acc_pr):
+            tmp_acc_pr_list = pickle.load(open(acc_pr, "rb"))
+        else:
+            tmp_acc_pr_list = []
+            for sim_recall in sim_recall_list:
+                acc_tmp_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_o1_full_topo_rn_rd,
+                                                        base_topo=acc_tmp_topo,
+                                                        full_topo=acc_o1_full_topo_rn_rd,
+                                                        sim_mat=acc_o1_sim_mat_rn_rd,
+                                                        sim=sim_recall,
+                                                        top=1, gdis=3.0, topo_num=len(acc_tmp_topo),
+                                                        info="Oxford1RN.BuildSim{:.2f}.TopoNum{:d}".format(acc_sim_thre,
+                                                                                                           len(acc_tmp_topo)))
+
+                tmp_acc_pr_list.append(acc_tmp_pr)
+            pickle.dump(tmp_acc_pr_list, open(acc_pr, "wb"))
+        acc_pr_dic[acc_sim_thre] = tmp_acc_pr_list
+        print("ACC PR:\n" + str(tmp_acc_pr_list))
+    if not os.path.isfile(acc_pr_dic_save):
+        pickle.dump(acc_pr_dic, open(acc_pr_dic_save, "wb"))
+    Base.plot_muliti_pr_acc(acc_pr_dic)
+    """
+
+    # """ O2 acc rn
+    if os.path.isfile("/home/qh/YES/oxford/rn_acc_o2_val.pkl"):
+        rn_acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/rn_acc_o2_val.pkl", "rb"))
+    else:
+        acc_o1_full_topo_rn = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
+        acc_o2_full_topo_rn = GetAccFullTopoRemoveNoneO2("/home/qh/YES/oxford/o2", o2_start_time, o2_end_time)
+        save_path = "/home/qh/YES/oxford/o2/acc_sim_mat_toO1_rn.pkl"
+        acc_o2_sim_mat_rn = Base.GetSimMatrixTo19(acc_o1_full_topo_rn, save_path, acc_o2_full_topo_rn)
+
+        set_path = "/home/qh/YES/oxford/o1"
+        best_acc = 0.85
+        sim_recall_list = [0.1, 0.2, 0.3, 0.4, 0.5] + np.arange(0.8, 0.99, 0.005).tolist()
+        acc_topo = pickle.load(open(os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(best_acc)), "rb"))
+        rn_acc_o2_pr_list = []
+        top_, gdis_ = 10, 5.0
+        for sim_recall in sim_recall_list:
+            acc_o2_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_o1_full_topo_rn,
+                                                   base_topo=acc_topo,
+                                                   full_topo=acc_o2_full_topo_rn,
+                                                   sim_mat=acc_o2_sim_mat_rn,
+                                                   sim=sim_recall,
+                                                   top=top_, gdis=gdis_, topo_num=len(acc_topo),
+                                                   info="ACCo2")
+            if acc_o2_pr['precision'] == 0 and acc_o2_pr['recall'] == 0:
+                continue
+            rn_acc_o2_pr_list.append(acc_o2_pr)
+            print(acc_o2_pr)
+        pickle.dump(rn_acc_o2_pr_list, open("/home/qh/YES/oxford/rn_acc_o2_val.pkl", "wb"))
+        del acc_o1_full_topo_rn
+        del acc_o2_full_topo_rn, acc_o2_sim_mat_rn
+    Base.plot_pr(rn_acc_o2_pr_list)
+    # """
+
+    # """ O2 acc rn RD
+    if os.path.isfile("/home/qh/YES/oxford/rn_rd_acc_o2_val.pkl"):
+        rn_rd_acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/rn_rd_acc_o2_val.pkl", "rb"))
+    else:
+        acc_o1_full_topo_rn_rd = GetAccFullTopoRemoveNoneO1("/home/qh/YES/oxford/o1", o1_start_time, o1_end_time)
+        acc_o2_full_topo_rn_rd = GetAccFullTopoRemoveNoneO2("/home/qh/YES/oxford/o2", o2_start_time, o2_end_time)
+        save_path = "/home/qh/YES/oxford/o2/acc_sim_mat_toO1_rn_rd.pkl"
+        acc_o2_sim_mat_rn_rd = Base.GetSimMatrixTo19(acc_o1_full_topo_rn_rd, save_path, acc_o2_full_topo_rn_rd)
+
+        set_path = "/home/qh/YES/oxford/o1"
+        best_acc = 0.85
+        rn_sim_recall_list = [0.1, 0.2, 0.3, 0.4, 0.5] + np.arange(0.8, 0.99, 0.005).tolist()
+        acc_topo = pickle.load(open(os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}.pkl".format(best_acc)), "rb"))
+        rn_rd_acc_o2_pr_list = []
+        top_, gdis_ = 10, 5.0
+        for sim_recall in sim_recall_list:
+            acc_o2_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_o1_full_topo_rn_rd,
+                                                   base_topo=acc_topo,
+                                                   full_topo=acc_o2_full_topo_rn_rd,
+                                                   sim_mat=acc_o2_sim_mat_rn_rd,
+                                                   sim=sim_recall,
+                                                   top=top_, gdis=gdis_, topo_num=len(acc_topo),
+                                                   info="ACCo2")
+            if acc_o2_pr['precision'] == 0 and acc_o2_pr['recall'] == 0:
+                continue
+            rn_rd_acc_o2_pr_list.append(acc_o2_pr)
+            print(acc_o2_pr)
+        pickle.dump(rn_rd_acc_o2_pr_list, open("/home/qh/YES/oxford/rn_rd_acc_o2_val.pkl", "wb"))
+        del acc_o1_full_topo_rn_rd
+        del acc_o2_full_topo_rn_rd, acc_o2_sim_mat_rn_rd
+    Base.plot_pr(rn_rd_acc_o2_pr_list)
+    # """
+
+    # """ RN RD 对比
+    row_size, col_size = 1, 1
+    fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+    title_label = "VS"
+    if True:
+        rn_acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/rn_acc_o2_val.pkl", "rb"))
+        rn_rd_acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/rn_rd_acc_o2_val.pkl", "rb"))
+        ax1 = plt.subplot(row_size, col_size, 1)
+        ax1.set_aspect('equal', adjustable='box')
+        plt.xlim(0, 1.1)
+        plt.ylim(0, 1.1)
+        x, y, area, num = Base.GetPrData(rn_acc_o2_pr_list)
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="o", s=10, color="black")
+        x, y, area, num = Base.GetPrData(rn_rd_acc_o2_pr_list)
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="v", s=10, color="black")
+        ax1.legend(loc="best")
+        plt.xlabel("recall", fontsize=16)
+        plt.title("oxford2", fontsize=15)
+    plt.savefig("/home/qh/YES/oxford/compare.png", dpi=600, transparent=True)
+    plt.show()
+    plt.close()
+    print(123)
+    # """
+
+    """ 对比
     row_size, col_size = 1, 1
     fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
     title_label = "VS"
     if True:
         app_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/app_o2_val.pkl", "rb"))
         acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/acc_o2_val.pkl", "rb"))
+        rn_acc_o2_pr_list = pickle.load(open("/home/qh/YES/oxford/rn_acc_o2_val.pkl", "rb"))
         ax1 = plt.subplot(row_size, col_size, 1)
         ax1.set_aspect('equal', adjustable='box')
         plt.xlim(0, 1.1)
         plt.ylim(0, 1.1)
-        x, y, area, num = Base.GetPrData(app_o2_pr_list)
-        plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
-        plt.scatter(x, y, marker="^", s=10, color="black")
-        # x, y, area, num = Base.GetPrData(rn_acc_o2_pr_list)
+        # x, y, area, num = Base.GetPrData(app_o2_pr_list)
+        # plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
+        # plt.scatter(x, y, marker="^", s=10, color="black")
+        x, y, area, num = Base.GetPrData(rn_acc_o2_pr_list)
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw".format(num, area), alpha=0.9)
         # plt.plot(x, y, lw="2", color="#fddf8b", label="rn acc {:d} {:.5f}".format(num, area), alpha=0.9)
-        # plt.scatter(x, y, marker="o", s=10, color="black")
+        plt.scatter(x, y, marker="o", s=10, color="black")
         x, y, area, num = Base.GetPrData(acc_o2_pr_list)
-        plt.plot(x, y, lw="2", color="#0d5b26", label="acc {:d} {:.5f}".format(num, area), alpha=0.9)
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic".format(num, area), alpha=0.9)
+        # plt.plot(x, y, lw="2", color="#0d5b26", label="acc {:d} {:.5f}".format(num, area), alpha=0.9)
         plt.scatter(x, y, marker="v", s=10, color="black")
         ax1.legend(loc="best")
         plt.xlabel("recall", fontsize=16)
@@ -428,9 +760,10 @@ if __name__ == "__main__":
     print(123)
     """
 
-
-a, b = get_ins_pose("/home/qh/YES/oxford/o1/gps/ins.csv")
-traj_len = 0
-for i in range(1, len(b)):
-    traj_len += np.linalg.norm(b[i-1][0:3, 3]-b[i][0:3, 3])
-print("traj", traj_len)
+    """
+    a, b = get_ins_pose("/home/qh/YES/oxford/o1/gps/ins.csv")
+    traj_len = 0
+    for i in range(1, len(b)):
+        traj_len += np.linalg.norm(b[i - 1][0:3, 3] - b[i][0:3, 3])
+    print("traj", traj_len)
+    """

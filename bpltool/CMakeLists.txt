@@ -71,10 +71,6 @@ find_package(libusb-1.0)
 find_package(GTSAM REQUIRED) # Uses installed package
 include_directories(${GTSAM_INCLUDE_DIR})
 set(GTSAM_LIBRARIES gtsam)
-find_package(GTSAMCMakeTools)
-include(GtsamMakeConfigFile)
-include(GtsamBuildTypes)
-include(GtsamTesting)
 
 # Qt
 find_package(Qt5 COMPONENTS Widgets REQUIRED)

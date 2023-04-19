@@ -62,10 +62,7 @@ SET(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal
 find_package(GTSAM REQUIRED) # Uses installed package
 include_directories(${GTSAM_INCLUDE_DIR})
 set(GTSAM_LIBRARIES gtsam)
-find_package(GTSAMCMakeTools)
-include(GtsamMakeConfigFile)
-include(GtsamBuildTypes)
-include(GtsamTesting)
+
 
 # # Boost
 find_package(Boost COMPONENTS REQUIRED)
@@ -94,9 +91,9 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(mytest src/test.cpp 
-                      include/io/file_reader.cpp 
-                      include/cloud_projection/feature.cpp
-                      include/odometry/odometry.cpp)
-target_link_libraries(mytest ${slo_LIBS})
-target_compile_options(mytest PRIVATE -Wall -O2)
+# add_executable(mytest src/test.cpp 
+#                       include/io/file_reader.cpp 
+#                       include/cloud_projection/feature.cpp
+#                       include/odometry/odometry.cpp)
+# target_link_libraries(mytest ${slo_LIBS})
+# target_compile_options(mytest PRIVATE -Wall -O2)

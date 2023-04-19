@@ -106,9 +106,9 @@ def GetAccFullTopo(path):
     return acc_full_topo
 
 
-def GetAccFullTopoRemoveNoneOther(path, posi_array):
+def GetAccFullTopoRemoveNone16(path, RD=False):
     # path = "/home/qh/YES/dlut/Daquan19"
-    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn.pkl")
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn_rd.pkl" if RD else "acc_full_topo_rn.pkl")
     if os.path.isfile(acc_full_topo_path):
         acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
         return acc_full_topo
@@ -117,85 +117,114 @@ def GetAccFullTopoRemoveNoneOther(path, posi_array):
                               bin_times_file=os.path.join(path, "timestamp"),
                               pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
                               save_path=os.path.join(path, "bin_info.pkl"))
-        map1x = Base.VoxelMap3_Load(save_path=path, voxel_size=0.2)
+        if RD:
+            map1x = Base.VoxelMap4_Load(save_path=path, voxel_size=0.2)
+        else:
+            map1x = Base.VoxelMap3_Load(save_path=path, voxel_size=0.2)
     else:
         print("ERROR when get DataSet!")
         return None
     acc_full_topo = []
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(posi_array)
-    kd_tree = open3d.geometry.KDTreeFlann(pcd)
+    # bin_list = bin_list[21400:24000]
+    bin_list = bin_list[17300:17700] + bin_list[18750:19200] + bin_list[11400:12500]
     for n_time, ind, bin_file, p_, r_ in bin_list:
-        count, ind_arr, dis2_arr = kd_tree.search_knn_vector_3d(p_.reshape(-1), 1)
-        if np.sqrt(dis2_arr[0]) > 10:
-            continue
-        else:
-            print('\r', ind, end="")
-        points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
-        points = points[~np.isnan(points).any(axis=1)]
-        boundary = Base.getBound(points)
+        print('\r', ind, end="")
+        boundary = (-80, 80, -80, 80, -5, 5)
         topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
         topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
-        topo_cloud = Base.rmmm(topo_cloud, -0.5)
+        if not RD:
+            topo_cloud = Base.rmmm(topo_cloud, -0.5)
         tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
-        # Base.plot_multiple_sc(tmp_topo_node.SCs)
         acc_full_topo.append(tmp_topo_node)
+        # Base.plot_multiple_sc(tmp_topo_node.SCs)
+        # pcd = open3d.geometry.PointCloud()
+        # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
+        # open3d.visualization.draw_geometries([pcd])
     if len(acc_full_topo) != 0:
         pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
-        print("Save RN Acc Topo Node!")
+        print("Save RN Acc Topo Node!", len(acc_full_topo))
     return acc_full_topo
 
 
-# 获取某个数据包的bin和位姿，利用总体点云地图PCD, 不删除动态障碍物
-def GetAccFullTopoRemoveNone19(path):
+def GetAccFullTopoRemoveNone17(path, RD=False):
     # path = "/home/qh/YES/dlut/Daquan19"
-    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn.pkl")
-    posi_arr_path = os.path.join(path, "dynamic_posi_arr.pkl")
-    if os.path.isfile(acc_full_topo_path) and os.path.isfile(posi_arr_path):
-        posi_array = pickle.load(open(posi_arr_path, "rb"))
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn_rd.pkl" if RD else "acc_full_topo_rn.pkl")
+    if os.path.isfile(acc_full_topo_path):
         acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
-        return acc_full_topo, posi_array
+        return acc_full_topo
     if os.path.isdir(path):
         bin_list = GetBinList(bin_dir=os.path.join(path, "bin"),
                               bin_times_file=os.path.join(path, "timestamp"),
                               pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
                               save_path=os.path.join(path, "bin_info.pkl"))
-        map1x = Base.VoxelMap3_Load(save_path=path, voxel_size=0.2)
+        if RD:
+            map1x = Base.VoxelMap4_Load(save_path=path, voxel_size=0.2)
+        else:
+            map1x = Base.VoxelMap3_Load(save_path=path, voxel_size=0.2)
     else:
         print("ERROR when get DataSet!")
         return None
     acc_full_topo = []
-    handle_size = len(bin_list)
-    report_size = handle_size // 50 if handle_size // 50 != 0 else 1
-    start_time = ttime.time()
-    posi_array = np.zeros((0, 3), dtype=np.float32)
+    # bin_list = bin_list[19900:22200]
+    bin_list = bin_list[10500:11000] + bin_list[16300:16400] + bin_list[14900:15200]
     for n_time, ind, bin_file, p_, r_ in bin_list:
-        if 9000 < ind < 11000 or 16000 < ind < 19000:
-            print("\r", ind, end="")
-        else:
-            continue
-        points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
-        points = points[~np.isnan(points).any(axis=1)]
-        boundary = Base.getBound(points)
+        print('\r', ind, end="")
+        boundary = (-80, 80, -80, 80, -5, 5)
         topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
         topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
-        topo_cloud = Base.rmmm(topo_cloud, -0.5)
+        if not RD:
+            topo_cloud = Base.rmmm(topo_cloud, -0.5)
         tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
+        acc_full_topo.append(tmp_topo_node)
         # Base.plot_multiple_sc(tmp_topo_node.SCs)
         # pcd = open3d.geometry.PointCloud()
         # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
         # open3d.visualization.draw_geometries([pcd])
-        acc_full_topo.append(tmp_topo_node)
-        posi_array = np.vstack((posi_array, p_.reshape((1, 3))))
-        if ind % report_size == 0:
-            print(
-                "Gen RN Acc Topo Node {:.2f}% Cost {:.2f}s".format(ind / handle_size * 100, ttime.time() - start_time))
-            start_time = ttime.time()
     if len(acc_full_topo) != 0:
-        pickle.dump(posi_array, open(posi_arr_path, "wb"))
+        pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
+        print("Save RN Acc Topo Node!", len(acc_full_topo))
+    return acc_full_topo
+
+
+# 获取某个数据包的bin和位姿，利用总体点云地图PCD, 不删除动态障碍物
+def GetAccFullTopoRemoveNone19(path, RD=False):
+    # path = "/home/qh/YES/dlut/Daquan19"
+    acc_full_topo_path = os.path.join(path, "acc_full_topo_rn_rd.pkl" if RD else "acc_full_topo_rn.pkl")
+    if os.path.isfile(acc_full_topo_path):
+        acc_full_topo = pickle.load(open(acc_full_topo_path, "rb"))
+        return acc_full_topo
+    if os.path.isdir(path):
+        bin_list = GetBinList(bin_dir=os.path.join(path, "bin"),
+                              bin_times_file=os.path.join(path, "timestamp"),
+                              pose_vec_file=os.path.join(path, "liosave/sam2.txt"),
+                              save_path=os.path.join(path, "bin_info.pkl"))
+        if RD:
+            map1x = Base.VoxelMap4_Load(save_path=path, voxel_size=0.2)
+        else:
+            map1x = Base.VoxelMap3_Load(save_path=path, voxel_size=0.2)
+    else:
+        print("ERROR when get DataSet!")
+        return None
+    acc_full_topo = []
+    # bin_list = bin_list[18500:20500]
+    bin_list = bin_list[9000:9800] + bin_list[17100:17500] + bin_list[14100:14300]
+    for n_time, ind, bin_file, p_, r_ in bin_list:
+        print("\r", ind, end="")
+        boundary = (-80, 80, -80, 80, -5, 5)
+        topo_cloud = map1x.GetAreaPointCloud(p_, boundary)
+        topo_cloud = Base.TransInvPointCloud(topo_cloud, r_, p_)
+        if not RD:
+            topo_cloud = Base.rmmm(topo_cloud, -0.5)
+        tmp_topo_node = Base.genTopoSC(Base.TopoNode(ind, p_, r_, boundary, n_time), topo_cloud, ch=3)
+        acc_full_topo.append(tmp_topo_node)
+        # Base.plot_multiple_sc(tmp_topo_node.SCs)
+        # pcd = open3d.geometry.PointCloud()
+        # pcd.points = open3d.utility.Vector3dVector(topo_cloud)
+        # open3d.visualization.draw_geometries([pcd])
+    if len(acc_full_topo) != 0:
         pickle.dump(acc_full_topo, open(acc_full_topo_path, "wb"))
         print("Save RN Acc Topo Node!")
-    return acc_full_topo, posi_array
+    return acc_full_topo
 
 
 # 生成appearance-based的完整关键帧节点
@@ -240,23 +269,79 @@ if __name__ == "__main__":
     Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/app_sim_mat.pkl")
     """
 
+    """
+    fig, ax = plt.subplots(1, 1, facecolor='white', figsize=(24, 13.5))
+
+    bin_list19 = GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan19", "bin"),
+                            bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan19", "timestamp"),
+                            pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan19", "liosave/sam2.txt"),
+                            save_path=os.path.join("/home/qh/YES/dlut/Daquan19", "bin_info.pkl"))
+
+    bin_list16 = GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan16", "bin"),
+                            bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan16", "timestamp"),
+                            pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan16", "liosave/sam2.txt"),
+                            save_path=os.path.join("/home/qh/YES/dlut/Daquan16", "bin_info.pkl"))
+
+    bin_list17 = GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan17", "bin"),
+                            bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan17", "timestamp"),
+                            pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan17", "liosave/sam2.txt"),
+                            save_path=os.path.join("/home/qh/YES/dlut/Daquan17", "bin_info.pkl"))
+
+    posi_19 = np.zeros((0, 3), dtype=np.float32)
+    for now_time, pose_ind, bin_file, p_, r_ in bin_list19:
+        posi_19 = np.vstack((posi_19, p_.reshape(-1)))
+    posi_16 = np.zeros((0, 3), dtype=np.float32)
+    for now_time, pose_ind, bin_file, p_, r_ in bin_list16:
+        posi_16 = np.vstack((posi_16, p_.reshape(-1)))
+    posi_17 = np.zeros((0, 3), dtype=np.float32)
+    for now_time, pose_ind, bin_file, p_, r_ in bin_list17:
+        posi_17 = np.vstack((posi_17, p_.reshape(-1)))
+
+    ax.scatter(posi_19[:, 0], posi_19[:, 1], marker="o", s=10, c="red", alpha=0.5)
+    ax.scatter(posi_16[:, 0], posi_16[:, 1], marker=".", s=10, c="green", alpha=0.5)
+    ax.scatter(posi_17[:, 0], posi_17[:, 1], marker="*", s=10, c="blue", alpha=0.5)
+    for i in range(posi_17.shape[0]):
+        if i % 100 == 0:
+            plt.text(posi_17[i, 0] + 0.2, posi_17[i, 1] + 0.2, '{:d}'.format(i), fontsize=12, c="blue")
+    for i in range(posi_19.shape[0]):
+        if i % 100 == 0:
+            plt.text(posi_19[i, 0] + 0.2, posi_19[i, 1] + 0.2, '{:d}'.format(i), fontsize=12, c="red")
+    for i in range(posi_16.shape[0]):
+        if i % 100 == 0:
+            plt.text(posi_16[i, 0] + 0.2, posi_16[i, 1] + 0.2, '{:d}'.format(i), fontsize=12, c="green")
+    ax.set_aspect(1)
+    plt.show()
+    plt.close()
+    """
+
     # """
-    # Daquan19 的 累积19 和 外观19 的完整拓扑节点生成 并生成相似度矩阵
-    # 19 不去除动态障碍物累积
-    acc_full_topo19_rn, posi_arr = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19")
-    save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat_rm_none.pkl"
-    acc_full_topo19_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, None)
-    del acc_full_topo19_rn_sim_mat
+    # 19 RN
+    # acc_full_topo19_rn = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19")
+    # save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat_rn.pkl"
+    # acc_full_topo19_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, None)
+    # Base.TopoConnectCompletion(save_path)
 
-    acc_full_topo16_rn = GetAccFullTopoRemoveNoneOther("/home/qh/YES/dlut/Daquan16", posi_arr)
-    save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_rn.pkl"
-    acc_full_topo16_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo16_rn)
-    del acc_full_topo16_rn, acc_full_topo16_rn_sim_mat
+    # acc_full_topo16_rn = GetAccFullTopoRemoveNone16("/home/qh/YES/dlut/Daquan16")
+    # save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_to19_rn.pkl"
+    # acc_full_topo16_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo16_rn)
 
-    acc_full_topo17_rn = GetAccFullTopoRemoveNoneOther("/home/qh/YES/dlut/Daquan17", posi_arr)
-    save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_rn.pkl"
-    acc_full_topo17_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo17_rn)
-    del acc_full_topo17_rn, acc_full_topo17_rn_sim_mat
+    # acc_full_topo17_rn = GetAccFullTopoRemoveNone17("/home/qh/YES/dlut/Daquan17")
+    # save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_to19_rn.pkl"
+    # acc_full_topo17_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo17_rn)
+    
+    # RN RD
+    # acc_full_topo19_rn_rd = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19", RD=True)
+    # save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat_rn_rd.pkl"
+    # acc_full_topo19_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, None)
+    # Base.TopoConnectCompletion(save_path)
+
+    # acc_full_topo16_rn_rd = GetAccFullTopoRemoveNone16("/home/qh/YES/dlut/Daquan16", RD=True)
+    # save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_to19_rn_rd.pkl"
+    # acc_full_topo16_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, acc_full_topo16_rn_rd)
+
+    # acc_full_topo17_rn_rd = GetAccFullTopoRemoveNone17("/home/qh/YES/dlut/Daquan17", RD=True)
+    # save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_to19_rn_rd.pkl"
+    # acc_full_topo17_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, acc_full_topo17_rn_rd)
     # """
 
     """
@@ -290,7 +375,7 @@ if __name__ == "__main__":
     save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat.pkl"
     acc_full_topo17_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19, save_path, acc_full_topo17)
 
-    17 外观
+    # 17 外观
     app_full_topo17 = GetAppFullTopo("/home/qh/YES/dlut/Daquan17")
     save_path = "/home/qh/YES/dlut/Daquan17/app_sim_mat.pkl"
     app_full_topo17_sim_mat = Base.GetSimMatrixTo19(app_full_topo19, save_path, app_full_topo17)
@@ -340,7 +425,7 @@ if __name__ == "__main__":
     Base.plot_muliti_pr_acc(acc_pr_dic)
     """
 
-    """ APP 建图整定
+    """ #APP 建图整定
     app_full_topo19 = GetAppFullTopo("/home/qh/YES/dlut/Daquan19")
     save_path = "/home/qh/YES/dlut/Daquan19/app_sim_mat.pkl"
     app_full_topo19_sim_mat = Base.GetSimMatrixTo19(app_full_topo19, save_path, None)
@@ -384,11 +469,11 @@ if __name__ == "__main__":
 
     """
     # RN 建图和整定
-    acc_full_topo19_rn = GetAccFullTopoRemoveNone("/home/qh/YES/dlut/Daquan19")
-    save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_matrn.pkl"
+    acc_full_topo19_rn = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19")
+    save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat_rn.pkl"
     acc_full_topo19_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, None)
     set_path = "/home/qh/YES/dlut/Daquan19"
-    rn_acc_sim_list = [0.80, 0.83, 0.85, 0.88, 0.90, 0.92, 0.95]
+    rn_acc_sim_list = [0.3, 0.4, 0.5, 0.6, 0.65, 0.68, 0.70, 0.73, 0.75, 0.78, 0.80, 0.83, 0.85, 0.88, 0.90]
     sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
     rn_acc_pr_dic_save = os.path.join(set_path, "topo_map/rn_acc_total_pr.pkl")
     rn_acc_pr_dic = {}
@@ -405,6 +490,7 @@ if __name__ == "__main__":
 
         if os.path.isfile(rn_acc_pr):
             tmp_rn_acc_pr_list = pickle.load(open(rn_acc_pr, "rb"))
+            rn_acc_pr_dic[rn_acc_sim_thre] = tmp_rn_acc_pr_list
         else:
             tmp_rn_acc_pr_list = []
             for rn_sim_recall in sim_recall_list:
@@ -419,7 +505,53 @@ if __name__ == "__main__":
                 tmp_rn_acc_pr_list.append(rn_acc_tmp_pr)
             pickle.dump(tmp_rn_acc_pr_list, open(rn_acc_pr, "wb"))
             rn_acc_pr_dic[rn_acc_sim_thre] = tmp_rn_acc_pr_list
-            Base.plot_pr(tmp_rn_acc_pr_list)
+            # Base.plot_pr(tmp_rn_acc_pr_list)
+        print("RN ACC PR:\n" + str(tmp_rn_acc_pr_list))
+    if not os.path.isfile(rn_acc_pr_dic_save):
+        pickle.dump(rn_acc_pr_dic, open(rn_acc_pr_dic_save, "wb"))
+    Base.plot_muliti_pr_acc(rn_acc_pr_dic)
+    """
+
+    """
+    # RN RD 建图和整定
+    Base.TopoConnectCompletion("/home/qh/YES/dlut/Daquan19/acc_sim_mat_rn_rd.pkl")
+    acc_full_topo19_rn_rd = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19", RD=True)
+    save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_mat_rn_rd.pkl"
+    acc_full_topo19_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, None)
+    set_path = "/home/qh/YES/dlut/Daquan19"
+    rn_acc_sim_list = [0.3, 0.4, 0.5, 0.6, 0.65, 0.68, 0.70, 0.73, 0.75, 0.78, 0.80, 0.83, 0.85, 0.88, 0.90]
+    sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
+    rn_acc_pr_dic_save = os.path.join(set_path, "topo_map/rn_rd_acc_total_pr.pkl")
+    rn_acc_pr_dic = {}
+    for rn_acc_sim_thre in rn_acc_sim_list:
+        rn_acc_sim = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}.pkl".format(rn_acc_sim_thre))
+        rn_acc_sim_fig = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}.png".format(rn_acc_sim_thre))
+        rn_acc_pr = os.path.join(set_path, "topo_map/rn_rd_acc_sim_{:.2f}_pr.pkl".format(rn_acc_sim_thre))
+        rn_acc_tmp_topo = Base.GenTopoNodeBySim(full_topo=acc_full_topo19_rn_rd,
+                                                sim_mat=acc_full_topo19_rn_rd_sim_mat,
+                                                sim_threshold=rn_acc_sim_thre,
+                                                path=rn_acc_sim)
+        print("Save Rn Acc Sim:{:.2f}".format(rn_acc_sim_thre))
+        Base.ShowTopoMap(acc_full_topo19_rn_rd, rn_acc_tmp_topo, path=rn_acc_sim_fig, vis=False)
+
+        if os.path.isfile(rn_acc_pr):
+            tmp_rn_acc_pr_list = pickle.load(open(rn_acc_pr, "rb"))
+            rn_acc_pr_dic[rn_acc_sim_thre] = tmp_rn_acc_pr_list
+        else:
+            tmp_rn_acc_pr_list = []
+            for rn_sim_recall in sim_recall_list:
+                rn_acc_tmp_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_full_topo19_rn_rd,
+                                                           base_topo=rn_acc_tmp_topo,
+                                                           full_topo=acc_full_topo19_rn_rd,
+                                                           sim_mat=acc_full_topo19_rn_rd_sim_mat,
+                                                           sim=rn_sim_recall,
+                                                           top=1, gdis=3.0, topo_num=len(rn_acc_tmp_topo),
+                                                           info="Daquan19RN.BuildSim{:.2f}.TopoNum{:d}".format(
+                                                               rn_acc_sim_thre, len(rn_acc_tmp_topo)))
+                tmp_rn_acc_pr_list.append(rn_acc_tmp_pr)
+            pickle.dump(tmp_rn_acc_pr_list, open(rn_acc_pr, "wb"))
+            rn_acc_pr_dic[rn_acc_sim_thre] = tmp_rn_acc_pr_list
+            # Base.plot_pr(tmp_rn_acc_pr_list)
         print("RN ACC PR:\n" + str(tmp_rn_acc_pr_list))
     if not os.path.isfile(rn_acc_pr_dic_save):
         pickle.dump(rn_acc_pr_dic, open(rn_acc_pr_dic_save, "wb"))
@@ -562,19 +694,18 @@ if __name__ == "__main__":
     # Base.plot_pr(app_17_pr_list)
     """
 
-    """ 16 rn acc
+    # """ 16 rn acc
     if os.path.isfile("/home/qh/YES/dlut/rn_acc_16_val.pkl"):
         rn_acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_16_val.pkl", "rb"))
     else:
-        acc_full_topo19_rn = GetAccFullTopoRemoveNone("/home/qh/YES/dlut/Daquan19")
-        save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_matrn.pkl"
-        acc_full_topo19_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, None)
-        acc_full_topo16_rn = GetAccFullTopoRemoveNone("/home/qh/YES/dlut/Daquan16")
-        save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_to19rn.pkl"
+        acc_full_topo19_rn = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19")
+        acc_full_topo16_rn = GetAccFullTopoRemoveNone16("/home/qh/YES/dlut/Daquan16")
+        save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_to19_rn.pkl"
         acc_full_topo16_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo16_rn)
         set_path = "/home/qh/YES/dlut/Daquan19"
-        rn_best_acc = 0.90
-        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
+        rn_best_acc = 0.75
+        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60] + np.arange(0.62, 0.92, 0.005).tolist() + [0.95, 0.98, 0.99]
+        # rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
         rn_acc_topo = pickle.load(
             open(os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(rn_best_acc)), "rb"))
         rn_acc_16_pr_list = []
@@ -592,24 +723,23 @@ if __name__ == "__main__":
             rn_acc_16_pr_list.append(rn_acc_16_pr)
             print(rn_acc_16_pr)
         pickle.dump(rn_acc_16_pr_list, open("/home/qh/YES/dlut/rn_acc_16_val.pkl", "wb"))
-        del acc_full_topo19_rn, acc_full_topo19_rn_sim_mat
+        del acc_full_topo19_rn
         del acc_full_topo16_rn, acc_full_topo16_rn_sim_mat
-    # Base.plot_pr(rn_acc_16_pr_list)
-    """
+    Base.plot_pr(rn_acc_16_pr_list)
+    # """
 
-    """ 17 rn acc
+    # """ 17 rn acc
     if os.path.isfile("/home/qh/YES/dlut/rn_acc_17_val.pkl"):
         rn_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_17_val.pkl", "rb"))
     else:
-        acc_full_topo19_rn = GetAccFullTopoRemoveNone("/home/qh/YES/dlut/Daquan19")
-        save_path = "/home/qh/YES/dlut/Daquan19/acc_sim_matrn.pkl"
-        acc_full_topo19_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, None)
-        acc_full_topo17_rn = GetAccFullTopoRemoveNone("/home/qh/YES/dlut/Daquan17")
-        save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_to19rn.pkl"
+        acc_full_topo19_rn = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19")
+        acc_full_topo17_rn = GetAccFullTopoRemoveNone17("/home/qh/YES/dlut/Daquan17")
+        save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_to19_rn.pkl"
         acc_full_topo17_rn_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn, save_path, acc_full_topo17_rn)
         set_path = "/home/qh/YES/dlut/Daquan19"
-        rn_best_acc = 0.90
-        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98, 0.99]
+        rn_best_acc = 0.75
+        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60] + np.arange(0.62, 0.92, 0.005).tolist() + [0.95, 0.98,
+                                                                                                             0.99]
         rn_acc_topo = pickle.load(
             open(os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(rn_best_acc)), "rb"))
         rn_acc_17_pr_list = []
@@ -627,10 +757,128 @@ if __name__ == "__main__":
             rn_acc_17_pr_list.append(rn_acc_17_pr)
             print(rn_acc_17_pr)
         pickle.dump(rn_acc_17_pr_list, open("/home/qh/YES/dlut/rn_acc_17_val.pkl", "wb"))
-        del acc_full_topo19_rn, acc_full_topo19_rn_sim_mat
+        del acc_full_topo19_rn
         del acc_full_topo17_rn, acc_full_topo17_rn_sim_mat
-    # Base.plot_pr(rn_acc_17_pr_list)
-    """
+    Base.plot_pr(rn_acc_17_pr_list)
+    # """
+
+    # """ 16 RN RD
+    if os.path.isfile("/home/qh/YES/dlut/rn_rd_acc_16_val.pkl"):
+        rn_rd_acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_rd_acc_16_val.pkl", "rb"))
+    else:
+        acc_full_topo19_rn_rd = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19", RD=True)
+        acc_full_topo16_rn_rd = GetAccFullTopoRemoveNone16("/home/qh/YES/dlut/Daquan16", RD=True)
+        save_path = "/home/qh/YES/dlut/Daquan16/acc_sim_mat_to19_rn_rd.pkl"
+        acc_full_topo16_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, acc_full_topo16_rn_rd)
+        set_path = "/home/qh/YES/dlut/Daquan19"
+        rn_best_acc = 0.90
+        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60] + np.arange(0.62, 0.92, 0.005).tolist() + [0.95, 0.98,
+                                                                                                             0.99]
+        rn_acc_topo = pickle.load(
+            open(os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(rn_best_acc)), "rb"))
+        rn_rd_acc_16_pr_list = []
+        top_, gdis_ = 10, 5.0
+        for sim_recall in rn_sim_recall_list:
+            rn_acc_16_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_full_topo19_rn_rd,
+                                                      base_topo=rn_acc_topo,
+                                                      full_topo=acc_full_topo16_rn_rd,
+                                                      sim_mat=acc_full_topo16_rn_rd_sim_mat,
+                                                      sim=sim_recall,
+                                                      top=top_, gdis=gdis_, topo_num=len(rn_acc_topo),
+                                                      info="RN")
+            if rn_acc_16_pr['precision'] == 0 and rn_acc_16_pr['recall'] == 0:
+                continue
+            rn_rd_acc_16_pr_list.append(rn_acc_16_pr)
+            print(rn_acc_16_pr)
+        pickle.dump(rn_rd_acc_16_pr_list, open("/home/qh/YES/dlut/rn_rd_acc_16_val.pkl", "wb"))
+        del acc_full_topo19_rn_rd
+        del acc_full_topo16_rn_rd, acc_full_topo16_rn_rd_sim_mat
+    Base.plot_pr(rn_rd_acc_16_pr_list)
+    # """
+
+    # """ 17 RN RD
+    if os.path.isfile("/home/qh/YES/dlut/rn_rd_acc_17_val.pkl"):
+        rn_rd_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_rd_acc_17_val.pkl", "rb"))
+    else:
+        acc_full_topo19_rn_rd = GetAccFullTopoRemoveNone19("/home/qh/YES/dlut/Daquan19", RD=True)
+        acc_full_topo17_rn_rd = GetAccFullTopoRemoveNone17("/home/qh/YES/dlut/Daquan17", RD=True)
+        save_path = "/home/qh/YES/dlut/Daquan17/acc_sim_mat_to19_rn_rd.pkl"
+        acc_full_topo17_rn_rd_sim_mat = Base.GetSimMatrixTo19(acc_full_topo19_rn_rd, save_path, acc_full_topo17_rn_rd)
+        set_path = "/home/qh/YES/dlut/Daquan19"
+        rn_best_acc = 0.90
+        rn_sim_recall_list = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60] + np.arange(0.62, 0.92, 0.005).tolist() + [0.95, 0.98,
+                                                                                                             0.99]
+        rn_acc_topo = pickle.load(
+            open(os.path.join(set_path, "topo_map/rn_acc_sim_{:.2f}.pkl".format(rn_best_acc)), "rb"))
+        rn_rd_acc_17_pr_list = []
+        top_, gdis_ = 10, 5.0
+        for sim_recall in rn_sim_recall_list:
+            rn_acc_17_pr = Base.GetPrecisionAndRecall(full_base_topo=acc_full_topo19_rn_rd,
+                                                      base_topo=rn_acc_topo,
+                                                      full_topo=acc_full_topo17_rn_rd,
+                                                      sim_mat=acc_full_topo17_rn_rd_sim_mat,
+                                                      sim=sim_recall,
+                                                      top=top_, gdis=gdis_, topo_num=len(rn_acc_topo),
+                                                      info="RN")
+            if rn_acc_17_pr['precision'] == 0 and rn_acc_17_pr['recall'] == 0:
+                continue
+            rn_rd_acc_17_pr_list.append(rn_acc_17_pr)
+            print(rn_acc_17_pr)
+        pickle.dump(rn_rd_acc_17_pr_list, open("/home/qh/YES/dlut/rn_rd_acc_17_val.pkl", "wb"))
+        del acc_full_topo19_rn_rd
+        del acc_full_topo17_rn_rd, acc_full_topo17_rn_rd_sim_mat
+    Base.plot_pr(rn_rd_acc_17_pr_list)
+    # """
+
+    # """ RN RD 对比
+    if True:
+        row_size, col_size = 1, 1
+        fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+        title_label = "VS"
+        rn_acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_16_val.pkl", "rb"))
+        rn_rd_acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_rd_acc_16_val.pkl", "rb"))
+        ax1 = plt.subplot(row_size, col_size, 1)
+        ax1.set_aspect('equal', adjustable='box')
+        plt.xlim(0, 1.1)
+        plt.ylim(0, 1.1)
+        x, y, area, num = Base.GetPrData(rn_acc_16_pr_list)
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="o", s=10, color="black")
+        x, y, area, num = Base.GetPrData(rn_rd_acc_16_pr_list)
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="v", s=10, color="black")
+        ax1.legend(loc="best")
+        plt.xlabel("recall", fontsize=16)
+        plt.title("Daquan 16", fontsize=15)
+        plt.show()
+        plt.close()
+    if True:
+        row_size, col_size = 1, 1
+        fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
+        title_label = "VS"
+        rn_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_17_val.pkl", "rb"))
+        rn_rd_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_rd_acc_17_val.pkl", "rb"))
+        ax2 = plt.subplot(row_size, col_size, 1)
+        ax2.set_aspect('equal', adjustable='box')
+        plt.xlim(0, 1.1)
+        plt.ylim(0, 1.1)
+        x, y, area, num = Base.GetPrData(rn_acc_17_pr_list)
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="o", s=10, color="black")
+        f1 = max([2 * x[i] * y[i] / (x[i] + y[i]) for i in range(len(x))])
+        x, y, area, num = Base.GetPrData(rn_rd_acc_17_pr_list)
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic {:.4f} {:.4f}".format(area, f1), alpha=0.9)
+        plt.scatter(x, y, marker="v", s=10, color="black")
+        ax2.legend(loc="best")
+        plt.xlabel("recall", fontsize=16)
+        plt.title("Daquan 17", fontsize=15)
+        # plt.savefig("/home/qh/YES/dlut/compare.png", dpi=600, transparent=True)
+        plt.show()
+        plt.close()
+    # """
 
     """ 细节展示
     acc_full_topo19 = GetAccFullTopo("/home/qh/YES/dlut/Daquan19")
@@ -742,40 +990,46 @@ if __name__ == "__main__":
     row_size, col_size = 1, 1
     fig, ax = plt.subplots(row_size, col_size, figsize=(24, 13.5))
     title_label = "VS"
-    if True:
+    if False:
         app_16_pr_list = pickle.load(open("/home/qh/YES/dlut/app_16_val.pkl", "rb"))
         acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/acc_16_val.pkl", "rb"))
+        rn_acc_16_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_16_val.pkl", "rb"))
         ax1 = plt.subplot(row_size, col_size, 1)
         ax1.set_aspect('equal', adjustable='box')
         plt.xlim(0, 1.1)
         plt.ylim(0, 1.1)
-        x, y, area, num = Base.GetPrData(app_16_pr_list)
-        plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
-        plt.scatter(x, y, marker="^", s=10, color="black")
-        # x, y, area, num = Base.GetPrData(rn_acc_16_pr_list)
+        # x, y, area, num = Base.GetPrData(app_16_pr_list)
+        # plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
+        # plt.scatter(x, y, marker="^", s=10, color="black")
+        x, y, area, num = Base.GetPrData(rn_acc_16_pr_list)
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw".format(num, area), alpha=0.9)
         # plt.plot(x, y, lw="2", color="#fddf8b", label="rn acc {:d} {:.5f}".format(num, area), alpha=0.9)
-        # plt.scatter(x, y, marker="o", s=10, color="black")
+        plt.scatter(x, y, marker="o", s=10, color="black")
         x, y, area, num = Base.GetPrData(acc_16_pr_list)
-        plt.plot(x, y, lw="2", color="#0d5b26", label="acc {:d} {:.5f}".format(num, area), alpha=0.9)
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic".format(num, area), alpha=0.9)
         plt.scatter(x, y, marker="v", s=10, color="black")
         ax1.legend(loc="best")
         plt.xlabel("recall", fontsize=16)
         plt.title("Daquan 16", fontsize=15)
-    if False:
+    if True:
         app_17_pr_list = pickle.load(open("/home/qh/YES/dlut/app_17_val.pkl", "rb"))
         acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/acc_17_val.pkl", "rb"))
+        rn_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_acc_17_val.pkl", "rb"))
+        # rn_rd_acc_17_pr_list = pickle.load(open("/home/qh/YES/dlut/rn_rd_acc_17_val.pkl", "rb"))
         ax2 = plt.subplot(row_size, col_size, 1)
         ax2.set_aspect('equal', adjustable='box')
         plt.xlim(0, 1.1)
         plt.ylim(0, 1.1)
-        x, y, area, num = Base.GetPrData(app_17_pr_list)
-        plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
-        plt.scatter(x, y, marker="^", s=10, color="black")
-        # x, y, area, num = Base.GetPrData(rn_acc_17_pr_list)
+        # x, y, area, num = Base.GetPrData(app_17_pr_list)
+        # plt.plot(x, y, lw="2", color="#52b9d8", label="app {:d} {:.5f}".format(num, area), alpha=0.9)
+        # plt.scatter(x, y, marker="^", s=10, color="black")
+        x, y, area, num = Base.GetPrData(rn_acc_17_pr_list)
+        plt.plot(x, y, lw="2", color="#fddf8b", label="raw".format(num, area), alpha=0.9)
         # plt.plot(x, y, lw="2", color="#fddf8b", label="rn acc {:d} {:.5f}".format(num, area), alpha=0.9)
-        # plt.scatter(x, y, marker="o", s=10, color="black")
+        plt.scatter(x, y, marker="o", s=10, color="black")
         x, y, area, num = Base.GetPrData(acc_17_pr_list)
-        plt.plot(x, y, lw="2", color="#0d5b26", label="acc {:d} {:.5f}".format(num, area), alpha=0.9)
+        plt.plot(x, y, lw="2", color="#0d5b26", label="remove dynamic".format(num, area), alpha=0.9)
+        # plt.plot(x, y, lw="2", color="#0d5b26", label="acc {:d} {:.5f}".format(num, area), alpha=0.9)
         plt.scatter(x, y, marker="v", s=10, color="black")
         ax2.legend(loc="best")
         plt.xlabel("recall", fontsize=16)

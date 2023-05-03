@@ -1160,6 +1160,25 @@ def GetInRange(points, min_dis, max_dis, d_l, u_l):
     return ans[0:ind, :]
 
 
+# 点云投影后保留要求范围中的点
+@numba.jit(nopython=True)
+def GetInRange(points, min_dis, max_dis):
+    points = points[:, 0:3]
+    point_size = points.shape[0]
+    ans = np.zeros((point_size, 3), dtype=np.float32)
+    ind = 0
+    for i in range(point_size):
+        this_point = points[i, :]
+        range_ = np.linalg.norm(this_point)
+        if range_ < min_dis or range_ > max_dis:
+            continue
+        ans[ind, :] = points[i, :]
+        ind += 1
+
+    return points[::5, :]
+
+
+
 # 使用比例法，统计每个栅格击中和击穿的计数，通过计数来删除击中占比小的栅格，来删除动态障碍
 class VoxelMap2:
     def __init__(self, save_path, bin_list, hit_thres=0.05, voxel_size=0.1):
@@ -1206,7 +1225,7 @@ class VoxelMap2:
         proc_count = 0
         for _, _, bin_file, bin_p, bin_r in self.bin_list:
             l_points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
-            l_points = GetInRange(l_points, min_dis=5.0, max_dis=100.0, d_l=10, u_l=60)
+            l_points = GetInRange(l_points, min_dis=5.0, max_dis=80.0)
             g_points = TransPointCloud(l_points, bin_r, bin_p)
             for i in range(g_points.shape[0]):
                 point = g_points[i, :]
@@ -1228,7 +1247,7 @@ class VoxelMap2:
         proc_count = 0
         for _, _, bin_file, bin_p, bin_r in self.bin_list:
             l_points = np.fromfile(bin_file, dtype=np.float32).reshape((-1, 4))[:, 0:3]
-            l_points = GetInRange(l_points, min_dis=5, max_dis=100, d_l=10, u_l=60)
+            l_points = GetInRange(l_points, min_dis=5.0, max_dis=80.0)
             g_points = TransPointCloud(l_points, bin_r, bin_p)
             for i in range(g_points.shape[0]):
                 point = g_points[i, :]

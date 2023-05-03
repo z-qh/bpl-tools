@@ -29,20 +29,22 @@ def visOxfordDynamic():
 
 
 def visDaquan():
+    # [18500:20500]
     bin_list19 = Daquan.GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan19", "bin"),
                                    bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan19", "timestamp"),
                                    pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan19", "liosave/sam2.txt"),
-                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan19", "bin_info.pkl"))[18500:20500]
+                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan19", "bin_info.pkl"))
 
+    # [21400:24000]
     bin_list16 = Daquan.GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan16", "bin"),
                                    bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan16", "timestamp"),
                                    pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan16", "liosave/sam2.txt"),
-                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan16", "bin_info.pkl"))[21400:24000]
-
+                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan16", "bin_info.pkl"))
+    # [19900:22200]
     bin_list17 = Daquan.GetBinList(bin_dir=os.path.join("/home/qh/YES/dlut/Daquan17", "bin"),
                                    bin_times_file=os.path.join("/home/qh/YES/dlut/Daquan17", "timestamp"),
                                    pose_vec_file=os.path.join("/home/qh/YES/dlut/Daquan17", "liosave/sam2.txt"),
-                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan17", "bin_info.pkl"))[19900:22200]
+                                   save_path=os.path.join("/home/qh/YES/dlut/Daquan17", "bin_info.pkl"))
 
     vis = o3d.visualization.Visualizer()
     vis.create_window()
@@ -50,26 +52,18 @@ def visDaquan():
     to_reset = True
     vis.add_geometry(pointcloud)
     for i in range(0, len(bin_list16), 1):
-        # if 18500 <= i < 20500:
-            # if 17300 <= i < 17700 or 18750 <= i < 19200 or 11400 <= i < 12500: #16
-            # if 10050 <= i < 11000 or 16200 <= i < 16500 or 14900 <= i < 15250:#17
-            # print("\r", i, end="")
-        # else:
-        #     continue
         f = bin_list16[i][2]
         points = np.fromfile(f, dtype=np.float32).reshape((-1, 4))[:, 0:3]
         pointcloud.points = o3d.utility.Vector3dVector(points)
         vis.update_geometry(pointcloud)
-        # if i % 1000 == 0:
-        #     a = input()
+        if i % 100 == 0:
+            a = input()
         if to_reset:
             vis.reset_view_point(True)
             to_reset = False
         vis.poll_events()
         vis.update_renderer()
         print("\r", i, end="")
-    # 9K-11K + 16K-19K
-
 
 if __name__ == "__main__":
     visDaquan()

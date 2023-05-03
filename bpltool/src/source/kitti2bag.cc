@@ -491,6 +491,7 @@ int main(int argc, char** argv){
     // kitti seq06WithGNSS("/home/qh/kitti/06", "/home/qh/kitti/seq06.bag", 0, 0, 1100);
     // kitti seq07WithGNSS("/home/qh/kitti/07", "/home/qh/kitti/seq07.bag", 0, 0, 1100);
     // 0 - 500 GT的高度有点问题还是抛弃吧
-    kitti seq08WithGNSS("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 500, 4070);
+    // kitti seq08WithGNSS("/home/qh/kitti/08", "/home/qh/kitti/seq08.bag", 1100, 0, 4070);
+    kitti seq09WithGNSS("/home/qh/kitti/09", "/home/qh/kitti/seq09.bag", 0, 0, 1590);
     return 0;
 }

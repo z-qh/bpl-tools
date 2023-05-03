@@ -266,6 +266,7 @@ target_link_libraries(steer_test ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_L
 # #
 add_executable(pole_release src/source/pole.cpp)
 target_link_libraries(pole_release ${bpl_LIBS})
+target_compile_options(pole_release PRIVATE -O3)
 
 add_executable(pole_debug src/source/pole.cpp)
 target_link_libraries(pole_debug ${bpl_LIBS})

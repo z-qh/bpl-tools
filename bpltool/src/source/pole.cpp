@@ -1156,16 +1156,25 @@ void process(const sensor_msgs::PointCloud2ConstPtr &rec, nav_msgs::Odometry& od
     PoseType::Ptr nPoseType = std::make_shared<PoseType>(odom_id--, timestamp, nlaserOdom);
     laserOdomArray.emplace_back(nPoseType);
     if(rec_point->points.empty()) return;
+
+
+    // 发布语义兴趣点
+    pcl::PointCloud<PointType>::Ptr points_interest(new pcl::PointCloud<PointType>());
+    for(auto&p:rec_point->points) {
+        PointType pp(p);
+        pp.label = p.label & 0xFF;
+        pointAssociateToT(pp, tmp_r_w_curr, tmp_t_w_curr);
+        points_interest->emplace_back(pp);
+    }
+    // points_interest->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
+    points_interest->header.stamp = pcl_conversions::toPCL(ros::Time().now());
+    points_interest->header.frame_id = "map";
+    pub_pcl_interest.publish(points_interest);
+
     double feel_range = -DBL_MAX;
     auto points_interest_serial = GetFilteredInterestSerial(rec_point, interest_labels, feel_range);
     if( points_interest_serial!=nullptr && points_interest_serial->points.empty()) return;
 
-    // 发布语义兴趣点
-    pcl::PointCloud<PointType>::Ptr points_interest(new pcl::PointCloud<PointType>());
-    for(auto&p:points_interest_serial->points) points_interest->emplace_back(p);
-    points_interest->header.stamp = pcl_conversions::toPCL(ros::Time().fromSec(timestamp));
-    points_interest->header.frame_id = "map";
-    pub_pcl_interest.publish(points_interest);
     
 
     // cluster

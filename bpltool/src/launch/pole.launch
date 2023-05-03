@@ -1,12 +1,9 @@
 <!-- -*- mode: XML -*- -->
 <launch>
-
-
-
     <node pkg="bpltool" type="pole_release" name="pole" output="screen">
-        <param name="bagPath" value="/home/qh/bin2bag/gnss.bag"/>
-        <param name="odomTopic" value="/aft_mapped_to_init">
-        <!--param name="odomTopic" value="/aft_mapped_to_init"-->
+        <!-- param name="bagPath" value="/home/qh/bin2bag/gnss.bag"/-->
+        <!-- param name="odomTopic" value="/aft_mapped_to_init"/-->
+        <!-- param name="odomTopic" value="/aft_mapped_to_init"-->
     </node>
     <arg name="rviz" default="true" />
     <group if="$(arg rviz)">
